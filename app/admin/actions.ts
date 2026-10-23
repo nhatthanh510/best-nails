@@ -285,19 +285,23 @@ export async function redeemBirthday(customerId: string): Promise<ActionState> {
 // Settings & kiosks
 // ---------------------------------------------------------------------------
 
-const settingsSchema = z.object({
-  points_per_visit: z.coerce.number().int().min(1).max(10000),
-  checkin_cooldown_hours: z.coerce.number().int().min(0).max(168),
-  kiosk_idle_seconds: z.coerce.number().int().min(10).max(600),
-  timezone: z.string().refine((tz) => {
-    try {
-      new Intl.DateTimeFormat("en-US", { timeZone: tz });
-      return true;
-    } catch {
-      return false;
-    }
-  }, "Unknown timezone."),
-});
+const settingsSchema = z
+  .object({
+    points_per_visit: z.coerce.number().int().min(1).max(10000),
+    checkin_cooldown_hours: z.coerce.number().int().min(0).max(168),
+    kiosk_idle_seconds: z.coerce.number().int().min(10).max(600),
+    tier_regular_visits: z.coerce.number().int().min(1).max(9999),
+    tier_vip_visits: z.coerce.number().int().min(2).max(10000),
+    timezone: z.string().refine((tz) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Unknown timezone."),
+  })
+  .refine((s) => s.tier_vip_visits > s.tier_regular_visits, { message: "VIP needs more visits than Regular." });
 
 export async function saveSettings(_: ActionState, formData: FormData): Promise<ActionState> {
   const staff = await requireStaff();

@@ -1,6 +1,6 @@
 -- Run with: npx supabase test db
 begin;
-select plan(37);
+select plan(38);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -111,6 +111,10 @@ select lives_ok(
 select throws_ok(
   $$ insert into public.customers (phone, first_name, birthday_month, birthday_day) values ('+61400000231', 'Bad', 2, 31) $$,
   '23514', null, '31 February is rejected');
+
+select throws_ok(
+  $$ update public.settings set tier_regular_visits = 20, tier_vip_visits = 10 where id $$,
+  '23514', null, 'VIP threshold must be above Regular');
 
 select * from finish();
 rollback;

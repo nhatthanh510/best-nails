@@ -59,6 +59,30 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
         </Card>
 
         <Card className="flex flex-col gap-5 p-6">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-extrabold">Customer tiers</h2>
+            <p className="text-sm text-muted-foreground">Based on total visits. Shown in the admin so you can spot your regulars.</p>
+          </div>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4.5">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tier_regular_visits">Regular from</Label>
+              <div className="flex items-center gap-2">
+                <Input id="tier_regular_visits" name="tier_regular_visits" type="number" min={1} max={9999} required defaultValue={s.tier_regular_visits} className="w-28" />
+                <span className="text-sm font-semibold">visits</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tier_vip_visits">VIP from</Label>
+              <div className="flex items-center gap-2">
+                <Input id="tier_vip_visits" name="tier_vip_visits" type="number" min={2} max={10000} required defaultValue={s.tier_vip_visits} className="w-28" />
+                <span className="text-sm font-semibold">visits</span>
+              </div>
+              <Hint>Below the Regular number, customers are New.</Hint>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="flex flex-col gap-5 p-6">
           <h2 className="text-lg font-extrabold">Kiosk &amp; shop</h2>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4.5">
             <div className="flex flex-col gap-2">
@@ -83,7 +107,7 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
                   </option>
                 ))}
               </select>
-              <Hint>Used for “today”, weekday promotions and birthdays.</Hint>
+              <Hint>Used for “today”, reports and birthdays.</Hint>
             </div>
           </div>
         </Card>

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 import type { BirthdayStatus, Reward } from "@/lib/rewards";
 import { isBirthdayOn } from "@/lib/birthday";
+import { tierRange, type Tier, type TierThresholds } from "@/lib/tiers";
 
 // Every read starts with requireStaff(): RLS would return nothing to a non-staff user anyway,
 // but this sends them to the login page instead of showing an empty admin.
@@ -12,7 +13,7 @@ type Tables = Database["public"]["Tables"];
 export type Customer = Tables["customers"]["Row"];
 export type Settings = Tables["settings"]["Row"];
 export type CheckInRow = Tables["check_ins"]["Row"] & {
-  customer: Pick<Customer, "id" | "first_name" | "last_name" | "phone"> | null;
+  customer: Pick<Customer, "id" | "first_name" | "last_name" | "phone" | "visit_count"> | null;
 };
 export type LedgerRow = Tables["point_transactions"]["Row"];
 export type BirthdayRedemption = Tables["birthday_redemptions"]["Row"];
@@ -73,7 +74,7 @@ export async function getDashboard() {
   const [checkIns, newCustomers, total, active, redeemed, birthdays] = await Promise.all([
     supabase
       .from("check_ins")
-      .select("*, customer:customers(id, first_name, last_name, phone)")
+      .select("*, customer:customers(id, first_name, last_name, phone, visit_count)")
       .gte("created_at", today)
       .order("created_at", { ascending: false })
       .limit(50),
@@ -94,6 +95,19 @@ export async function getDashboard() {
     redeemedThisMonth: redeemed.count ?? 0,
     birthdayDiscountsThisMonth: birthdays.count ?? 0,
   };
+}
+
+/** How many customers are in each tier. */
+export async function getTierCounts(tiers: TierThresholds): Promise<Record<Tier, number>> {
+  const { supabase } = await staffClient();
+  const count = async (tier: Tier) => {
+    const { min, max } = tierRange(tier, tiers);
+    let q = supabase.from("customers").select("id", { count: "exact", head: true }).gte("visit_count", min);
+    if (max !== null) q = q.lt("visit_count", max);
+    return (await q).count ?? 0;
+  };
+  const [vip, regular, fresh] = await Promise.all([count("vip"), count("regular"), count("new")]);
+  return { vip, regular, new: fresh };
 }
 
 /** Customers whose birthday falls in the next 7 days (shop calendar). */
@@ -120,11 +134,21 @@ export async function getUpcomingBirthdays(timezone: string) {
 // Customers
 // ---------------------------------------------------------------------------
 
-export const CUSTOMER_FILTERS = ["all", "recent", "birthday", "lapsed"] as const;
+export const CUSTOMER_FILTERS = ["all", "vip", "regular", "recent", "birthday", "lapsed"] as const;
 export type CustomerFilter = (typeof CUSTOMER_FILTERS)[number];
 export const PAGE_SIZE = 25;
 
-export async function listCustomers({ q, filter, page }: { q: string; filter: CustomerFilter; page: number }) {
+export async function listCustomers({
+  q,
+  filter,
+  page,
+  tiers,
+}: {
+  q: string;
+  filter: CustomerFilter;
+  page: number;
+  tiers: TierThresholds;
+}) {
   const { supabase } = await staffClient();
   let query = supabase.from("customers").select("*", { count: "exact" });
 
@@ -144,6 +168,11 @@ export async function listCustomers({ q, filter, page }: { q: string; filter: Cu
   if (filter === "recent") query = query.gte("last_visit_at", new Date(now - 30 * DAY_MS).toISOString());
   if (filter === "lapsed") query = query.or(`last_visit_at.lt.${new Date(now - 90 * DAY_MS).toISOString()},last_visit_at.is.null`);
   if (filter === "birthday") query = query.eq("birthday_month", shopDate(await shopTimezone(supabase)).month);
+  if (filter === "vip" || filter === "regular") {
+    const { min, max } = tierRange(filter, tiers);
+    query = query.gte("visit_count", min);
+    if (max !== null) query = query.lt("visit_count", max);
+  }
 
   const from = (page - 1) * PAGE_SIZE;
   const { data, count, error } = await query
@@ -185,7 +214,7 @@ export async function listCheckIns({ range, source }: { range: CheckInRange; sou
   const since = await dayStart(supabase, CHECK_IN_RANGES[range]);
   let query = supabase
     .from("check_ins")
-    .select("*, customer:customers(id, first_name, last_name, phone)")
+    .select("*, customer:customers(id, first_name, last_name, phone, visit_count)")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(500);

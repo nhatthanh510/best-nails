@@ -2,8 +2,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, td, th } from "@/components/admin/ui";
-import { getDashboard, getSettings, getUpcomingBirthdays, listRewards } from "@/lib/admin-data";
+import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
+import { getDashboard, getSettings, getTierCounts, getUpcomingBirthdays, listRewards } from "@/lib/admin-data";
+import { tierFor } from "@/lib/tiers";
 import { birthdayWindowLabel } from "@/lib/rewards";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatTime, fullName } from "@/lib/format";
@@ -21,7 +22,12 @@ export default function DashboardPage() {
 async function Dashboard() {
   const settings = await getSettings();
   const tz = settings.timezone;
-  const [stats, rewards, birthdays] = await Promise.all([getDashboard(), listRewards(), getUpcomingBirthdays(tz)]);
+  const [stats, rewards, birthdays, tiers] = await Promise.all([
+    getDashboard(),
+    listRewards(),
+    getUpcomingBirthdays(tz),
+    getTierCounts(settings),
+  ]);
   const activeRewards = rewards.filter((r) => r.is_active);
 
   return (
@@ -79,9 +85,12 @@ async function Dashboard() {
                   <td className={`${td} text-muted-foreground tabular-nums`}>{formatTime(c.created_at, tz)}</td>
                   <td className={`${td} font-bold`}>
                     {c.customer && (
-                      <Link href={`/admin/customers/${c.customer.id}`} className="hover:underline">
-                        {fullName(c.customer)}
-                      </Link>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Link href={`/admin/customers/${c.customer.id}`} className="hover:underline">
+                          {fullName(c.customer)}
+                        </Link>
+                        <TierBadge tier={tierFor(c.customer.visit_count, settings)} />
+                      </span>
                     )}
                   </td>
                   <td className={`${td} text-muted-foreground tabular-nums`}>{c.customer && formatPhone(c.customer.phone)}</td>
@@ -122,6 +131,40 @@ async function Dashboard() {
                   <span className="text-right">{birthdayWindowLabel(settings.birthday_window_days).replace("your ", "")}</span>
                 </li>
               )}
+            </ul>
+          </Card>
+          <Card className="flex flex-col gap-3 p-5">
+            <h2 className="text-lg font-extrabold">Customer tiers</h2>
+            <ul className="flex flex-col gap-2 text-sm">
+              {(
+                [
+                  ["vip", `${settings.tier_vip_visits}+ visits`, "/admin/customers?filter=vip"],
+                  ["regular", `${settings.tier_regular_visits}–${settings.tier_vip_visits - 1} visits`, "/admin/customers?filter=regular"],
+                  ["new", `under ${settings.tier_regular_visits} visits`, null],
+                ] as const
+              ).map(([tier, range, href]) => {
+                const row = (
+                  <>
+                    <span className="flex items-center gap-2">
+                      <TierBadge tier={tier} showNew />
+                      <span className="text-muted-foreground">{range}</span>
+                    </span>
+                    <span className="font-extrabold tabular-nums">{tiers[tier].toLocaleString()}</span>
+                  </>
+                );
+                const cls = "flex items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5";
+                return (
+                  <li key={tier}>
+                    {href ? (
+                      <Link href={href} className={`${cls} hover:bg-muted`}>
+                        {row}
+                      </Link>
+                    ) : (
+                      <div className={cls}>{row}</div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </Card>
           <Card className="flex flex-col gap-3 p-5">

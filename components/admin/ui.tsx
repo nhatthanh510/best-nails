@@ -1,4 +1,6 @@
+import { Crown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TIER_LABELS, type Tier } from "@/lib/tiers";
 
 export function PageHeader({
   title,
@@ -77,5 +79,23 @@ export function EmptyRow({ colSpan, children }: { colSpan: number; children: Rea
         {children}
       </td>
     </tr>
+  );
+}
+
+const TIER_STYLES: Record<Tier, string> = {
+  vip: "bg-foreground text-background",
+  regular: "bg-accent text-accent-foreground",
+  new: "bg-secondary text-muted-foreground",
+};
+
+/** Customer tier from total visits. New is only shown when `showNew` is set, to keep lists quiet. */
+export function TierBadge({ tier, showNew = false }: { tier: Tier; showNew?: boolean }) {
+  if (tier === "new" && !showNew) return null;
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold", TIER_STYLES[tier])}>
+      {tier === "vip" && <Crown className="size-3.5" aria-hidden="true" />}
+      {tier === "regular" && <Star className="size-3.5" aria-hidden="true" />}
+      {TIER_LABELS[tier]}
+    </span>
   );
 }

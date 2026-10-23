@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { Avatar, Card, DataTable, EmptyRow, StatTile, td, th } from "@/components/admin/ui";
+import { Avatar, Card, DataTable, EmptyRow, StatTile, TierBadge, td, th } from "@/components/admin/ui";
+import { TIER_LABELS, nextTier, tierFor } from "@/lib/tiers";
 import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
 import { getCustomer, getSettings, staffNames } from "@/lib/admin-data";
 import { requireStaff } from "@/lib/auth";
@@ -58,7 +59,10 @@ async function CustomerDetail({ params }: { params: PageProps<"/admin/customers/
         <div className="flex items-center gap-4.5">
           <Avatar text={initials(c)} size="lg" />
           <div className="flex flex-col gap-1">
-            <h1 className="text-[26px] font-extrabold tracking-tight">{fullName(c)}</h1>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[26px] font-extrabold tracking-tight">{fullName(c)}</h1>
+              <TierBadge tier={tierFor(c.visit_count, settings)} showNew />
+            </div>
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span className="tabular-nums">
                 {formatPhone(c.phone)}
@@ -80,7 +84,7 @@ async function CustomerDetail({ params }: { params: PageProps<"/admin/customers/
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
         <StatTile label="Points balance" value={c.points_balance} />
-        <StatTile label="Visits" value={c.visit_count} />
+        <StatTile label="Visits" value={c.visit_count} hint={tierHint(c.visit_count, settings)} />
         <StatTile label="Last visit" value={formatLastVisit(c.last_visit_at, tz)} />
         <StatTile label="Lifetime points" value={c.lifetime_points} />
       </div>
@@ -212,4 +216,10 @@ function birthdayHint(b: BirthdayStatus) {
   if (b.eligible) return b.days_away === 0 ? "Today is their birthday!" : "Available now";
   const until = (b.days_away ?? 0) - (b.window_days ?? 0);
   return until > 0 ? `Available in ${until} day${until === 1 ? "" : "s"}` : "This year's birthday window has passed";
+}
+
+function tierHint(visits: number, tiers: Parameters<typeof nextTier>[1]) {
+  const next = nextTier(visits, tiers);
+  if (!next) return "Top tier";
+  return `${next.visitsToGo} more visit${next.visitsToGo === 1 ? "" : "s"} to ${TIER_LABELS[next.tier]}`;
 }

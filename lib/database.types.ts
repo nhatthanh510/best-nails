@@ -139,14 +139,14 @@ isOneToOne: false
                   ]
                 },"settings": {
                   Row: {
-                    "birthday_discount_enabled": boolean,"birthday_discount_percent": number,"birthday_window_days": number,"checkin_cooldown_hours": number,"id": boolean,"kiosk_idle_seconds": number,"points_per_visit": number,"signup_bonus": number,"timezone": string,"updated_at": string
+                    "birthday_discount_enabled": boolean,"birthday_discount_percent": number,"birthday_window_days": number,"checkin_cooldown_hours": number,"id": boolean,"kiosk_idle_seconds": number,"points_per_visit": number,"signup_bonus": number,"tier_regular_visits": number,"tier_vip_visits": number,"timezone": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"checkin_cooldown_hours"?: number,"id"?: boolean,"kiosk_idle_seconds"?: number,"points_per_visit"?: number,"signup_bonus"?: number,"timezone"?: string,"updated_at"?: string
+                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"checkin_cooldown_hours"?: number,"id"?: boolean,"kiosk_idle_seconds"?: number,"points_per_visit"?: number,"signup_bonus"?: number,"tier_regular_visits"?: number,"tier_vip_visits"?: number,"timezone"?: string,"updated_at"?: string
                   }
                   Update: {
-                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"checkin_cooldown_hours"?: number,"id"?: boolean,"kiosk_idle_seconds"?: number,"points_per_visit"?: number,"signup_bonus"?: number,"timezone"?: string,"updated_at"?: string
+                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"checkin_cooldown_hours"?: number,"id"?: boolean,"kiosk_idle_seconds"?: number,"points_per_visit"?: number,"signup_bonus"?: number,"tier_regular_visits"?: number,"tier_vip_visits"?: number,"timezone"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     

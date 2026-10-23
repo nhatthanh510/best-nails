@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, DataTable, EmptyRow, PageHeader, Pill, td, th } from "@/components/admin/ui";
+import { Card, DataTable, EmptyRow, PageHeader, Pill, TierBadge, td, th } from "@/components/admin/ui";
+import { tierFor } from "@/lib/tiers";
 import { ConfirmButton } from "@/components/admin/action-button";
 import { voidCheckIn } from "@/app/admin/actions";
 import { CHECK_IN_RANGES, getSettings, listCheckIns, staffNames, type CheckInRange } from "@/lib/admin-data";
@@ -101,9 +102,12 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
                 <td className={td}>
                   {r.customer && (
                     <>
-                      <Link href={`/admin/customers/${r.customer.id}`} className="font-bold hover:underline">
-                        {fullName(r.customer)}
-                      </Link>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Link href={`/admin/customers/${r.customer.id}`} className="font-bold hover:underline">
+                          {fullName(r.customer)}
+                        </Link>
+                        <TierBadge tier={tierFor(r.customer.visit_count, settings)} />
+                      </span>
                       <p className="text-[13px] text-muted-foreground tabular-nums">{formatPhone(r.customer.phone)}</p>
                     </>
                   )}

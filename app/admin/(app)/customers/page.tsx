@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { Card, DataTable, EmptyRow, PageHeader, Avatar, td, th } from "@/components/admin/ui";
+import { Card, DataTable, EmptyRow, PageHeader, Avatar, TierBadge, td, th } from "@/components/admin/ui";
+import { tierFor } from "@/lib/tiers";
 import { ActionButton } from "@/components/admin/action-button";
 import { AddCustomerButton } from "./add-customer-button";
 import { checkInCustomer } from "@/app/admin/actions";
@@ -14,6 +15,8 @@ export const metadata = { title: "Customers" };
 
 const FILTER_LABELS: Record<CustomerFilter, string> = {
   all: "All",
+  vip: "VIP",
+  regular: "Regular",
   recent: "Visited in 30 days",
   birthday: "Birthday this month",
   lapsed: "No visit in 90 days",
@@ -33,7 +36,8 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
   const filter = CUSTOMER_FILTERS.includes(params.filter as CustomerFilter) ? (params.filter as CustomerFilter) : "all";
   const page = Math.max(1, Number(params.page) || 1);
 
-  const [{ customers, total }, settings] = await Promise.all([listCustomers({ q, filter, page }), getSettings()]);
+  const settings = await getSettings();
+  const { customers, total } = await listCustomers({ q, filter, page, tiers: settings });
   const tz = settings.timezone;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -89,10 +93,11 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
       </div>
 
       <Card className="overflow-hidden">
-        <DataTable minWidth={820}>
+        <DataTable minWidth={900}>
           <thead className="bg-background">
             <tr>
               <th className={th}>Name</th>
+              <th className={th}>Tier</th>
               <th className={th}>Phone</th>
               <th className={`${th} text-right`}>Points</th>
               <th className={`${th} text-right`}>Visits</th>
@@ -105,7 +110,7 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
           </thead>
           <tbody>
             {customers.length === 0 && (
-              <EmptyRow colSpan={7}>{q ? `No customers match “${q}”.` : "No customers here yet."}</EmptyRow>
+              <EmptyRow colSpan={8}>{q ? `No customers match “${q}”.` : "No customers here yet."}</EmptyRow>
             )}
             {customers.map((c) => (
               <tr key={c.id} className="hover:bg-background/60">
@@ -114,6 +119,9 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
                     <Avatar text={initials(c)} />
                     {fullName(c)}
                   </Link>
+                </td>
+                <td className={td}>
+                  <TierBadge tier={tierFor(c.visit_count, settings)} showNew />
                 </td>
                 <td className={`${td} text-muted-foreground tabular-nums`}>{formatPhone(c.phone)}</td>
                 <td className={`${td} text-right font-bold tabular-nums`}>{c.points_balance}</td>
