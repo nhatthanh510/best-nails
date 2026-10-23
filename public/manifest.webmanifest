@@ -1,0 +1,11 @@
+{
+  "name": "Best Nails Check-in",
+  "short_name": "Best Nails",
+  "start_url": "/kiosk",
+  "scope": "/kiosk",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#24121f",
+  "theme_color": "#24121f",
+  "icons": [{ "src": "/favicon.ico", "sizes": "48x48", "type": "image/x-icon" }]
+}

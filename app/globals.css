@@ -1,26 +1,123 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+
+/* Landscape iPads with browser chrome, or older 768px-tall iPads */
+@custom-variant short (@media (max-height: 780px));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Status (always paired with an icon or word) */
+  --color-success: #1f5e43;
+  --color-success-soft: #e3f2ec;
+  --color-info: #1f4e79;
+  --color-info-soft: #e4eef8;
+  --color-warning: #8a4b12;
+  --color-warning-soft: #fbeee0;
+
+  /* Kiosk (dark) */
+  --color-kiosk-bg: #24121f;
+  --color-kiosk-surface: #36202f;
+  --color-kiosk-line: #4a2742;
+  --color-kiosk-accent: #f06c95;
+  --color-kiosk-ink: #fbeff3;
+  --color-kiosk-muted: #c9aebe;
+  --color-kiosk-faint: #a88e9e;
+  --color-kiosk-placeholder: #6f5468;
+  --color-kiosk-ready: #7cc6b8;
+  --color-kiosk-notice: #e8a87c;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* Admin (light) — from the Claude Design "Design tokens" board */
+  --background: #faf7f8;
+  --foreground: #24121f;
+  --card: #ffffff;
+  --card-foreground: #24121f;
+  --popover: #ffffff;
+  --popover-foreground: #24121f;
+  --primary: #b8305e;
+  --primary-foreground: #ffffff;
+  --secondary: #f3ecef;
+  --secondary-foreground: #24121f;
+  --muted: #f3ecef;
+  --muted-foreground: #6b5866;
+  --accent: #fbe7ee;
+  --accent-foreground: #8c1f45;
+  --destructive: #a3242f;
+  --border: #eadfe4;
+  --input: #d9cbd2;
+  --ring: #b8305e;
+  --chart-1: #b8305e;
+  --chart-2: #1f4e79;
+  --chart-3: #1f5e43;
+  --chart-4: #b4651b;
+  --chart-5: #6b5866;
+  --radius: 0.75rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #24121f;
+  --sidebar-primary: #b8305e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fbe7ee;
+  --sidebar-accent-foreground: #8c1f45;
+  --sidebar-border: #eadfe4;
+  --sidebar-ring: #b8305e;
+}
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+  }
 }
