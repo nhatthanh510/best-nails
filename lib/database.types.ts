@@ -165,10 +165,84 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"voucher_codes": {
+                  Row: {
+                    "code": string,"created_at": string,"id": string,"max_uses": number,"uses": number,"voucher_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "code": string,"created_at"?: string,"id"?: string,"max_uses": number,"uses"?: number,"voucher_id": string
+                  }
+                  Update: {
+                    "code"?: string,"created_at"?: string,"id"?: string,"max_uses"?: number,"uses"?: number,"voucher_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "voucher_codes_voucher_id_fkey"
+      columns: ["voucher_id"]
+isOneToOne: false
+      referencedRelation: "vouchers"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"voucher_redemptions": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"customer_id": string | null,"id": string,"note": string | null,"voided_at": string | null,"voided_by": string | null,"voucher_code_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"id"?: string,"note"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null,"voucher_code_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"id"?: string,"note"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null,"voucher_code_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "voucher_redemptions_customer_id_fkey"
+      columns: ["customer_id"]
+isOneToOne: false
+      referencedRelation: "customers"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "voucher_redemptions_voucher_code_id_fkey"
+      columns: ["voucher_code_id"]
+isOneToOne: false
+      referencedRelation: "voucher_codes"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"vouchers": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"discount_type": Database["public"]['Enums']["discount_type"],"discount_value": number,"expires_on": string | null,"id": string,"is_active": boolean,"name": string,"notes": string | null,"once_per_customer": boolean,"starts_on": string | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"discount_type": Database["public"]['Enums']["discount_type"],"discount_value": number,"expires_on"?: string | null,"id"?: string,"is_active"?: boolean,"name": string,"notes"?: string | null,"once_per_customer"?: boolean,"starts_on"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"discount_type"?: Database["public"]['Enums']["discount_type"],"discount_value"?: number,"expires_on"?: string | null,"id"?: string,"is_active"?: boolean,"name"?: string,"notes"?: string | null,"once_per_customer"?: boolean,"starts_on"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 }
           }
           Views: {
-            [_ in never]: never
+            "voucher_stats": {
+                  Row: {
+                    "code_count": number | null,"shared_code": string | null,"total_uses": number | null,"used": number | null,"voucher_id": string
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "voucher_codes_voucher_id_fkey"
+      columns: ["voucher_id"]
+isOneToOne: false
+      referencedRelation: "vouchers"
+      referencedColumns: ["id"]
+    }
+                  ]
+                }
           }
           Functions: {
             "_award_check_in":
@@ -186,6 +260,9 @@ isOneToOne: false
 "_redeem_birthday":
 { Args: { "p_actor": string,"p_customer_id": string,"p_source": Database["public"]['Enums']["check_in_source"] }; Returns: Json
                            },
+"add_voucher_code":
+{ Args: { "p_code": string,"p_max_uses": number,"p_voucher_id": string }; Returns: string
+                           },
 "adjust_points":
 { Args: { "p_customer_id": string,"p_delta": number,"p_note": string }; Returns: number
                            },
@@ -197,6 +274,12 @@ isOneToOne: false
                            },
 "birthday_status":
 { Args: { "p_customer_id": string }; Returns: Json
+                           },
+"check_voucher":
+{ Args: { "p_code": string,"p_customer_id"?: string }; Returns: Json
+                           },
+"generate_voucher_codes":
+{ Args: { "p_count": number,"p_prefix": string,"p_voucher_id": string }; Returns: number
                            },
 "is_owner":
 { Args: Record<PropertyKey, never>; Returns: boolean
@@ -213,21 +296,30 @@ isOneToOne: false
 "kiosk_redeem_birthday":
 { Args: { "p_phone": string }; Returns: Json
                            },
+"normalize_voucher_code":
+{ Args: { "p_code": string }; Returns: string
+                           },
 "redeem_birthday":
 { Args: { "p_customer_id": string }; Returns: Json
                            },
 "redeem_reward":
 { Args: { "p_customer_id": string,"p_promotion_id": string }; Returns: number
                            },
+"redeem_voucher":
+{ Args: { "p_code": string,"p_customer_id"?: string,"p_note"?: string }; Returns: Json
+                           },
 "shop_day_start":
 { Args: { "p_days_ago"?: number }; Returns: string
                            },
 "void_check_in":
 { Args: { "p_check_in_id": string }; Returns: number
+                           },
+"void_voucher_redemption":
+{ Args: { "p_redemption_id": string }; Returns: undefined
                            }
           }
           Enums: {
-            "check_in_source": "kiosk"|"admin","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "owner"|"staff"
+            "check_in_source": "kiosk"|"admin","discount_type": "percent"|"amount","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "owner"|"staff"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -347,7 +439,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "check_in_source": ["kiosk", "admin"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["owner", "staff"]
+            "check_in_source": ["kiosk", "admin"],"discount_type": ["percent", "amount"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["owner", "staff"]
           }
         }
 } as const

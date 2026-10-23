@@ -4,6 +4,8 @@ Loyalty check-in for Best Nails: an iPad **kiosk** where customers type their ph
 
 **The program:** every check-in earns 1 point · 10 points = 10% off · a birthday 10% off, once a year within 7 days of the birthday. Customers can redeem either at the kiosk after checking in, or staff can redeem them in the admin.
 
+**Vouchers:** the owner creates printed discount vouchers (% or $ off) in the admin. Each is either one shared code used up to N times (e.g. `BN12345` × 100) or a batch of unique single-use codes, downloadable as a CSV for printing. Staff type the code at the front desk to check and redeem it, optionally linking the customer.
+
 Design: [Claude Design canvas](https://claude.ai/artifact/XJjpwCW4RTdw4cEqwgs45Y) (kiosk screens, admin pages, design tokens).
 
 ## Stack

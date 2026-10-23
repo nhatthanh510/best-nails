@@ -5,7 +5,9 @@ import { ChevronLeft } from "lucide-react";
 import { Avatar, Card, DataTable, EmptyRow, StatTile, TierBadge, td, th } from "@/components/admin/ui";
 import { TIER_LABELS, nextTier, tierFor } from "@/lib/tiers";
 import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
-import { getCustomer, getSettings, staffNames } from "@/lib/admin-data";
+import { customerVoucherRedemptions, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
+import { RedeemVoucher } from "@/components/admin/redeem-voucher";
+import { formatDiscount } from "@/lib/vouchers";
 import { requireStaff } from "@/lib/auth";
 import { checkInCustomer, deleteCustomer, redeemBirthday, redeemReward } from "@/app/admin/actions";
 import { formatPhone, isStandardPhone } from "@/lib/phone";
@@ -41,7 +43,13 @@ async function CustomerDetail({ params }: { params: PageProps<"/admin/customers/
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
-  const [data, settings, names, staff] = await Promise.all([getCustomer(id), getSettings(), staffNames(), requireStaff()]);
+  const [data, settings, names, staff, vouchers] = await Promise.all([
+    getCustomer(id),
+    getSettings(),
+    staffNames(),
+    requireStaff(),
+    customerVoucherRedemptions(id),
+  ]);
   if (!data) notFound();
   const { customer: c, ledger, rewards, birthday: bday, birthdayHistory } = data;
   const tz = settings.timezone;
@@ -51,6 +59,7 @@ async function CustomerDetail({ params }: { params: PageProps<"/admin/customers/
   const history = [
     ...ledger.map((t) => ({ kind: "points" as const, at: t.created_at, row: t })),
     ...birthdayHistory.map((b) => ({ kind: "birthday" as const, at: b.created_at, row: b })),
+    ...vouchers.map((v) => ({ kind: "voucher" as const, at: v.created_at, row: v })),
   ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : a.kind === "points" && b.kind === "points" ? b.row.seq - a.row.seq : 0));
 
   return (
@@ -118,6 +127,22 @@ async function CustomerDetail({ params }: { params: PageProps<"/admin/customers/
                     </td>
                     <td className={`${td} text-right tabular-nums`}>{h.row.balance_after}</td>
                   </tr>
+                ) : h.kind === "voucher" ? (
+                  <tr key={h.row.id} className={h.row.voided_at ? "text-muted-foreground line-through" : undefined}>
+                    <td className={`${td} whitespace-nowrap text-muted-foreground`}>{formatDateTime(h.row.created_at, tz)}</td>
+                    <td className={td}>
+                      <p className="font-bold">Voucher {h.row.code?.code}</p>
+                      <p className="text-[13px] text-muted-foreground">
+                        {h.row.code?.voucher
+                          ? `${formatDiscount(h.row.code.voucher.discount_type, h.row.code.voucher.discount_value)} · ${h.row.code.voucher.name}`
+                          : "Deleted voucher"}
+                        {h.row.voided_at ? " · undone" : ""}
+                      </p>
+                    </td>
+                    <td className={`${td} text-muted-foreground`}>{names.get(h.row.created_by ?? "") ?? "Staff"}</td>
+                    <td className={`${td} text-right text-muted-foreground`}>—</td>
+                    <td className={`${td} text-right`} />
+                  </tr>
                 ) : (
                   <tr key={h.row.id}>
                     <td className={`${td} whitespace-nowrap text-muted-foreground`}>{formatDateTime(h.row.created_at, tz)}</td>
@@ -180,6 +205,11 @@ async function CustomerDetail({ params }: { params: PageProps<"/admin/customers/
                 </div>
               );
             })}
+          </Card>
+
+          <Card className="flex flex-col gap-3.5 p-5">
+            <h2 className="text-lg font-extrabold">Redeem a voucher</h2>
+            <RedeemVoucher customerId={c.id} compact />
           </Card>
 
           <Card className="flex flex-col gap-3.5 p-5">

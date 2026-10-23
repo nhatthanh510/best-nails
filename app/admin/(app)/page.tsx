@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
 import { getDashboard, getSettings, getTierCounts, getUpcomingBirthdays, listRewards } from "@/lib/admin-data";
@@ -36,12 +36,20 @@ async function Dashboard() {
         title="Today at Best Nails"
         subtitle={new Date().toLocaleDateString("en-AU", { weekday: "long", month: "long", day: "numeric", timeZone: tz })}
         actions={
+          <>
+          <Button asChild variant="outline">
+            <Link href="/admin/vouchers">
+              <Ticket aria-hidden="true" />
+              Redeem voucher
+            </Link>
+          </Button>
           <Button asChild>
             <Link href="/admin/customers">
               <Plus aria-hidden="true" />
               Manual check-in
             </Link>
           </Button>
+          </>
         }
       />
 
@@ -55,8 +63,8 @@ async function Dashboard() {
         />
         <StatTile
           label="Discounts given this month"
-          value={stats.redeemedThisMonth + stats.birthdayDiscountsThisMonth}
-          hint={`${stats.redeemedThisMonth} with points · ${stats.birthdayDiscountsThisMonth} birthday`}
+          value={stats.redeemedThisMonth + stats.birthdayDiscountsThisMonth + stats.vouchersThisMonth}
+          hint={`${stats.redeemedThisMonth} points · ${stats.birthdayDiscountsThisMonth} birthday · ${stats.vouchersThisMonth} vouchers`}
         />
       </div>
 

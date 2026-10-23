@@ -5,6 +5,7 @@ import type { Database } from "@/lib/database.types";
 import type { BirthdayStatus, Reward } from "@/lib/rewards";
 import { isBirthdayOn } from "@/lib/birthday";
 import { tierRange, type Tier, type TierThresholds } from "@/lib/tiers";
+import { voucherStatus, type Voucher } from "@/lib/vouchers";
 
 // Every read starts with requireStaff(): RLS would return nothing to a non-staff user anyway,
 // but this sends them to the login page instead of showing an empty admin.
@@ -71,7 +72,7 @@ export async function getDashboard() {
   const [today, weekAgo, monthStart] = await Promise.all([dayStart(supabase), dayStart(supabase, 6), dayStart(supabase, dayOfMonth - 1)]);
   const thirtyDaysAgo = new Date(Date.now() - 30 * DAY_MS).toISOString();
 
-  const [checkIns, newCustomers, total, active, redeemed, birthdays] = await Promise.all([
+  const [checkIns, newCustomers, total, active, redeemed, birthdays, vouchers] = await Promise.all([
     supabase
       .from("check_ins")
       .select("*, customer:customers(id, first_name, last_name, phone, visit_count)")
@@ -83,6 +84,11 @@ export async function getDashboard() {
     supabase.from("customers").select("id", { count: "exact", head: true }).gte("last_visit_at", thirtyDaysAgo),
     supabase.from("point_transactions").select("id", { count: "exact", head: true }).eq("reason", "redeem").gte("created_at", monthStart),
     supabase.from("birthday_redemptions").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
+    supabase
+      .from("voucher_redemptions")
+      .select("id", { count: "exact", head: true })
+      .is("voided_at", null)
+      .gte("created_at", monthStart),
   ]);
 
   const rows = (checkIns.data ?? []) as CheckInRow[];
@@ -94,6 +100,7 @@ export async function getDashboard() {
     activeLast30Days: active.count ?? 0,
     redeemedThisMonth: redeemed.count ?? 0,
     birthdayDiscountsThisMonth: birthdays.count ?? 0,
+    vouchersThisMonth: vouchers.count ?? 0,
   };
 }
 
@@ -259,5 +266,113 @@ export async function listKiosks() {
 export async function listStaff() {
   const { supabase } = await staffClient();
   const { data } = await supabase.from("staff").select("*").order("role").order("display_name");
+  return data ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Vouchers
+// ---------------------------------------------------------------------------
+
+function isoDate({ year, month, day }: { year: number; month: number; day: number }) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export type VoucherListItem = Voucher & {
+  codeCount: number;
+  totalUses: number;
+  used: number;
+  sharedCode: string | null;
+  status: ReturnType<typeof voucherStatus>;
+};
+
+export async function listVouchers(onlyId?: string): Promise<VoucherListItem[]> {
+  const { supabase } = await staffClient();
+  let vq = supabase.from("vouchers").select("*").order("created_at", { ascending: false });
+  let sq = supabase.from("voucher_stats").select("*");
+  if (onlyId) {
+    vq = vq.eq("id", onlyId);
+    sq = sq.eq("voucher_id", onlyId);
+  }
+  const [vouchers, stats, tz] = await Promise.all([vq, sq, shopTimezone(supabase)]);
+  if (vouchers.error) throw vouchers.error;
+  const today = isoDate(shopDate(tz));
+  const byId = new Map((stats.data ?? []).map((s) => [s.voucher_id, s]));
+  return vouchers.data.map((v) => {
+    const st = byId.get(v.id);
+    const used = st?.used ?? 0;
+    const totalUses = st?.total_uses ?? 0;
+    return {
+      ...v,
+      codeCount: st?.code_count ?? 0,
+      totalUses,
+      used,
+      sharedCode: st?.shared_code ?? null,
+      status: voucherStatus(v, used, totalUses, today),
+    };
+  });
+}
+
+export type VoucherRedemptionRow = Tables["voucher_redemptions"]["Row"] & {
+  code: { code: string } | null;
+  customer: Pick<Customer, "id" | "first_name" | "last_name" | "phone"> | null;
+};
+
+const CODES_SHOWN = 500;
+
+export async function getVoucher(id: string) {
+  const { supabase } = await staffClient();
+  const [[voucher], codes, redemptions] = await Promise.all([
+    listVouchers(id),
+    supabase
+      .from("voucher_codes")
+      .select("*", { count: "exact" })
+      .eq("voucher_id", id)
+      .order("uses", { ascending: true })
+      .order("code")
+      .limit(CODES_SHOWN),
+    supabase
+      .from("voucher_redemptions")
+      .select("*, code:voucher_codes!inner(code, voucher_id), customer:customers(id, first_name, last_name, phone)")
+      .eq("code.voucher_id", id)
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
+  if (!voucher) return null;
+  return {
+    voucher,
+    codes: codes.data ?? [],
+    codesTotal: codes.count ?? 0,
+    codesShown: CODES_SHOWN,
+    redemptions: (redemptions.data ?? []) as unknown as VoucherRedemptionRow[],
+  };
+}
+
+/** All codes of a voucher, for the CSV download. */
+export async function listVoucherCodes(id: string) {
+  const { supabase } = await staffClient();
+  const rows: { code: string; max_uses: number; uses: number }[] = [];
+  // PostgREST caps responses (1000 rows by default), so page through.
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("voucher_codes")
+      .select("code, max_uses, uses")
+      .eq("voucher_id", id)
+      .order("code")
+      .range(from, from + 999);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < 1000) return rows;
+  }
+}
+
+/** A customer's voucher redemptions, for their history. */
+export async function customerVoucherRedemptions(customerId: string) {
+  const { supabase } = await staffClient();
+  const { data } = await supabase
+    .from("voucher_redemptions")
+    .select("*, code:voucher_codes(code, voucher:vouchers(name, discount_type, discount_value))")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false })
+    .limit(100);
   return data ?? [];
 }

@@ -9,6 +9,7 @@
 --   0456 789 012  Lily       birthday 3 days ago, discount already used
 --   0423 456 789  Mia        checked in 2 hours ago -> "already checked in"
 --   (03) 6234 5678 Sophie    landline, long-time member
+-- Vouchers to try at /admin/vouchers: BN12345 (15% off, 100 uses), FLYER10 batch codes ($10 off), WINTER20 (expired).
 
 -- ---------------------------------------------------------------------------
 -- Staff accounts
@@ -131,5 +132,53 @@ begin
     from public.customers where first_name = 'Lily';
 
   perform set_config('best_nails.ledger_write', 'off', true);
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Vouchers
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_today date := (now() at time zone 'Australia/Hobart')::date;
+  v_shared uuid;
+  v_batch uuid;
+  v_old uuid;
+  v_code uuid;
+  v_customers uuid[];
+  i integer;
+begin
+  select array_agg(id order by first_name) into v_customers from public.customers where visit_count > 0;
+
+  -- A flyer with one shared code, already used 6 times.
+  insert into public.vouchers (name, discount_type, discount_value, once_per_customer, expires_on, notes, created_by)
+  values ('Spring flyer 15% off', 'percent', 15, true, v_today + 60, 'Handed out at Eastlands shopping centre.',
+          '11111111-1111-4111-8111-111111111111')
+  returning id into v_shared;
+  insert into public.voucher_codes (voucher_id, code, max_uses, uses) values (v_shared, 'BN12345', 100, 6) returning id into v_code;
+  for i in 1..6 loop
+    insert into public.voucher_redemptions (voucher_code_id, customer_id, created_by, created_at)
+    values (v_code, v_customers[i], '22222222-2222-4222-8222-222222222222', now() - make_interval(days => i * 3, hours => 2));
+  end loop;
+
+  -- Numbered single-use vouchers: 50 codes FLYER10xxxxx, 4 used.
+  insert into public.vouchers (name, discount_type, discount_value, once_per_customer, created_by)
+  values ('$10 off gift vouchers', 'amount', 10, false, '11111111-1111-4111-8111-111111111111')
+  returning id into v_batch;
+  insert into public.voucher_codes (voucher_id, code, max_uses)
+  select v_batch, 'FLYER10' || lpad(n::text, 3, '0'), 1 from generate_series(1, 50) n;
+  for i in 1..4 loop
+    update public.voucher_codes set uses = 1 where code = 'FLYER10' || lpad(i::text, 3, '0') returning id into v_code;
+    insert into public.voucher_redemptions (voucher_code_id, customer_id, created_by, created_at)
+    values (v_code, case when i % 2 = 0 then v_customers[i + 2] end, '22222222-2222-4222-8222-222222222222', now() - make_interval(days => i));
+  end loop;
+
+  -- Last winter's promotion, now expired.
+  insert into public.vouchers (name, discount_type, discount_value, once_per_customer, starts_on, expires_on, created_by)
+  values ('Winter 20% off', 'percent', 20, true, v_today - 150, v_today - 60, '11111111-1111-4111-8111-111111111111')
+  returning id into v_old;
+  insert into public.voucher_codes (voucher_id, code, max_uses, uses) values (v_old, 'WINTER20', 200, 41) returning id into v_code;
+  insert into public.voucher_redemptions (voucher_code_id, created_by, created_at)
+  select v_code, '22222222-2222-4222-8222-222222222222', now() - make_interval(days => 60 + n * 2) from generate_series(1, 41) n;
 end;
 $$;

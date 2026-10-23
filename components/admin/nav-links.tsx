@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CheckSquare, Gift, LayoutGrid, Settings, Users } from "lucide-react";
+import { CheckSquare, Gift, LayoutGrid, Settings, Ticket, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -10,6 +10,7 @@ const NAV = [
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/check-ins", label: "Check-ins", icon: CheckSquare },
   { href: "/admin/rewards", label: "Rewards", icon: Gift },
+  { href: "/admin/vouchers", label: "Vouchers", icon: Ticket },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

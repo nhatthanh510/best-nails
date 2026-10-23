@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,11 +28,18 @@ export function ActionButton({
   ...props
 }: Omit<React.ComponentProps<typeof Button>, "onClick" | "action"> & { action: () => Promise<ActionState> }) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   return (
     <Button
       {...props}
       disabled={pending || props.disabled}
-      onClick={() => startTransition(async () => report(await action()))}
+      onClick={() =>
+        startTransition(async () => {
+          const result = await action();
+          report(result);
+          if (result?.ok && result.href) router.push(result.href);
+        })
+      }
     >
       {children}
     </Button>
@@ -54,6 +62,7 @@ export function ConfirmButton({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -80,6 +89,7 @@ export function ConfirmButton({
                 const result = await action();
                 report(result);
                 if (result?.ok) setOpen(false);
+                if (result?.ok && result.href) router.push(result.href);
               })
             }
           >
