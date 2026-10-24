@@ -10,7 +10,7 @@ import { KioskBrand } from "./brand";
 import { Numpad } from "./numpad";
 
 const primaryButton =
-  "flex items-center justify-center gap-3 rounded-3xl bg-kiosk-accent font-extrabold text-kiosk-bg transition-transform active:scale-[0.98] disabled:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-kiosk-ink";
+  "flex items-center justify-center gap-3 rounded-3xl bg-kiosk-accent bg-gold-sheen font-extrabold text-kiosk-bg transition-transform active:scale-[0.98] disabled:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-kiosk-ink";
 const outlineButton =
   "flex min-h-14 items-center gap-2.5 rounded-2xl border-2 border-kiosk-line px-6 text-lg font-bold text-kiosk-muted active:bg-kiosk-surface focus-visible:outline-3 focus-visible:outline-kiosk-accent";
 
@@ -190,7 +190,7 @@ export function EnterScreen(props: {
           type="button"
           onClick={props.onContinue}
           disabled={!ready || props.pending}
-          className={`${primaryButton} h-23 flex-none text-[26px] short:h-18 disabled:bg-kiosk-line disabled:text-kiosk-faint disabled:opacity-100`}
+          className={`${primaryButton} h-23 flex-none text-[26px] short:h-18 disabled:bg-kiosk-line disabled:bg-none disabled:text-kiosk-faint disabled:opacity-100`}
         >
           {props.pending ? <Spinner /> : null}
           Continue
@@ -361,7 +361,6 @@ export function SignupScreen({
       lastName: String(form.get("lastName") ?? "").trim() || undefined,
       birthdayMonth: month && day ? Number(month) : undefined,
       birthdayDay: month && day ? Number(day) : undefined,
-      smsOptIn: form.get("smsOptIn") === "on",
     });
   };
 
@@ -441,11 +440,6 @@ export function SignupScreen({
             </div>
           </fieldset>
 
-          <label className="flex min-h-12 items-center gap-3.5 text-[17px] text-kiosk-muted">
-            <input type="checkbox" name="smsOptIn" defaultChecked className="size-7 accent-kiosk-accent" />
-            Text me about my points and rewards. Reply STOP anytime.
-          </label>
-
           {error && (
             <p id="signup-error" role="alert" className="text-lg font-bold text-kiosk-notice">
               {error}
@@ -456,7 +450,6 @@ export function SignupScreen({
         <div className="flex w-[360px] flex-none flex-col gap-4.5 pt-1.5">
           <div className="flex flex-col gap-3 rounded-3xl bg-kiosk-surface p-6.5">
             <p className="text-[15px] font-bold tracking-[0.12em] text-kiosk-muted uppercase">How it works</p>
-            {content.signupBonus > 0 && <p className="text-lg leading-snug">+{content.signupBonus} welcome points today.</p>}
             <ProgramLines content={content} />
           </div>
           <button type="submit" disabled={pending} className={`${primaryButton} h-26 text-[28px]`}>
@@ -596,7 +589,7 @@ export function SuccessScreen({
   // Don't rush someone who is about to redeem; the idle timeout still applies.
   const left = useCountdown(canRedeem ? null : seconds, onDone);
   const reward = mainReward(redeem.rewards);
-  const earned = result.pointsAwarded + result.signupBonus;
+  const earned = result.pointsAwarded;
 
   return (
     <Shell centered>

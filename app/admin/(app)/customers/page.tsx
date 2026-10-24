@@ -1,12 +1,23 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Search } from "lucide-react";
-import { Card, DataTable, EmptyRow, PageHeader, Avatar, TierBadge, td, th } from "@/components/admin/ui";
+import { Card, DataTable, EmptyRow, PageHeader, Pager, SortableTh, Avatar, TierBadge, td, th } from "@/components/admin/ui";
 import { tierFor } from "@/lib/tiers";
 import { ActionButton } from "@/components/admin/action-button";
 import { AddCustomerButton } from "./add-customer-button";
 import { checkInCustomer } from "@/app/admin/actions";
-import { CUSTOMER_FILTERS, PAGE_SIZE, getSettings, listCustomers, type CustomerFilter } from "@/lib/admin-data";
+import {
+  CUSTOMER_FILTERS,
+  CUSTOMER_SORTS,
+  DEFAULT_SORT_DIR,
+  PAGE_SIZE,
+  getSettings,
+  listCustomers,
+  type CustomerFilter,
+  type CustomerSort,
+  type SortDir,
+} from "@/lib/admin-data";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatLastVisit, fullName, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -34,22 +45,38 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q.slice(0, 60) : "";
   const filter = CUSTOMER_FILTERS.includes(params.filter as CustomerFilter) ? (params.filter as CustomerFilter) : "all";
+  const sort = CUSTOMER_SORTS.includes(params.sort as CustomerSort) ? (params.sort as CustomerSort) : "last_visit";
+  const dir: SortDir = params.dir === "asc" || params.dir === "desc" ? params.dir : DEFAULT_SORT_DIR[sort];
   const page = Math.max(1, Number(params.page) || 1);
 
   const settings = await getSettings();
-  const { customers, total } = await listCustomers({ q, filter, page, tiers: settings });
+  const { customers, total, pastEnd } = await listCustomers({ q, filter, sort, dir, page, tiers: settings });
   const tz = settings.timezone;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const href = (next: Partial<{ q: string; filter: string; page: number }>) => {
+  // Every link keeps the search, filter and sort; anything that changes the list goes back to page 1.
+  const href = (next: Partial<{ q: string; filter: string; sort: CustomerSort; dir: SortDir; page: number }>) => {
     const sp = new URLSearchParams();
-    const merged = { q, filter, page: 1, ...next };
+    const merged = { q, filter, sort, dir, page: 1, ...next };
     if (merged.q) sp.set("q", merged.q);
     if (merged.filter !== "all") sp.set("filter", merged.filter);
+    if (merged.sort !== "last_visit") sp.set("sort", merged.sort);
+    if (merged.dir !== DEFAULT_SORT_DIR[merged.sort]) sp.set("dir", merged.dir);
     if (merged.page > 1) sp.set("page", String(merged.page));
     const s = sp.toString();
     return `/admin/customers${s ? `?${s}` : ""}`;
   };
+  // Clicking the sorted column flips it; another column starts in its natural direction.
+  const sortable = (column: CustomerSort, label: string, className?: string) => (
+    <SortableTh
+      label={label}
+      active={sort === column}
+      dir={dir}
+      href={href({ sort: column, dir: sort === column ? (dir === "asc" ? "desc" : "asc") : DEFAULT_SORT_DIR[column] })}
+      className={className}
+    />
+  );
+  // A stale or hand-typed page number past the end starts again from the first page.
+  if (pastEnd || (page > 1 && customers.length === 0)) redirect(href({ page: 1 }));
 
   return (
     <>
@@ -74,6 +101,8 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
             className="h-11 w-full rounded-xl border border-input bg-card pr-3.5 pl-10.5 text-[15px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
           {filter !== "all" && <input type="hidden" name="filter" value={filter} />}
+          {sort !== "last_visit" && <input type="hidden" name="sort" value={sort} />}
+          {dir !== DEFAULT_SORT_DIR[sort] && <input type="hidden" name="dir" value={dir} />}
         </form>
         <div role="group" aria-label="Filter" className="flex flex-wrap gap-2">
           {CUSTOMER_FILTERS.map((f) => (
@@ -92,17 +121,18 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <DataTable minWidth={900}>
+      <Card id="list" className="scroll-mt-4 overflow-hidden">
+        {/* Narrower screens drop columns rather than scroll: phone and tier move under the name. */}
+        <DataTable minWidth={0}>
           <thead className="bg-background">
             <tr>
-              <th className={th}>Name</th>
-              <th className={th}>Tier</th>
-              <th className={th}>Phone</th>
-              <th className={`${th} text-right`}>Points</th>
-              <th className={`${th} text-right`}>Visits</th>
-              <th className={th}>Last visit</th>
-              <th className={th}>Joined</th>
+              {sortable("name", "Name")}
+              <th className={`${th} hidden xl:table-cell`}>Tier</th>
+              <th className={`${th} hidden sm:table-cell`}>Phone</th>
+              {sortable("points", "Points", "text-right")}
+              {sortable("visits", "Visits", "hidden text-right sm:table-cell")}
+              {sortable("last_visit", "Last visit", "hidden md:table-cell")}
+              {sortable("joined", "Joined", "hidden xl:table-cell")}
               <th className={th}>
                 <span className="sr-only">Actions</span>
               </th>
@@ -115,19 +145,29 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
             {customers.map((c) => (
               <tr key={c.id} className="hover:bg-background/60">
                 <td className={td}>
-                  <Link href={`/admin/customers/${c.id}`} className="flex items-center gap-3 font-bold hover:underline">
-                    <Avatar text={initials(c)} />
-                    {fullName(c)}
+                  <Link href={`/admin/customers/${c.id}`} className="flex items-center gap-3 hover:underline">
+                    <span className="hidden sm:block">
+                      <Avatar text={initials(c)} />
+                    </span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-bold">{fullName(c)}</span>
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground tabular-nums xl:hidden">
+                        <span className="whitespace-nowrap sm:hidden">{formatPhone(c.phone)}</span>
+                        <TierBadge tier={tierFor(c.visit_count, settings)} />
+                      </span>
+                    </span>
                   </Link>
                 </td>
-                <td className={td}>
+                <td className={`${td} hidden xl:table-cell`}>
                   <TierBadge tier={tierFor(c.visit_count, settings)} showNew />
                 </td>
-                <td className={`${td} text-muted-foreground tabular-nums`}>{formatPhone(c.phone)}</td>
+                <td className={`${td} hidden whitespace-nowrap text-muted-foreground tabular-nums sm:table-cell`}>{formatPhone(c.phone)}</td>
                 <td className={`${td} text-right font-bold tabular-nums`}>{c.points_balance}</td>
-                <td className={`${td} text-right tabular-nums`}>{c.visit_count}</td>
-                <td className={`${td} text-muted-foreground`}>{formatLastVisit(c.last_visit_at, tz)}</td>
-                <td className={`${td} text-muted-foreground`}>{formatDate(c.created_at, tz, { month: "short", year: "numeric" })}</td>
+                <td className={`${td} hidden text-right tabular-nums sm:table-cell`}>{c.visit_count}</td>
+                <td className={`${td} hidden whitespace-nowrap text-muted-foreground md:table-cell`}>{formatLastVisit(c.last_visit_at, tz)}</td>
+                <td className={`${td} hidden text-muted-foreground xl:table-cell`}>
+                  {formatDate(c.created_at, tz, { month: "short", year: "numeric" })}
+                </td>
                 <td className={`${td} text-right`}>
                   <ActionButton variant="outline" size="sm" action={checkInCustomer.bind(null, c.id)}>
                     Check in
@@ -137,37 +177,9 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
             ))}
           </tbody>
         </DataTable>
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm text-muted-foreground">
-          <span>
-            {total === 0
-              ? "No results"
-              : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} of ${total.toLocaleString()}`}
-          </span>
-          <div className="flex gap-2">
-            <PageLink href={href({ page: page - 1 })} disabled={page <= 1}>
-              Previous
-            </PageLink>
-            <PageLink href={href({ page: page + 1 })} disabled={page >= pages}>
-              Next
-            </PageLink>
-          </div>
-        </div>
+        <Pager page={page} pageSize={PAGE_SIZE} total={total} href={(p) => href({ page: p })} anchor="list" />
       </Card>
     </>
   );
 }
 
-function PageLink({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
-  const cls = "flex min-h-10 items-center rounded-[10px] border px-3.5 text-sm font-semibold";
-  if (disabled)
-    return (
-      <span aria-disabled="true" className={`${cls} border-border text-muted-foreground/70`}>
-        {children}
-      </span>
-    );
-  return (
-    <Link href={href} className={`${cls} border-input bg-card text-foreground hover:bg-muted`}>
-      {children}
-    </Link>
-  );
-}

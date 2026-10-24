@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Plus, Ticket } from "lucide-react";
+import { Plus, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
-import { getDashboard, getSettings, getTierCounts, getUpcomingBirthdays, listRewards } from "@/lib/admin-data";
+import { getDashboard, getSettings, getTierCounts, getUpcomingBirthdays, giftVoucherSummary, listRewards } from "@/lib/admin-data";
+import { formatMoney } from "@/lib/gift-vouchers";
 import { tierFor } from "@/lib/tiers";
 import { birthdayWindowLabel } from "@/lib/rewards";
 import { formatPhone } from "@/lib/phone";
@@ -22,11 +23,12 @@ export default function DashboardPage() {
 async function Dashboard() {
   const settings = await getSettings();
   const tz = settings.timezone;
-  const [stats, rewards, birthdays, tiers] = await Promise.all([
+  const [stats, rewards, birthdays, tiers, gifts] = await Promise.all([
     getDashboard(),
     listRewards(),
     getUpcomingBirthdays(tz),
     getTierCounts(settings),
+    giftVoucherSummary(),
   ]);
   const activeRewards = rewards.filter((r) => r.is_active);
 
@@ -38,9 +40,9 @@ async function Dashboard() {
         actions={
           <>
           <Button asChild variant="outline">
-            <Link href="/admin/vouchers">
-              <Ticket aria-hidden="true" />
-              Redeem voucher
+            <Link href="/admin/gift-vouchers">
+              <WalletCards aria-hidden="true" />
+              Gift voucher
             </Link>
           </Button>
           <Button asChild>
@@ -63,8 +65,13 @@ async function Dashboard() {
         />
         <StatTile
           label="Discounts given this month"
-          value={stats.redeemedThisMonth + stats.birthdayDiscountsThisMonth + stats.vouchersThisMonth}
-          hint={`${stats.redeemedThisMonth} points · ${stats.birthdayDiscountsThisMonth} birthday · ${stats.vouchersThisMonth} vouchers`}
+          value={stats.redeemedThisMonth + stats.birthdayDiscountsThisMonth}
+          hint={`${stats.redeemedThisMonth} points · ${stats.birthdayDiscountsThisMonth} birthday`}
+        />
+        <StatTile
+          label="Gift voucher credit"
+          value={formatMoney(gifts.outstandingCents)}
+          hint={`Unspent on ${gifts.activeCount.toLocaleString()} voucher${gifts.activeCount === 1 ? "" : "s"}`}
         />
       </div>
 
@@ -73,16 +80,16 @@ async function Dashboard() {
           <div className="flex items-center justify-between px-5 pb-3">
             <h2 className="text-lg font-extrabold">Today&apos;s check-ins</h2>
             <Link href="/admin/check-ins" className="text-sm font-bold text-primary hover:underline">
-              View all
+              {stats.checkInsToday > stats.checkIns.length ? `View all ${stats.checkInsToday}` : "View all"}
             </Link>
           </div>
-          <DataTable minWidth={560}>
+          <DataTable minWidth={0}>
             <thead>
               <tr>
                 <th className={th}>Time</th>
                 <th className={th}>Customer</th>
-                <th className={th}>Phone</th>
-                <th className={th}>Source</th>
+                <th className={`${th} hidden sm:table-cell`}>Phone</th>
+                <th className={`${th} hidden sm:table-cell`}>Source</th>
                 <th className={`${th} text-right`}>Points</th>
               </tr>
             </thead>
@@ -90,7 +97,7 @@ async function Dashboard() {
               {stats.checkIns.length === 0 && <EmptyRow colSpan={5}>No check-ins yet today.</EmptyRow>}
               {stats.checkIns.map((c) => (
                 <tr key={c.id} className={c.voided_at ? "text-muted-foreground line-through" : undefined}>
-                  <td className={`${td} text-muted-foreground tabular-nums`}>{formatTime(c.created_at, tz)}</td>
+                  <td className={`${td} whitespace-nowrap text-muted-foreground tabular-nums`}>{formatTime(c.created_at, tz)}</td>
                   <td className={`${td} font-bold`}>
                     {c.customer && (
                       <span className="flex flex-wrap items-center gap-2">
@@ -101,8 +108,8 @@ async function Dashboard() {
                       </span>
                     )}
                   </td>
-                  <td className={`${td} text-muted-foreground tabular-nums`}>{c.customer && formatPhone(c.customer.phone)}</td>
-                  <td className={td}>
+                  <td className={`${td} hidden whitespace-nowrap text-muted-foreground tabular-nums sm:table-cell`}>{c.customer && formatPhone(c.customer.phone)}</td>
+                  <td className={`${td} hidden sm:table-cell`}>
                     <Pill>{c.source === "kiosk" ? "Kiosk" : "Admin"}</Pill>
                   </td>
                   <td className={`${td} text-right font-bold tabular-nums`}>+{c.points_awarded}</td>

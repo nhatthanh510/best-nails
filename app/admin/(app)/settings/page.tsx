@@ -13,7 +13,7 @@ export const metadata = { title: "Settings" };
 export default function SettingsPage() {
   return (
     <div className="flex max-w-[920px] flex-col gap-6">
-      <PageHeader title="Settings" subtitle="Changes apply to the next check-in." />
+      <PageHeader title="Settings" subtitle="Changes apply straight away, from the next check-in or sale." />
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
         <Settings />
       </Suspense>

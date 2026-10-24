@@ -22,7 +22,7 @@ async function KioskGate() {
 function KioskSplash() {
   return (
     <main className="flex min-h-dvh w-full items-center justify-center">
-      <KioskBrand />
+      <KioskBrand size="lg" />
     </main>
   );
 }
@@ -30,14 +30,14 @@ function KioskSplash() {
 function NotPaired() {
   return (
     <main className="flex min-h-dvh w-full flex-col items-center justify-center gap-6 p-16 text-center">
-      <KioskBrand />
+      <KioskBrand size="lg" />
       <h1 className="text-5xl font-extrabold tracking-tight">This screen isn&apos;t set up yet</h1>
       <p className="max-w-xl text-xl text-kiosk-muted">
         A staff member needs to pair this iPad once. After that it stays a check-in kiosk.
       </p>
       <Link
         href="/kiosk/setup"
-        className="flex min-h-16 items-center rounded-2xl bg-kiosk-accent px-9 text-xl font-extrabold text-kiosk-bg"
+        className="bg-gold-sheen flex min-h-16 items-center rounded-2xl bg-kiosk-accent px-9 text-xl font-extrabold text-kiosk-bg"
       >
         Set up this kiosk
       </Link>

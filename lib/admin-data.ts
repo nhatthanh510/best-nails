@@ -5,7 +5,7 @@ import type { Database } from "@/lib/database.types";
 import type { BirthdayStatus, Reward } from "@/lib/rewards";
 import { isBirthdayOn } from "@/lib/birthday";
 import { tierRange, type Tier, type TierThresholds } from "@/lib/tiers";
-import { voucherStatus, type Voucher } from "@/lib/vouchers";
+import { giftVoucherStatus, type GiftVoucherStatus } from "@/lib/gift-vouchers";
 
 // Every read starts with requireStaff(): RLS would return nothing to a non-staff user anyway,
 // but this sends them to the login page instead of showing an empty admin.
@@ -37,6 +37,11 @@ function shopDate(timezone: string, at = new Date()) {
   return { year, month, day, dayOfYear };
 }
 
+/** YYYY-MM-DD, for comparing with date columns. */
+function isoDate({ year, month, day }: { year: number; month: number; day: number }) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 async function shopTimezone(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data } = await supabase.from("settings").select("timezone").single();
   return data?.timezone ?? "UTC";
@@ -66,41 +71,38 @@ export async function getSettings(): Promise<Settings> {
 // Dashboard
 // ---------------------------------------------------------------------------
 
+const DASHBOARD_CHECK_INS = 10;
+
 export async function getDashboard() {
   const { supabase } = await staffClient();
   const { day: dayOfMonth } = shopDate(await shopTimezone(supabase));
   const [today, weekAgo, monthStart] = await Promise.all([dayStart(supabase), dayStart(supabase, 6), dayStart(supabase, dayOfMonth - 1)]);
   const thirtyDaysAgo = new Date(Date.now() - 30 * DAY_MS).toISOString();
 
-  const [checkIns, newCustomers, total, active, redeemed, birthdays, vouchers] = await Promise.all([
+  const [checkIns, todayCount, newCustomers, total, active, redeemed, birthdays] = await Promise.all([
     supabase
       .from("check_ins")
       .select("*, customer:customers(id, first_name, last_name, phone, visit_count)")
       .gte("created_at", today)
       .order("created_at", { ascending: false })
-      .limit(50),
+      .limit(DASHBOARD_CHECK_INS),
+    supabase.from("check_ins").select("id", { count: "exact", head: true }).gte("created_at", today).is("voided_at", null),
     supabase.from("customers").select("id", { count: "exact", head: true }).gte("created_at", weekAgo),
     supabase.from("customers").select("id", { count: "exact", head: true }),
     supabase.from("customers").select("id", { count: "exact", head: true }).gte("last_visit_at", thirtyDaysAgo),
     supabase.from("point_transactions").select("id", { count: "exact", head: true }).eq("reason", "redeem").gte("created_at", monthStart),
     supabase.from("birthday_redemptions").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
-    supabase
-      .from("voucher_redemptions")
-      .select("id", { count: "exact", head: true })
-      .is("voided_at", null)
-      .gte("created_at", monthStart),
   ]);
 
-  const rows = (checkIns.data ?? []) as CheckInRow[];
   return {
-    checkIns: rows,
-    checkInsToday: rows.filter((r) => !r.voided_at).length,
+    checkIns: (checkIns.data ?? []) as CheckInRow[],
+    // Counted separately: the list above is only the latest few.
+    checkInsToday: todayCount.count ?? 0,
     newCustomersThisWeek: newCustomers.count ?? 0,
     totalCustomers: total.count ?? 0,
     activeLast30Days: active.count ?? 0,
     redeemedThisMonth: redeemed.count ?? 0,
     birthdayDiscountsThisMonth: birthdays.count ?? 0,
-    vouchersThisMonth: vouchers.count ?? 0,
   };
 }
 
@@ -145,14 +147,33 @@ export const CUSTOMER_FILTERS = ["all", "vip", "regular", "recent", "birthday", 
 export type CustomerFilter = (typeof CUSTOMER_FILTERS)[number];
 export const PAGE_SIZE = 25;
 
+export const CUSTOMER_SORTS = ["last_visit", "name", "points", "visits", "joined"] as const;
+export type CustomerSort = (typeof CUSTOMER_SORTS)[number];
+export type SortDir = "asc" | "desc";
+/** The direction a column sorts in when first clicked: biggest and newest first, names A–Z. */
+export const DEFAULT_SORT_DIR: Record<CustomerSort, SortDir> = {
+  last_visit: "desc",
+  name: "asc",
+  points: "desc",
+  visits: "desc",
+  joined: "desc",
+};
+
+// PostgREST answers 416 "Requested range not satisfiable" for a page past the last row.
+const PAST_END = "PGRST103";
+
 export async function listCustomers({
   q,
   filter,
+  sort,
+  dir,
   page,
   tiers,
 }: {
   q: string;
   filter: CustomerFilter;
+  sort: CustomerSort;
+  dir: SortDir;
   page: number;
   tiers: TierThresholds;
 }) {
@@ -181,20 +202,34 @@ export async function listCustomers({
     if (max !== null) query = query.lt("visit_count", max);
   }
 
+  const ascending = dir === "asc";
+  if (sort === "name") query = query.order("first_name", { ascending }).order("last_name", { ascending, nullsFirst: false });
+  else if (sort === "points") query = query.order("points_balance", { ascending });
+  else if (sort === "visits") query = query.order("visit_count", { ascending });
+  else if (sort === "joined") query = query.order("created_at", { ascending });
+  // Customers who never visited go last whichever way the list is sorted.
+  else query = query.order("last_visit_at", { ascending, nullsFirst: false });
+
+  // Ties keep a fixed order, so a row can't appear on two pages.
   const from = (page - 1) * PAGE_SIZE;
   const { data, count, error } = await query
-    .order("last_visit_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
+    .order("id")
     .range(from, from + PAGE_SIZE - 1);
+  if (error?.code === PAST_END) return { customers: [], total: 0, pastEnd: true };
   if (error) throw error;
-  return { customers: data, total: count ?? 0 };
+  return { customers: data, total: count ?? 0, pastEnd: false };
 }
+
+// A customer's history is paged in memory: it merges points and birthday rows,
+// and even a weekly regular builds up only a few hundred rows in years.
+const HISTORY_LIMIT = 1000;
 
 export async function getCustomer(id: string) {
   const { supabase } = await staffClient();
   const [customer, ledger, rewards, birthday, birthdayHistory] = await Promise.all([
     supabase.from("customers").select("*").eq("id", id).maybeSingle(),
-    supabase.from("point_transactions").select("*").eq("customer_id", id).order("seq", { ascending: false }).limit(100),
+    supabase.from("point_transactions").select("*").eq("customer_id", id).order("seq", { ascending: false }).limit(HISTORY_LIMIT),
     supabase.from("promotions").select("*").eq("is_active", true).order("points_cost"),
     supabase.rpc("birthday_status", { p_customer_id: id }),
     supabase.from("birthday_redemptions").select("*").eq("customer_id", id).order("created_at", { ascending: false }),
@@ -216,19 +251,41 @@ export async function getCustomer(id: string) {
 export const CHECK_IN_RANGES = { today: 0, "7d": 6, "30d": 29 } as const;
 export type CheckInRange = keyof typeof CHECK_IN_RANGES;
 
-export async function listCheckIns({ range, source }: { range: CheckInRange; source: "all" | "kiosk" | "admin" }) {
+export const CHECK_INS_PAGE_SIZE = 50;
+
+export async function listCheckIns({
+  range,
+  source,
+  page,
+}: {
+  range: CheckInRange;
+  source: "all" | "kiosk" | "admin";
+  page: number;
+}) {
   const { supabase } = await staffClient();
   const since = await dayStart(supabase, CHECK_IN_RANGES[range]);
+  const from = (page - 1) * CHECK_INS_PAGE_SIZE;
   let query = supabase
     .from("check_ins")
-    .select("*, customer:customers(id, first_name, last_name, phone, visit_count)")
+    .select("*, customer:customers(id, first_name, last_name, phone, visit_count)", { count: "exact" })
     .gte("created_at", since)
     .order("created_at", { ascending: false })
-    .limit(500);
+    .range(from, from + CHECK_INS_PAGE_SIZE - 1);
   if (source !== "all") query = query.eq("source", source);
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []) as CheckInRow[];
+  const [{ data, count, error }, totals] = await Promise.all([
+    query,
+    supabase.rpc("check_in_totals", { p_since: since, p_source: source === "all" ? undefined : source }),
+  ]);
+  if (error && error.code !== PAST_END) throw error;
+  if (totals.error) throw totals.error;
+  return {
+    pastEnd: error?.code === PAST_END,
+    rows: (data ?? []) as CheckInRow[],
+    /** All rows in the range, voided included (for paging). */
+    total: count ?? 0,
+    /** Visits and points that still count (voided excluded). */
+    totals: totals.data as { visits: number; points: number },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -270,109 +327,93 @@ export async function listStaff() {
 }
 
 // ---------------------------------------------------------------------------
-// Vouchers
+// Gift vouchers
 // ---------------------------------------------------------------------------
 
-function isoDate({ year, month, day }: { year: number; month: number; day: number }) {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
+type CustomerRef = Pick<Customer, "id" | "first_name" | "last_name" | "phone">;
+export type GiftVoucherRow = Tables["gift_vouchers"]["Row"] & { customer: CustomerRef | null; status: GiftVoucherStatus };
+export type GiftVoucherTransaction = Tables["gift_voucher_transactions"]["Row"] & { customer: CustomerRef | null };
 
-export type VoucherListItem = Voucher & {
-  codeCount: number;
-  totalUses: number;
-  used: number;
-  sharedCode: string | null;
-  status: ReturnType<typeof voucherStatus>;
-};
+export const GIFT_VOUCHER_FILTERS = ["all", "active", "used_up", "expired"] as const;
+export type GiftVoucherFilter = (typeof GIFT_VOUCHER_FILTERS)[number];
+export const GIFT_VOUCHERS_PAGE_SIZE = 25;
 
-export async function listVouchers(onlyId?: string): Promise<VoucherListItem[]> {
+const CUSTOMER_REF = "customer:customers(id, first_name, last_name, phone)";
+
+export async function listGiftVouchers({ q, filter, page }: { q: string; filter: GiftVoucherFilter; page: number }) {
   const { supabase } = await staffClient();
-  let vq = supabase.from("vouchers").select("*").order("created_at", { ascending: false });
-  let sq = supabase.from("voucher_stats").select("*");
-  if (onlyId) {
-    vq = vq.eq("id", onlyId);
-    sq = sq.eq("voucher_id", onlyId);
-  }
-  const [vouchers, stats, tz] = await Promise.all([vq, sq, shopTimezone(supabase)]);
-  if (vouchers.error) throw vouchers.error;
-  const today = isoDate(shopDate(tz));
-  const byId = new Map((stats.data ?? []).map((s) => [s.voucher_id, s]));
-  return vouchers.data.map((v) => {
-    const st = byId.get(v.id);
-    const used = st?.used ?? 0;
-    const totalUses = st?.total_uses ?? 0;
-    return {
-      ...v,
-      codeCount: st?.code_count ?? 0,
-      totalUses,
-      used,
-      sharedCode: st?.shared_code ?? null,
-      status: voucherStatus(v, used, totalUses, today),
-    };
-  });
-}
+  const today = isoDate(shopDate(await shopTimezone(supabase)));
+  let query = supabase.from("gift_vouchers").select(`*, ${CUSTOMER_REF}`, { count: "exact" });
 
-export type VoucherRedemptionRow = Tables["voucher_redemptions"]["Row"] & {
-  code: { code: string } | null;
-  customer: Pick<Customer, "id" | "first_name" | "last_name" | "phone"> | null;
-};
+  // Codes are stored without dashes or spaces, so search the same way.
+  const code = q.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code) query = query.like("code", `%${code}%`);
+  if (filter === "active") query = query.gt("balance_cents", 0).gte("expires_on", today);
+  if (filter === "used_up") query = query.eq("balance_cents", 0).gte("expires_on", today);
+  if (filter === "expired") query = query.lt("expires_on", today);
 
-const CODES_SHOWN = 500;
-
-export async function getVoucher(id: string) {
-  const { supabase } = await staffClient();
-  const [[voucher], codes, redemptions] = await Promise.all([
-    listVouchers(id),
-    supabase
-      .from("voucher_codes")
-      .select("*", { count: "exact" })
-      .eq("voucher_id", id)
-      .order("uses", { ascending: true })
-      .order("code")
-      .limit(CODES_SHOWN),
-    supabase
-      .from("voucher_redemptions")
-      .select("*, code:voucher_codes!inner(code, voucher_id), customer:customers(id, first_name, last_name, phone)")
-      .eq("code.voucher_id", id)
-      .order("created_at", { ascending: false })
-      .limit(200),
-  ]);
-  if (!voucher) return null;
+  const from = (page - 1) * GIFT_VOUCHERS_PAGE_SIZE;
+  const { data, count, error } = await query
+    .order("created_at", { ascending: false })
+    .order("id")
+    .range(from, from + GIFT_VOUCHERS_PAGE_SIZE - 1);
+  if (error?.code === PAST_END) return { vouchers: [] as GiftVoucherRow[], total: 0, pastEnd: true };
+  if (error) throw error;
   return {
-    voucher,
-    codes: codes.data ?? [],
-    codesTotal: codes.count ?? 0,
-    codesShown: CODES_SHOWN,
-    redemptions: (redemptions.data ?? []) as unknown as VoucherRedemptionRow[],
+    vouchers: (data as unknown as Omit<GiftVoucherRow, "status">[]).map((v) => ({ ...v, status: giftVoucherStatus(v, today) })),
+    total: count ?? 0,
+    pastEnd: false,
   };
 }
 
-/** All codes of a voucher, for the CSV download. */
-export async function listVoucherCodes(id: string) {
+/** One gift voucher with its whole history (a voucher only ever has a handful of entries). */
+export async function getGiftVoucher(id: string) {
   const { supabase } = await staffClient();
-  const rows: { code: string; max_uses: number; uses: number }[] = [];
-  // PostgREST caps responses (1000 rows by default), so page through.
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase
-      .from("voucher_codes")
-      .select("code, max_uses, uses")
-      .eq("voucher_id", id)
-      .order("code")
-      .range(from, from + 999);
-    if (error) throw error;
-    rows.push(...data);
-    if (data.length < 1000) return rows;
-  }
+  const [voucher, transactions, tz] = await Promise.all([
+    supabase.from("gift_vouchers").select(`*, ${CUSTOMER_REF}`).eq("id", id).maybeSingle(),
+    supabase
+      .from("gift_voucher_transactions")
+      .select(`*, ${CUSTOMER_REF}`)
+      .eq("gift_voucher_id", id)
+      .order("seq", { ascending: false })
+      .limit(1000),
+    shopTimezone(supabase),
+  ]);
+  if (voucher.error) throw voucher.error;
+  if (!voucher.data) return null;
+  const v = voucher.data as unknown as Omit<GiftVoucherRow, "status">;
+  return {
+    voucher: { ...v, status: giftVoucherStatus(v, isoDate(shopDate(tz))) } as GiftVoucherRow,
+    transactions: (transactions.data ?? []) as unknown as GiftVoucherTransaction[],
+  };
 }
 
-/** A customer's voucher redemptions, for their history. */
-export async function customerVoucherRedemptions(customerId: string) {
+/** Unspent credit the shop owes, and this month's sales. */
+export async function giftVoucherSummary() {
   const { supabase } = await staffClient();
-  const { data } = await supabase
-    .from("voucher_redemptions")
-    .select("*, code:voucher_codes(code, voucher:vouchers(name, discount_type, discount_value))")
-    .eq("customer_id", customerId)
-    .order("created_at", { ascending: false })
-    .limit(100);
-  return data ?? [];
+  const { year, month } = shopDate(await shopTimezone(supabase));
+  const [totals, sold] = await Promise.all([
+    supabase.from("gift_voucher_totals").select("*").single(),
+    supabase
+      .from("gift_vouchers")
+      .select("amount_cents")
+      .gte("sold_on", isoDate({ year, month, day: 1 })),
+  ]);
+  return {
+    outstandingCents: Number(totals.data?.outstanding_cents ?? 0),
+    activeCount: totals.data?.active_count ?? 0,
+    soldThisMonth: sold.data?.length ?? 0,
+    soldThisMonthCents: (sold.data ?? []).reduce((sum, v) => sum + v.amount_cents, 0),
+  };
+}
+
+/** A customer's gift vouchers, newest first, for their page. */
+export async function customerGiftVouchers(customerId: string) {
+  const { supabase } = await staffClient();
+  const [{ data }, tz] = await Promise.all([
+    supabase.from("gift_vouchers").select("*").eq("customer_id", customerId).order("created_at", { ascending: false }),
+    shopTimezone(supabase),
+  ]);
+  const today = isoDate(shopDate(tz));
+  return (data ?? []).map((v) => ({ ...v, status: giftVoucherStatus(v, today) }));
 }

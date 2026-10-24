@@ -9,7 +9,7 @@ export const metadata = { title: "Set up kiosk" };
 export default function KioskSetupPage() {
   return (
     <main className="flex min-h-dvh w-full flex-col items-center justify-center gap-8 p-16">
-      <KioskBrand />
+      <KioskBrand size="lg" />
       <Suspense fallback={null}>
         <SetupForm />
       </Suspense>
@@ -46,7 +46,7 @@ async function SetupForm() {
         <input type="checkbox" name="signOut" defaultChecked className="size-6 accent-kiosk-accent" />
         Sign me out of the admin on this iPad after pairing
       </label>
-      <button type="submit" className="min-h-16 rounded-2xl bg-kiosk-accent text-xl font-extrabold text-kiosk-bg">
+      <button type="submit" className="bg-gold-sheen min-h-16 rounded-2xl bg-kiosk-accent text-xl font-extrabold text-kiosk-bg">
         Pair and open kiosk
       </button>
     </form>
