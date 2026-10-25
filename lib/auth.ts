@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
@@ -18,9 +19,10 @@ type Claims = { sub?: string; email?: string; app_metadata?: { temp_password?: b
 
 /**
  * The signed-in account, or null. Verifies the JWT rather than trusting the cookie. Two roles:
- * an admin uses the admin pages and the kiosk; staff use only the kiosk.
+ * an admin uses the admin pages and the kiosk; staff use only the kiosk. Cached for the request,
+ * since the layout and every admin data read ask for it.
  */
-export async function getStaff(): Promise<Staff | null> {
+export const getStaff = cache(async (): Promise<Staff | null> => {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const claims = data?.claims as Claims | undefined;
@@ -43,7 +45,7 @@ export async function getStaff(): Promise<Staff | null> {
     mustChangePassword: claims.app_metadata?.temp_password === true,
     fromResetLink: claims.amr?.some((a) => a.method === "recovery") ?? false,
   };
-}
+});
 
 /**
  * Use at the top of every admin Server Action and admin data read. Signed-out visitors go to
