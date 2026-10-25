@@ -82,7 +82,6 @@ const customerSchema = z
     last_name: optionalText(50),
     birthday_month: optionalInt(1, 12),
     birthday_day: optionalInt(1, 31),
-    sms_opt_in: z.boolean(),
     notes: optionalText(2000),
   })
   .refine((c) => (c.birthday_month === null) === (c.birthday_day === null), {
@@ -102,7 +101,6 @@ function readCustomer(formData: FormData) {
     last_name: formData.get("last_name") ?? "",
     birthday_month: formData.get("birthday_month") ?? "",
     birthday_day: formData.get("birthday_day") ?? "",
-    sms_opt_in: formData.get("sms_opt_in") === "on",
     notes: formData.get("notes") ?? "",
   });
 }
@@ -158,11 +156,10 @@ export async function checkInCustomer(customerId: string): Promise<ActionState> 
   const { data, error } = await supabase.rpc("admin_check_in", { p_customer_id: customerId });
   if (error) return dbError(error);
 
-  const result = data as { status: string; points_awarded?: number; signup_bonus?: number };
+  const result = data as { status: string; points_awarded?: number };
   refresh();
   if (result.status === "already_checked_in") return fail("Already checked in. Visits are limited by the cooldown in Settings.");
-  const earned = (result.points_awarded ?? 0) + (result.signup_bonus ?? 0);
-  return { ok: true, message: `Checked in · +${earned} pts` };
+  return { ok: true, message: `Checked in · +${result.points_awarded ?? 0} pts` };
 }
 
 const adjustSchema = z.object({
@@ -292,6 +289,11 @@ const settingsSchema = z
     kiosk_idle_seconds: z.coerce.number().int().min(10).max(600),
     tier_regular_visits: z.coerce.number().int().min(1).max(9999),
     tier_vip_visits: z.coerce.number().int().min(2).max(10000),
+    code_prefix: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[A-Z]{2,4}$/, "The code prefix must be 2 to 4 letters, e.g. BN."),
     timezone: z.string().refine((tz) => {
       try {
         new Intl.DateTimeFormat("en-US", { timeZone: tz });
@@ -313,7 +315,7 @@ export async function saveSettings(_: ActionState, formData: FormData): Promise<
   const { error } = await supabase.from("settings").update(parsed.data).eq("id", true);
   if (error) return dbError(error);
   refresh();
-  return { ok: true, message: "Settings saved. They apply to the next check-in." };
+  return { ok: true, message: "Settings saved." };
 }
 
 export async function revokeKiosk(id: string): Promise<ActionState> {

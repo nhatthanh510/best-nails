@@ -1,6 +1,6 @@
 -- Run with: npx supabase test db
 begin;
-select plan(38);
+select plan(41);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -9,7 +9,7 @@ insert into auth.users (id, email) values
 insert into public.staff (user_id, display_name, role) values ('aaaaaaaa-0000-4000-8000-000000000001', 'Tester', 'staff');
 
 update public.settings
-   set points_per_visit = 1, signup_bonus = 0, checkin_cooldown_hours = 12, timezone = 'Australia/Hobart',
+   set points_per_visit = 1, checkin_cooldown_hours = 12, timezone = 'Australia/Hobart',
        birthday_discount_enabled = true, birthday_discount_percent = 10, birthday_window_days = 7
  where id;
 update public.promotions set is_active = false;
@@ -35,12 +35,12 @@ grant all on r, d to service_role, authenticated, anon;
 -- Kiosk: check-in earns 1 point --------------------------------------------------
 set local role service_role;
 select is((public.kiosk_check_in('+61400001111'))->>'status', 'not_found', 'unknown phone without a name is not_found');
-insert into r values ('first', public.kiosk_check_in('+61400001111', 'Test', null, 4::smallint, 2::smallint, true));
+insert into r values ('first', public.kiosk_check_in('+61400001111', 'Test', null, 4::smallint, 2::smallint));
 select is((select v->>'status' from r where k = 'first'), 'checked_in', 'new customer is checked in');
 select is((select (v->>'is_new')::boolean from r where k = 'first'), true, 'new customer is flagged as new');
 select is((select v->>'first_name' from r where k = 'first'), 'Test', 'check-in returns the first name');
 select is((select (v->>'points_awarded')::int from r where k = 'first'), 1, 'a check-in earns 1 point');
-select is((select (v->>'signup_bonus')::int from r where k = 'first'), 0, 'no sign-up bonus');
+select ok(not (select v ? 'signup_bonus' from r where k = 'first'), 'no sign-up bonus');
 select is((public.kiosk_check_in('+61400001111'))->>'status', 'already_checked_in', 'second check-in inside cooldown is refused');
 select is((public.kiosk_check_in('+61400001111', 'Someone Else'))->>'is_new', 'false', 'existing phone is never re-created');
 
@@ -78,6 +78,7 @@ select is((select count(*)::int from public.customers), 0, 'non-staff user sees 
 select throws_ok(
   format($$ select public.adjust_points(%L, 10, 'x') $$, (select id from public.customers where phone = '+61400001111')),
   '42501', null, 'non-staff cannot adjust points');
+select throws_ok($$ select public.check_in_totals(now() - interval '1 day') $$, '42501', null, 'non-staff cannot read check-in totals');
 reset role;
 
 -- Staff ----------------------------------------------------------------------------
@@ -100,6 +101,14 @@ select is(
   (select points_balance from public.customers where phone = '+61400000009'),
   (select sum(delta)::int from public.point_transactions t join public.customers u on u.id = t.customer_id where u.phone = '+61400000009'),
   'cached balance matches the ledger');
+select is(
+  ((public.check_in_totals(now() - interval '1 hour'))->>'visits')::int,
+  (select count(*)::int from public.check_ins where created_at >= now() - interval '1 hour' and voided_at is null),
+  'check-in totals skip undone check-ins');
+select is(
+  ((public.check_in_totals(now() - interval '1 hour', 'admin'))->>'visits')::int,
+  (select count(*)::int from public.check_ins where created_at >= now() - interval '1 hour' and voided_at is null and source = 'admin'),
+  'check-in totals filter by source');
 reset role;
 
 -- 29 February birthdays fall back to 28 February in other years

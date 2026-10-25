@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Best Nails loyalty app: an iPad **kiosk** (customers type a phone number on a numpad to check in and redeem) and a staff **admin**. The shop is in Hobart: Australian phone numbers, `Australia/Hobart` timezone, `en-AU` formatting.
 
-**Program rules:** 1 point per check-in, 10 points = 10% off (a `promotions` row; the type enum only allows `reward`), and a birthday 10% off once per birthday within `birthday_window_days` (7). There are no multipliers, bonus-points promotions or sign-up bonus; those were removed on purpose, so don't reintroduce them. **Customer tiers** (New / Regular / VIP) are derived from `visit_count` against `settings.tier_regular_visits` / `tier_vip_visits` (10 / 20) in `lib/tiers.ts`. They are not stored, and are admin-only (not shown on the kiosk). **Vouchers** are printed discount vouchers (% or $ off), redeemed only at the front desk in the admin. A `vouchers` row is the offer; `voucher_codes` holds either one shared code with `max_uses` (e.g. BN12345 × 100) or a batch of single-use codes. Every use is a `voucher_redemptions` row. The system only tracks use; staff apply the discount at the till. The design source of truth is the Claude Design canvas https://claude.ai/artifact/XJjpwCW4RTdw4cEqwgs45Y; update it when the UI changes meaningfully.
+**Program rules:** 1 point per check-in, 10 points = 10% off (a `promotions` row; the type enum only allows `reward`), and a birthday 10% off once per birthday within `birthday_window_days` (7). There are no multipliers, bonus-points promotions or sign-up bonus; those were removed on purpose, so don't reintroduce them. Printed discount vouchers (% / $ off codes) were removed too, because the shop only uses gift vouchers. **Customer tiers** (New / Regular / VIP) are derived from `visit_count` against `settings.tier_regular_visits` / `tier_vip_visits` (10 / 20) in `lib/tiers.ts`. They are not stored, and are admin-only (not shown on the kiosk). **Gift vouchers** are prepaid credit a customer buys (e.g. $100) and spends over several visits. They hold a balance in cents (`gift_vouchers.balance_cents`), and payment still happens at the till. Under Australian Consumer Law they must be valid for at least 3 years, which a check constraint enforces. Staff sell and spend them; only the owner adjusts balances, changes the expiry or deletes an unspent one. The design source of truth is the Claude Design canvas https://claude.ai/artifact/XJjpwCW4RTdw4cEqwgs45Y; update it when the UI changes meaningfully.
 
 ## Commands
 
@@ -18,8 +18,9 @@ npm run dev               # http://localhost:3000 (/kiosk, /admin)
 npm run typecheck && npm run lint && npm run build
 npm test                                     # Vitest (lib/**/*.test.ts)
 npx vitest run lib/phone.test.ts -t "masks"  # single file / single test
-npm run test:db           # pgTAP: supabase/tests/loyalty.test.sql (update `select plan(N)` when adding asserts)
+npm run test:db           # pgTAP: supabase/tests/*.test.sql (update `select plan(N)` when adding asserts)
 npm run db:reset          # re-run all migrations + seed (also unpairs kiosks and logs staff out)
+npm run db:seed:bulk      # optional, after a reset: ~600 customers, 580 check-ins in 30 days, 140 gift vouchers (supabase/seed-bulk.sql)
 npx supabase migration up && npm run db:types   # after adding a migration
 ```
 
@@ -41,7 +42,8 @@ npx supabase migration up && npm run db:types   # after adding a migration
 - **Cached totals:** `customers.points_balance`, `lifetime_points`, `visit_count` and `last_visit_at` are protected by the `guard_customer_points` trigger. Only code that sets `best_nails.ledger_write = 'on'` (the functions, and the seed) can change them. Never update these columns directly from the app.
 - **Concurrency:** check-ins and redemptions lock the customer row (`for update`), so double taps can't double-count.
 - **Kiosk redemption** requires a check-in within 12 hours (`_checked_in_recently`).
-- **Vouchers:** codes are normalised to upper-case alphanumerics (`normalize_voucher_code`). `voucher_codes.uses` only changes through `redeem_voucher` / `void_voucher_redemption`, which lock the code row; RLS gives staff no UPDATE on codes. `check_voucher` is the read-only preview. The admin list reads totals from the `voucher_stats` view.
+- **Gift vouchers:** `gift_voucher_transactions` is the append-only ledger (`sale` / `spend` / `undo` / `adjust`, ordered by `seq`). `balance_cents` is protected by the `guard_gift_voucher` trigger, the same way as points. All changes go through `sell_gift_voucher`, `spend_gift_voucher` (caps the spend at the balance and returns `still_to_pay_cents`), `void_gift_voucher_spend` and `adjust_gift_voucher` (owner only). `check_gift_voucher` is the read-only preview. Generated codes are the business prefix (`settings.code_prefix`, 2–4 letters, default `BN`; it tells an owner with several businesses whose voucher it is) + 8 characters from `gen_random_bytes`, shown as BN-XXXX-XXXX (`formatGiftCode` in `lib/gift-vouchers.ts`). The sell form fills in one from `generate_gift_voucher_code` and staff can type over it with a printed number. Codes sold under an older prefix (e.g. GV…) keep working. `gift_voucher_totals` is the unspent credit.
+- **Codes:** gift voucher codes are normalised to upper-case alphanumerics (`normalize_voucher_code`) before they're stored or looked up, so typed spaces, dashes and lower case don't matter.
 - **Birthdays** are stored as month/day. 29 Feb counts as 28 Feb in other years (`lib/birthday.ts` mirrors this). `birthday_redemptions` is unique per `(customer_id, birthday_year)`.
 - **Shop timezone:** "today" and month/year boundaries come from `settings.timezone` via the `shop_day_start(days_ago)` RPC and `shopDate()` in `lib/admin-data.ts`. Never use the server's local `new Date().getMonth()` or similar.
 - **Function privileges** are revoked by default. Each new function needs an explicit `grant execute` (`authenticated` for staff functions, which call `assert_staff()`; `service_role` for kiosk functions).
@@ -63,7 +65,8 @@ npx supabase migration up && npm run db:types   # after adding a migration
 - **Layout:** sized for landscape iPad (1180×820) with a `short:` variant (`@custom-variant short` in `app/globals.css`) for screens ≤780px tall.
 
 **Styling:**
-- **Theme tokens** live in `app/globals.css`. The admin uses shadcn variables, retuned to the brand. The kiosk uses `--color-kiosk-*`. Status colors are `success`, `info` and `warning`.
+- **Brand:** the logo is a gold butterfly, hand and face profile in a round frame. It's `public/brand/logo-mark.png`, rendered by `BrandMark` in `components/kiosk/brand.tsx` (always shown as a circle), plus `app/icon.png`, `app/apple-icon.png` and the kiosk manifest icons. The palette is ivory, espresso and gold. Logo gold (`--color-gold`) is decorative only, because it's too light for text. Text and buttons use `--primary` (#8a6914), and every text pair passes WCAG AA. Headings (`h1`, wordmark) use Cormorant Garamond (`--font-heading`), and body text uses Plus Jakarta Sans. The kiosk's main buttons use the `bg-gold-sheen` utility; add `disabled:bg-none` when a disabled state swaps the colour.
+- **Theme tokens** live in `app/globals.css`. The admin uses shadcn variables, set to the brand palette. The kiosk uses `--color-kiosk-*`. Status colors are `success`, `info` and `warning`.
 - **Controls** follow 44px touch targets (`components/ui/button.tsx` and `input.tsx` were resized).
 - **No `window.confirm`:** use `ConfirmButton` (`components/admin/action-button.tsx`) for destructive actions.
 

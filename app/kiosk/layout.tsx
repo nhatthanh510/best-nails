@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#24121f",
+  themeColor: "#16110c",
   // Kiosk screens are laid out for a landscape iPad; stop pinch-zoom from breaking them.
   width: "device-width",
   initialScale: 1,

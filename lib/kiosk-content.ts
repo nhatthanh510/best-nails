@@ -9,7 +9,6 @@ export type KioskContent = {
   birthday: { percent: number; windowDays: number } | null;
   idleSeconds: number;
   pointsPerVisit: number;
-  signupBonus: number;
   timezone: string;
 };
 
@@ -28,7 +27,6 @@ export async function loadKioskContent(): Promise<KioskContent> {
       : null,
     idleSeconds: settings?.kiosk_idle_seconds ?? 60,
     pointsPerVisit: settings?.points_per_visit ?? 1,
-    signupBonus: settings?.signup_bonus ?? 0,
     timezone: settings?.timezone ?? "Australia/Hobart",
   };
 }

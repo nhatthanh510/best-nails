@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,8 @@ function Hint({ children }: { children: React.ReactNode }) {
 export function SettingsForm({ settings: s, canEdit }: { settings: Settings; canEdit: boolean }) {
   const [state, formAction, pending] = useActionState(saveSettings, null);
   useActionToast(state);
+  const [prefix, setPrefix] = useState(s.code_prefix);
+  const preview = /^[A-Z]{2,4}$/.test(prefix) ? `${prefix}-7K3M-9QX2` : null;
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -109,6 +111,40 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
               </select>
               <Hint>Used for “today”, reports and birthdays.</Hint>
             </div>
+          </div>
+        </Card>
+
+        <Card className="flex flex-col gap-5 p-6">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-extrabold">Gift voucher codes</h2>
+            <Hint>Shows which business a gift voucher belongs to, if you run more than one.</Hint>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="code_prefix">Business code prefix</Label>
+            <Input
+              id="code_prefix"
+              name="code_prefix"
+              required
+              minLength={2}
+              maxLength={4}
+              pattern="[A-Za-z]{2,4}"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              value={prefix}
+              onChange={(e) => setPrefix(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
+              className="w-32 font-mono text-base tracking-wider uppercase"
+            />
+            <Hint>
+              {preview ? (
+                <>
+                  New gift vouchers will look like <span className="font-mono font-bold text-foreground">{preview}</span>. Vouchers
+                  already sold keep their code.
+                </>
+              ) : (
+                "2 to 4 letters, e.g. BN for Best Nails."
+              )}
+            </Hint>
           </div>
         </Card>
 

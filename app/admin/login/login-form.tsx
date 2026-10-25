@@ -14,7 +14,7 @@ export function LoginForm() {
   return (
     <form action={formAction} className="flex flex-col gap-5 rounded-[20px] border border-border bg-card p-8">
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-[26px] font-extrabold tracking-tight">Sign in</h1>
+        <h1 className="text-[32px] leading-tight font-bold">Sign in</h1>
         <p className="text-[15px] text-muted-foreground">Staff only. Use the email your manager set up.</p>
       </div>
       <input type="hidden" name="next" value={next} />

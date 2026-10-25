@@ -11,7 +11,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  /* Headings use the display serif, echoing the logo's fine gold line art. */
+  --font-heading: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -57,53 +58,65 @@
   --color-warning: #8a4b12;
   --color-warning-soft: #fbeee0;
 
-  /* Kiosk (dark) */
-  --color-kiosk-bg: #24121f;
-  --color-kiosk-surface: #36202f;
-  --color-kiosk-line: #4a2742;
-  --color-kiosk-accent: #f06c95;
-  --color-kiosk-ink: #fbeff3;
-  --color-kiosk-muted: #c9aebe;
-  --color-kiosk-faint: #a88e9e;
-  --color-kiosk-placeholder: #6f5468;
-  --color-kiosk-ready: #7cc6b8;
+  /* Brand gold, sampled from the logo. Decorative only (rings, sheen, badges): too light for
+     text on ivory. Text and buttons use --primary, a deeper gold that passes contrast. */
+  --color-gold: #c9a227;
+  --color-gold-bright: #d8b45c;
+  --color-gold-soft: #f6edd6;
+
+  /* Kiosk (dark): espresso with gold, so the ivory-and-gold logo reads as a medallion. */
+  --color-kiosk-bg: #16110c;
+  --color-kiosk-surface: #221a12;
+  --color-kiosk-line: #3b2f21;
+  --color-kiosk-accent: #d8b45c;
+  --color-kiosk-ink: #f8f2e7;
+  --color-kiosk-muted: #cbbfa9;
+  --color-kiosk-faint: #a3957e;
+  --color-kiosk-placeholder: #8a7b64;
+  --color-kiosk-ready: #8fc8a7;
   --color-kiosk-notice: #e8a87c;
 }
 
+/* The logo's brushed-gold look, for the kiosk's main buttons and the brand medallion ring.
+   Dark text stays above 4.5:1 across the whole gradient. */
+@utility bg-gold-sheen {
+  background-image: linear-gradient(135deg, #ecd48a 0%, #d8b45c 40%, #b98f2c 100%);
+}
+
 :root {
-  /* Admin (light) — from the Claude Design "Design tokens" board */
-  --background: #faf7f8;
-  --foreground: #24121f;
+  /* Admin (light): ivory, espresso and gold from the logo. Every text pair meets WCAG AA. */
+  --background: #faf7f1;
+  --foreground: #2b241c;
   --card: #ffffff;
-  --card-foreground: #24121f;
+  --card-foreground: #2b241c;
   --popover: #ffffff;
-  --popover-foreground: #24121f;
-  --primary: #b8305e;
+  --popover-foreground: #2b241c;
+  --primary: #8a6914;
   --primary-foreground: #ffffff;
-  --secondary: #f3ecef;
-  --secondary-foreground: #24121f;
-  --muted: #f3ecef;
-  --muted-foreground: #6b5866;
-  --accent: #fbe7ee;
-  --accent-foreground: #8c1f45;
+  --secondary: #f3ede1;
+  --secondary-foreground: #2b241c;
+  --muted: #f3ede1;
+  --muted-foreground: #6e6253;
+  --accent: #f6edd6;
+  --accent-foreground: #6b500d;
   --destructive: #a3242f;
-  --border: #eadfe4;
-  --input: #d9cbd2;
-  --ring: #b8305e;
-  --chart-1: #b8305e;
+  --border: #e9e1d1;
+  --input: #d6c9b1;
+  --ring: #8a6914;
+  --chart-1: #8a6914;
   --chart-2: #1f4e79;
   --chart-3: #1f5e43;
   --chart-4: #b4651b;
-  --chart-5: #6b5866;
+  --chart-5: #6e6253;
   --radius: 0.75rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #24121f;
-  --sidebar-primary: #b8305e;
+  --sidebar-foreground: #2b241c;
+  --sidebar-primary: #8a6914;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #fbe7ee;
-  --sidebar-accent-foreground: #8c1f45;
-  --sidebar-border: #eadfe4;
-  --sidebar-ring: #b8305e;
+  --sidebar-accent: #f6edd6;
+  --sidebar-accent-foreground: #6b500d;
+  --sidebar-border: #e9e1d1;
+  --sidebar-ring: #8a6914;
 }
 
 
@@ -119,5 +132,8 @@
   }
   html {
     @apply font-sans;
+  }
+  h1 {
+    font-family: var(--font-heading);
   }
 }

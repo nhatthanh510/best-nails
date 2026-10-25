@@ -4,7 +4,8 @@ Loyalty check-in for Best Nails: an iPad **kiosk** where customers type their ph
 
 **The program:** every check-in earns 1 point · 10 points = 10% off · a birthday 10% off, once a year within 7 days of the birthday. Customers can redeem either at the kiosk after checking in, or staff can redeem them in the admin.
 
-**Vouchers:** the owner creates printed discount vouchers (% or $ off) in the admin. Each is either one shared code used up to N times (e.g. `BN12345` × 100) or a batch of unique single-use codes, downloadable as a CSV for printing. Staff type the code at the front desk to check and redeem it, optionally linking the customer.
+**Gift vouchers:** a customer buys prepaid credit (e.g. $100) and spends it over one or more visits. Staff sell one under **Gift vouchers**: the app generates a code like `BN-7K3M-9QX2` (Generate makes a new one), or staff type the number printed on a voucher card. `BN` is the business prefix, which the owner can change in Settings if they run several businesses. At each visit staff enter today's service amount. If it costs more than what's left, the app uses the rest and shows how much to take at the till. A spend can be undone. Vouchers are valid for 3 years (the legal minimum in Australia), and the dashboard shows the unspent credit.
+
 
 Design: [Claude Design canvas](https://claude.ai/artifact/XJjpwCW4RTdw4cEqwgs45Y) (kiosk screens, admin pages, design tokens).
 
@@ -26,6 +27,7 @@ npm run dev
 - Admin: http://localhost:3000/admin — seed logins `owner@bestnails.test` / `staff@bestnails.test`, password `bestnails-dev` (local only)
 - Kiosk: http://localhost:3000/kiosk — the first time, a staff member opens **/kiosk/setup** on the iPad to pair it
 - Shop timezone is Australia/Hobart. Seed customers to try (see `supabase/seed.sql`): Charlotte 0412 345 678 (9 points: check in → 10% off), Ava 0434 567 890 (10% off ready), Grace 0445 678 901 (birthday in 2 days), Lily 0456 789 012 (birthday discount used), Mia 0423 456 789 (already checked in today)
+- Seed gift vouchers: `BN-7K3M-9QX2` (Charlotte, $65 of $100 left), `PV004217` ($150 present, not linked), `BN-H4WP-8NZ6` (used up), `BN-Q2RT-5YB8` (expired)
 
 ## How it works
 
@@ -56,6 +58,7 @@ npm run typecheck && npm run lint && npm run build
 
 - Change the schema: add a file under `supabase/migrations/`, then `npx supabase migration up && npm run db:types`
 - Start over with fresh seed data: `npm run db:reset` (this also unpairs kiosks)
+- Load lots of demo data to try paging and long lists: `npm run db:reset && npm run db:seed:bulk`
 - Add a staff member: create the user in Supabase Auth, then insert a row into `public.staff` (`role` = `owner` or `staff`)
 
 ## Deploying

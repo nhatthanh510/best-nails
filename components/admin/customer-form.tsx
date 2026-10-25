@@ -81,10 +81,6 @@ export function CustomerForm({
           </select>
         </div>
       </fieldset>
-      <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
-        <input type="checkbox" name="sms_opt_in" defaultChecked={customer?.sms_opt_in ?? false} className="size-5 accent-primary" />
-        Agreed to text messages
-      </label>
       <div className="flex flex-col gap-2">
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" name="notes" rows={3} maxLength={2000} defaultValue={customer?.notes ?? ""} placeholder="Preferences, allergies…" />

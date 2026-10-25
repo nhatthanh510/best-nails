@@ -37,7 +37,6 @@ export type CheckInResult =
       status: "checked_in";
       firstName: string;
       pointsAwarded: number;
-      signupBonus: number;
       points: number;
       birthday: KioskBirthday;
     }
@@ -101,7 +100,6 @@ const signupSchema = z.object({
   lastName: z.string().trim().max(50).optional(),
   birthdayMonth: z.coerce.number().int().min(1).max(12).optional(),
   birthdayDay: z.coerce.number().int().min(1).max(31).optional(),
-  smsOptIn: z.boolean().default(false),
 });
 
 export type SignupInput = z.input<typeof signupSchema>;
@@ -136,7 +134,6 @@ export async function checkIn(digits: string, signup?: SignupInput): Promise<Che
     p_last_name: profile?.lastName || undefined,
     p_birthday_month: profile?.birthdayMonth,
     p_birthday_day: profile?.birthdayDay,
-    p_sms_opt_in: profile?.smsOptIn ?? false,
   });
   if (error || !data) return { status: "error", message: OFFLINE };
 
@@ -160,7 +157,6 @@ export async function checkIn(digits: string, signup?: SignupInput): Promise<Che
     status: "checked_in",
     firstName,
     pointsAwarded: result.points_awarded as number,
-    signupBonus: result.signup_bonus as number,
     points: result.points_balance as number,
     birthday,
   };

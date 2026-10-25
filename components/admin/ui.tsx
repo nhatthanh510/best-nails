@@ -1,4 +1,5 @@
-import { Crown, Star } from "lucide-react";
+import Link from "next/link";
+import { ArrowDown, ArrowUp, ArrowUpDown, Crown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TIER_LABELS, type Tier } from "@/lib/tiers";
 
@@ -14,7 +15,7 @@ export function PageHeader({
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-extrabold tracking-tight">{title}</h1>
+        <h1 className="text-[2.375rem] leading-tight font-bold">{title}</h1>
         {subtitle && <div className="text-sm text-muted-foreground">{subtitle}</div>}
       </div>
       {actions && <div className="flex flex-wrap gap-2.5">{actions}</div>}
@@ -60,8 +61,10 @@ export function Avatar({ text, size = "md" }: { text: string; size?: "md" | "lg"
 
 /** Table shell with a horizontal scroll box so wide tables don't break phone layouts. */
 export function DataTable({ minWidth = 720, children }: { minWidth?: number; children: React.ReactNode }) {
+  // `relative` keeps absolutely positioned cells (the sr-only "Actions" headers) inside the
+  // scroll box; without it they widen the whole page.
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full border-collapse text-sm" style={{ minWidth }}>
         {children}
       </table>
@@ -71,6 +74,38 @@ export function DataTable({ minWidth = 720, children }: { minWidth?: number; chi
 
 export const th = "border-b border-border px-3 py-3 text-left text-[13px] font-semibold text-muted-foreground first:pl-5 last:pr-5";
 export const td = "border-b border-secondary px-3 py-3 first:pl-5 last:pr-5";
+
+/** A column header that links to the list sorted by that column. */
+export function SortableTh({
+  label,
+  href,
+  active,
+  dir,
+  className,
+}: {
+  label: string;
+  href: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  className?: string;
+}) {
+  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <th className={cn(th, className)} aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : undefined}>
+      <Link
+        href={href}
+        scroll={false}
+        className={cn(
+          "-mx-1.5 inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 whitespace-nowrap hover:bg-muted hover:text-foreground",
+          active && "text-foreground",
+        )}
+      >
+        {label}
+        <Icon className={cn("size-3.5", !active && "opacity-40")} aria-hidden="true" />
+      </Link>
+    </th>
+  );
+}
 
 export function EmptyRow({ colSpan, children }: { colSpan: number; children: React.ReactNode }) {
   return (
@@ -83,7 +118,7 @@ export function EmptyRow({ colSpan, children }: { colSpan: number; children: Rea
 }
 
 const TIER_STYLES: Record<Tier, string> = {
-  vip: "bg-foreground text-background",
+  vip: "bg-foreground text-gold-bright",
   regular: "bg-accent text-accent-foreground",
   new: "bg-secondary text-muted-foreground",
 };
@@ -97,5 +132,60 @@ export function TierBadge({ tier, showNew = false }: { tier: Tier; showNew?: boo
       {tier === "regular" && <Star className="size-3.5" aria-hidden="true" />}
       {TIER_LABELS[tier]}
     </span>
+  );
+}
+
+/**
+ * "Showing 26–50 of 611" with Previous / Next links, under a paged table. `anchor` is the id of
+ * the list's card: the links scroll back to its top rather than leaving you at the bottom.
+ */
+export function Pager({
+  page,
+  pageSize,
+  total,
+  href,
+  noun = "",
+  anchor,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  href: (page: number) => string;
+  noun?: string;
+  anchor?: string;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const link = (p: number) => `${href(p)}${anchor ? `#${anchor}` : ""}`;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm text-muted-foreground">
+      <span>
+        {total === 0
+          ? "No results"
+          : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total.toLocaleString()}${noun ? ` ${noun}` : ""}`}
+      </span>
+      <div className="flex gap-2">
+        <PageLink href={link(page - 1)} disabled={page <= 1}>
+          Previous
+        </PageLink>
+        <PageLink href={link(page + 1)} disabled={page >= pages}>
+          Next
+        </PageLink>
+      </div>
+    </div>
+  );
+}
+
+function PageLink({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
+  const cls = "flex min-h-10 items-center rounded-[10px] border px-3.5 text-sm font-semibold";
+  if (disabled)
+    return (
+      <span aria-disabled="true" className={`${cls} border-border text-muted-foreground/70`}>
+        {children}
+      </span>
+    );
+  return (
+    <Link href={href} className={`${cls} border-input bg-card text-foreground hover:bg-muted`}>
+      {children}
+    </Link>
   );
 }
