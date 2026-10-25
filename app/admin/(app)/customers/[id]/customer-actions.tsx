@@ -11,6 +11,8 @@ import { useActionToast } from "@/components/admin/action-button";
 import { adjustPoints, updateCustomer } from "@/app/admin/actions";
 import type { Customer } from "@/lib/admin-data";
 import { cn } from "@/lib/utils";
+import { useFormSubmit } from "@/lib/use-form-submit";
+import { cleanNumber, numberInput } from "@/lib/number-input";
 
 export function EditCustomerButton({ customer }: { customer: Customer }) {
   return (
@@ -28,13 +30,14 @@ export function AdjustPointsForm({ customerId, balance }: { customerId: string; 
     if (result?.ok) setAmount("");
     return result;
   }, null);
-  useActionToast(state);
+  useActionToast(state, { errors: false });
 
   const n = Number(amount) || 0;
   const preview = direction === "add" ? balance + n : balance - n;
 
+  const formSubmit = useFormSubmit(state, formAction);
   return (
-    <form action={formAction} className="flex flex-col gap-3.5">
+    <form {...formSubmit} className="flex flex-col gap-3.5">
       <input type="hidden" name="direction" value={direction} />
       <div role="group" aria-label="Add or remove points" className="grid grid-cols-2 gap-2">
         {(["add", "remove"] as const).map((d) => (
@@ -54,7 +57,7 @@ export function AdjustPointsForm({ customerId, balance }: { customerId: string; 
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="amount">Points</Label>
-        <Input id="amount" name="amount" type="number" inputMode="numeric" min={1} required value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <Input id="amount" name="amount" {...numberInput("digits")} maxLength={6} required value={amount} onChange={(e) => setAmount(cleanNumber("digits", e.target.value))} />
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="note">Reason</Label>

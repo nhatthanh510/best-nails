@@ -138,14 +138,14 @@ export async function checkIn(digits: string, signup?: SignupInput): Promise<Che
     const parsed = signupSchema.safeParse(signup);
     if (!parsed.success) return { status: "error", message: parsed.error.issues[0].message };
     profile = parsed.data;
-    // Keep the birthday only if both parts are given and form a real date.
-    if (
-      profile.birthdayMonth == null ||
-      profile.birthdayDay == null ||
-      !isValidBirthday(profile.birthdayMonth, profile.birthdayDay)
-    ) {
-      profile.birthdayMonth = undefined;
-      profile.birthdayDay = undefined;
+    // A birthday is both parts and a real date, or none at all. Never drop it quietly: the
+    // customer would think they'd get the birthday discount.
+    const { birthdayMonth: m, birthdayDay: d } = profile;
+    if ((m == null) !== (d == null)) {
+      return { status: "error", message: "Please pick both the day and the month of your birthday, or leave both blank." };
+    }
+    if (m != null && d != null && !isValidBirthday(m, d)) {
+      return { status: "error", message: "That birthday isn't a real date. Please check it." };
     }
   }
 

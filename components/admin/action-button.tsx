@@ -52,6 +52,7 @@ export function ConfirmButton({
   title,
   description,
   confirmLabel,
+  notice,
   children,
   ...props
 }: Omit<React.ComponentProps<typeof Button>, "onClick" | "action"> & {
@@ -59,6 +60,8 @@ export function ConfirmButton({
   title: string;
   description: string;
   confirmLabel: string;
+  /** Something extra they should know first, e.g. what happens to a customer's gift vouchers. */
+  notice?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -74,6 +77,7 @@ export function ConfirmButton({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {notice && <p className="rounded-[10px] bg-warning-soft px-3 py-2.5 text-sm font-semibold text-warning">{notice}</p>}
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline" size="lg">
@@ -101,7 +105,12 @@ export function ConfirmButton({
   );
 }
 
-/** Shows the outcome of a useActionState form submission as a toast. */
-export function useActionToast(state: ActionState) {
-  useEffect(() => report(state), [state]);
+/**
+ * Shows the outcome of a useActionState form submission as a toast. Forms that print their
+ * error next to the fields pass `{ errors: false }`, so it isn't shown twice.
+ */
+export function useActionToast(state: ActionState, { errors = true }: { errors?: boolean } = {}) {
+  useEffect(() => {
+    if (errors || state?.ok) report(state);
+  }, [state, errors]);
 }

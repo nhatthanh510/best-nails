@@ -17,7 +17,7 @@ function fail(message: string): ActionState {
 function dbError(error: PostgrestError): ActionState {
   if (error.code === "42501") return fail("You don't have permission to do that.");
   if (["22023", "P0002", "23514"].includes(error.code)) {
-    if (error.code === "23514") return fail("Gift vouchers must stay valid for at least 3 years from the sale.");
+    if (error.code === "23514") return fail("Gift vouchers must stay valid for at least 3 years from when they're created.");
     return fail(error.message.charAt(0).toUpperCase() + error.message.slice(1) + ".");
   }
   console.error(error);
@@ -48,7 +48,11 @@ const sellSchema = z.object({
   notes: text(500),
 });
 
-export async function sellGiftVoucher(_: ActionState, formData: FormData): Promise<ActionState> {
+/** What the "Voucher created" screen shows, so staff can copy the code onto the card. */
+export type CreatedVoucher = { id: string; code: string; amountCents: number; expiresOn: string; customerName: string | null };
+export type SellState = (ActionState & { voucher?: CreatedVoucher }) | null;
+
+export async function sellGiftVoucher(_: SellState, formData: FormData): Promise<SellState> {
   await requireSignedIn();
   const parsed = sellSchema.safeParse({
     amount: formData.get("amount") ?? "",
@@ -59,6 +63,8 @@ export async function sellGiftVoucher(_: ActionState, formData: FormData): Promi
   if (!parsed.success) return fail("Check the details and try again.");
   const cents = parseDollars(parsed.data.amount);
   if (cents === null || cents < 100) return fail("Enter the voucher amount, e.g. 100.");
+  // A code is always chosen on purpose: the number printed on the card, or one from Generate.
+  if (!parsed.data.code?.trim()) return fail("Enter the code on the voucher card, or press Generate.");
 
   const supabase = await createClient();
   // Staff accounts can't read customers, so the phone lookup uses the service client (it only
@@ -74,10 +80,21 @@ export async function sellGiftVoucher(_: ActionState, formData: FormData): Promi
   });
   if (error) return dbError(error);
   const r = data as { id: string; code: string };
+  // The expiry for the confirmation; staff accounts can't read gift_vouchers themselves.
+  const { data: row } = await createAdminClient().from("gift_vouchers").select("expires_on").eq("id", r.id).single();
+  // Lists and totals behind the dialog update while it shows the new code.
+  refresh();
   return {
     ok: true,
-    message: `Sold ${r.code} for ${formatMoney(cents)}. Take payment at the till.`,
+    message: `Created ${r.code} for ${formatMoney(cents)}. Take payment at the till.`,
     href: `/admin/gift-vouchers/${r.id}`,
+    voucher: {
+      id: r.id,
+      code: r.code,
+      amountCents: cents,
+      expiresOn: row?.expires_on ?? "",
+      customerName: customer ? [customer.first_name, customer.last_name].filter(Boolean).join(" ") : null,
+    },
   };
 }
 
@@ -131,6 +148,7 @@ export async function spendGiftVoucher(_: ActionState, formData: FormData): Prom
   const cents = parseDollars(String(formData.get("amount") ?? ""));
   if (cents === null || cents < 1) return fail("Enter the amount for today's service, e.g. 35.");
   const note = String(formData.get("note") ?? "").slice(0, 200);
+  const tillCents = Math.max(0, parseDollars(String(formData.get("till") ?? "")) ?? 0);
 
   const supabase = await createClient();
   const customer = await findCustomer(createAdminClient(), String(formData.get("phone") ?? ""), String(formData.get("customer_id") ?? ""));
@@ -153,17 +171,11 @@ export async function spendGiftVoucher(_: ActionState, formData: FormData): Prom
   refresh();
   return {
     ok: true,
-    message: `Spent ${formatMoney(r.spent_cents as number)} from ${r.code as string}. ${formatMoney(r.balance_cents as number)} left.`,
+    message:
+      `Spent ${formatMoney(r.spent_cents as number)} from ${r.code as string}. ${formatMoney(r.balance_cents as number)} left.` +
+      // "Use the full balance" sends what's still owed, so the reminder comes with the confirmation.
+      (tillCents > 0 ? ` Take ${formatMoney(tillCents)} at the till.` : ""),
   };
-}
-
-export async function voidGiftVoucherSpend(transactionId: string): Promise<ActionState> {
-  await requireAdmin();
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("void_gift_voucher_spend", { p_transaction_id: transactionId });
-  if (error) return dbError(error);
-  refresh();
-  return { ok: true, message: `Spend undone. The balance is back to ${formatMoney(data as number)}.` };
 }
 
 // ---------------------------------------------------------------------------

@@ -8,14 +8,13 @@ import { TIER_LABELS, nextTier, tierFor } from "@/lib/tiers";
 import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
 import { customerGiftVouchers, customerTitle, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
 import { UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
-import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
-import { formatMoney } from "@/lib/gift-vouchers";
 import { requireAdmin } from "@/lib/auth";
 import { deleteCustomer, redeemBirthday, redeemReward } from "@/app/admin/actions";
 import { formatPhone, isStandardPhone } from "@/lib/phone";
 import type { BirthdayStatus } from "@/lib/rewards";
 import { formatBirthday, formatDate, formatLastVisit, formatTime, fullName, initials, isShopToday, signed } from "@/lib/format";
 import { AdjustPointsForm, EditCustomerButton } from "./customer-actions";
+import { formatMoney } from "@/lib/gift-vouchers";
 
 const REASON_LABELS = {
   check_in: "Check-in",
@@ -287,32 +286,21 @@ async function CustomerDetail({
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-extrabold">Gift vouchers</h2>
               <Link href="/admin/gift-vouchers" className="text-sm font-bold text-primary hover:underline">
-                Sell one
+                Create one
               </Link>
             </div>
-            {giftVouchers.length > 0 && (
-              <ul className="flex flex-col gap-2">
-                {giftVouchers.map((g) => (
-                  <li key={g.id}>
-                    <Link
-                      href={`/admin/gift-vouchers/${g.id}`}
-                      className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5 hover:bg-muted"
-                    >
-                      <span className="flex flex-col gap-0.5">
-                        <span className="font-mono text-sm font-bold tracking-wider">{g.code}</span>
-                        <span className="text-[13px] text-muted-foreground">of {formatMoney(g.amount_cents)}</span>
-                      </span>
-                      <span className="flex items-center gap-2.5">
-                        {g.status !== "active" && <GiftVoucherStatusPill status={g.status} />}
-                        <span className="font-extrabold tabular-nums">{formatMoney(g.balance_cents)}</span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {/* Any gift voucher can be used here, including one bought for them by someone else. */}
-            <UseGiftVoucher customerId={c.id} compact />
+            {/* Their own vouchers are one tap; any other (e.g. a present) by typing its code. */}
+            <UseGiftVoucher
+              customerId={c.id}
+              compact
+              vouchers={giftVouchers.map((g) => ({
+                id: g.id,
+                code: g.code,
+                amountCents: g.amount_cents,
+                balanceCents: g.balance_cents,
+                status: g.status,
+              }))}
+            />
           </Card>
 
           <Card className="flex flex-col gap-3.5 p-5">
@@ -327,6 +315,7 @@ async function CustomerDetail({
               className="w-fit text-destructive hover:text-destructive"
               title={`Delete ${fullName(c)}?`}
               description="This removes the customer, their visits and their points history. It can't be undone."
+              notice={unlinkedVoucherNotice(giftVouchers)}
               confirmLabel="Delete customer"
               action={deleteCustomer.bind(null, c.id)}
             >
@@ -353,4 +342,14 @@ function tierHint(lifetimePoints: number, tiers: Parameters<typeof nextTier>[1])
   const earned = `${lifetimePoints} earned`;
   if (!next) return `${earned} · top tier`;
   return `${earned} · ${next.pointsToGo} more to ${TIER_LABELS[next.tier]}`;
+}
+
+/** Deleting a customer keeps their gift vouchers (they're money the shop owes) but unlinks them. */
+function unlinkedVoucherNotice(vouchers: { status: string; balance_cents: number }[]) {
+  const open = vouchers.filter((g) => g.status === "active" && g.balance_cents > 0);
+  if (open.length === 0) return undefined;
+  const left = formatMoney(open.reduce((sum, g) => sum + g.balance_cents, 0));
+  return open.length === 1
+    ? `They have 1 gift voucher with ${left} left. It stays valid, but won't be linked to anyone.`
+    : `They have ${open.length} gift vouchers with ${left} left in all. They stay valid, but won't be linked to anyone.`;
 }

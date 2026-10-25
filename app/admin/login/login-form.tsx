@@ -7,13 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "../actions";
+import { useFormSubmit } from "@/lib/use-form-submit";
 
 export function LoginForm() {
   const next = useSearchParams().get("next") ?? "";
   const [state, formAction, pending] = useActionState(signIn, null);
 
+  const formSubmit = useFormSubmit(state, formAction, { resetOnSuccess: false });
   return (
-    <form action={formAction} className="flex flex-col gap-5 rounded-[20px] border border-border bg-card p-8">
+    <form {...formSubmit} className="flex flex-col gap-5 rounded-[20px] border border-border bg-card p-8">
       <div className="flex flex-col gap-1.5">
         <h1 className="text-[32px] leading-tight font-bold">Sign in</h1>
         <p className="text-[15px] text-muted-foreground">Staff only. Use the email your manager set up.</p>

@@ -50,13 +50,13 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Status (always paired with an icon or word) */
-  --color-success: #1f5e43;
-  --color-success-soft: #e3f2ec;
-  --color-info: #1f4e79;
-  --color-info-soft: #e4eef8;
-  --color-warning: #8a4b12;
-  --color-warning-soft: #fbeee0;
+  /* Status (always paired with an icon or word). Variables, so .kiosk-theme can swap them. */
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
 
   /* Brand gold, sampled from the logo. Decorative only (rings, sheen, badges): too light for
      text on ivory. Text and buttons use --primary, a deeper gold that passes contrast. */
@@ -90,6 +90,12 @@
   --card: #ffffff;
   --card-foreground: #2b241c;
   --popover: #ffffff;
+  --success: #1f5e43;
+  --success-soft: #e3f2ec;
+  --info: #1f4e79;
+  --info-soft: #e4eef8;
+  --warning: #8a4b12;
+  --warning-soft: #fbeee0;
   --popover-foreground: #2b241c;
   --primary: #8a6914;
   --primary-foreground: #ffffff;
@@ -150,3 +156,52 @@
     font-family: var(--font-heading);
   }
 }
+
+/*
+ * Admin components shown on the kiosk (the Gift voucher dialog): the same forms, in the kiosk's
+ * dark palette and a size for fingers, so staff don't feel they've left the check-in screen.
+ * Every text/background pair here passes WCAG AA.
+ */
+.kiosk-theme {
+  --background: #16110c;
+  --foreground: #f8f2e7;
+  --card: #16110c;
+  --card-foreground: #f8f2e7;
+  --popover: #221a12;
+  --popover-foreground: #f8f2e7;
+  --primary: #d8b45c;
+  --primary-foreground: #16110c;
+  --secondary: #3b2f21;
+  --secondary-foreground: #f8f2e7;
+  --muted: #3b2f21;
+  --muted-foreground: #cbbfa9;
+  --accent: #3b2f21;
+  --accent-foreground: #ecd48a;
+  --destructive: #f08a8a;
+  --border: #3b2f21;
+  --input: #4a3c2b;
+  --ring: #d8b45c;
+  --success: #8fc8a7;
+  --success-soft: #1d3328;
+  --warning: #e8a87c;
+  --warning-soft: #3a2a1c;
+  --info: #9cc3ea;
+  --info-soft: #1c2a3a;
+  /* Dark scrollbars and form controls inside it too. */
+  color-scheme: dark;
+  font-size: 17px;
+}
+.kiosk-theme [data-slot="input"],
+.kiosk-theme textarea,
+.kiosk-theme select {
+  min-height: 3rem;
+  font-size: 1.125rem;
+}
+.kiosk-theme [data-slot="label"] {
+  font-size: 1rem;
+}
+.kiosk-theme [data-slot="button"] {
+  min-height: 3rem;
+  font-size: 1.0625rem;
+}
+

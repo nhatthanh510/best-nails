@@ -6,8 +6,8 @@ import { Card, DataTable, EmptyRow, StatTile, td, th } from "@/components/admin/
 import { DetailSkeleton } from "@/components/admin/skeletons";
 import { ConfirmButton } from "@/components/admin/action-button";
 import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
-import { AdjustGiftVoucherForm, GiftVoucherSettingsForm, UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
-import { deleteGiftVoucher, voidGiftVoucherSpend } from "@/app/admin/gift-voucher-actions";
+import { AdjustGiftVoucherForm, GiftVoucherSettingsForm, UseThisVoucherButton } from "@/components/admin/gift-voucher-forms";
+import { deleteGiftVoucher } from "@/app/admin/gift-voucher-actions";
 import { requireAdmin } from "@/lib/auth";
 import { getGiftVoucher, getSettings, giftVoucherCode, staffNames, type GiftVoucherTransaction } from "@/lib/admin-data";
 import { formatMoney } from "@/lib/gift-vouchers";
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: PageProps<"/admin/gift-vouche
 }
 
 const ENTRY_LABELS: Record<GiftVoucherTransaction["kind"], string> = {
-  sale: "Sold",
+  sale: "Created",
   spend: "Spent",
   undo: "Spend undone",
   adjust: "Adjusted by an admin",
@@ -87,7 +87,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
               Gift voucher · <span className="font-bold text-foreground">{formatMoney(v.amount_cents)}</span>
             </span>
             <span>
-              Sold {day(v.sold_on)}
+              Created {day(v.sold_on)}
               {v.sold_by && ` by ${names.get(v.sold_by) ?? "staff"}`}
             </span>
             <span>Expires {day(v.expires_on)}</span>
@@ -103,6 +103,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
           </p>
           {v.notes && <p className="text-sm whitespace-pre-line">{v.notes}</p>}
         </div>
+        {v.status === "active" && <UseThisVoucherButton code={v.code} />}
       </Card>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] sm:gap-4">
@@ -113,12 +114,6 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
 
       <div className="flex flex-wrap items-start gap-5">
         <div className="flex min-w-0 flex-[999_1_520px] flex-col gap-5">
-          {v.status === "active" && (
-            <Card className="flex flex-col gap-4 p-5">
-              <h2 className="text-lg font-extrabold">Use this voucher</h2>
-              <UseGiftVoucher code={v.code} />
-            </Card>
-          )}
 
           <Card className="pt-5 pb-2">
             <h2 className="px-5 pb-3 text-lg font-extrabold">History</h2>
@@ -130,13 +125,10 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
                   <th className={`${th} hidden sm:table-cell`}>By</th>
                   <th className={`${th} text-right`}>Amount</th>
                   <th className={`${th} hidden text-right sm:table-cell`}>Balance</th>
-                  <th className={th}>
-                    <span className="sr-only">Actions</span>
-                  </th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.length === 0 && <EmptyRow colSpan={6}>No activity yet.</EmptyRow>}
+                {transactions.length === 0 && <EmptyRow colSpan={5}>No activity yet.</EmptyRow>}
                 {transactions.map((t) => (
                   <tr key={t.id} className={t.voided_at ? "bg-background text-muted-foreground" : undefined}>
                     <td className={`${td} hidden whitespace-nowrap text-muted-foreground tabular-nums sm:table-cell`}>{when(t.created_at)}</td>
@@ -163,20 +155,6 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
                       {formatMoney(Math.abs(t.delta_cents))}
                     </td>
                     <td className={`${td} hidden text-right whitespace-nowrap tabular-nums sm:table-cell`}>{formatMoney(t.balance_after_cents)}</td>
-                    <td className={`${td} text-right`}>
-                      {t.kind === "spend" && !t.voided_at && (
-                        <ConfirmButton
-                          variant="outline"
-                          size="sm"
-                          title="Undo this spend?"
-                          description={`Puts ${formatMoney(-t.delta_cents)} back on ${v.code}.`}
-                          confirmLabel="Undo spend"
-                          action={voidGiftVoucherSpend.bind(null, t.id)}
-                        >
-                          Undo
-                        </ConfirmButton>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -200,7 +178,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
             <Card className="flex flex-col gap-4 p-5">
               <div className="flex flex-col gap-1">
                 <h2 className="text-lg font-extrabold">Adjust balance</h2>
-                <p className="text-[13px] text-muted-foreground">For corrections only. To undo a spend, use Undo in the history.</p>
+                <p className="text-[13px] text-muted-foreground">For corrections, e.g. a use entered by mistake: add it back with the reason.</p>
               </div>
               <AdjustGiftVoucherForm id={v.id} balanceCents={v.balance_cents} />
             </Card>
@@ -210,12 +188,17 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
               variant="ghost"
               className="w-fit text-destructive hover:text-destructive"
               title={`Delete ${v.code}?`}
-              description="Only for a voucher sold by mistake. Refund the customer at the till. This can't be undone."
+              description="Only for a voucher created by mistake. Refund the customer at the till. This can't be undone."
               confirmLabel="Delete voucher"
               action={deleteGiftVoucher.bind(null, v.id)}
             >
               Delete voucher
             </ConfirmButton>
+          )}
+          {isAdmin && everSpent && (
+            <p className="text-[13px] text-muted-foreground">
+              This voucher has been used, so it can&apos;t be deleted. To correct its balance, use Adjust balance.
+            </p>
           )}
         </div>
       </div>

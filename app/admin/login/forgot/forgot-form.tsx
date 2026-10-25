@@ -6,14 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestPasswordReset } from "@/app/admin/account-actions";
+import { useFormSubmit } from "@/lib/use-form-submit";
 
 export function ForgotForm() {
   // The email link was old, already used, or opened in a different browser from the one that asked.
   const expired = useSearchParams().has("expired");
   const [state, formAction, pending] = useActionState(requestPasswordReset, null);
 
+  const formSubmit = useFormSubmit(state, formAction);
   return (
-    <form action={formAction} className="flex flex-col gap-5 rounded-[20px] border border-border bg-card p-8">
+    <form {...formSubmit} className="flex flex-col gap-5 rounded-[20px] border border-border bg-card p-8">
       <div className="flex flex-col gap-1.5">
         <h1 className="text-[32px] leading-tight font-bold">Forgot password</h1>
         <p className="text-[15px] text-muted-foreground">

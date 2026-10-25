@@ -12,7 +12,7 @@ export const metadata = { title: "Settings" };
 export default function SettingsPage() {
   return (
     <div className="flex max-w-[920px] flex-col gap-6">
-      <PageHeader title="Settings" subtitle="Changes apply straight away, from the next check-in or sale." />
+      <PageHeader title="Settings" subtitle="Changes apply straight away, from the next check-in or gift voucher." />
       <Suspense fallback={<FormCardsSkeleton cards={3} label="Loading settings" />}>
         <Settings />
       </Suspense>

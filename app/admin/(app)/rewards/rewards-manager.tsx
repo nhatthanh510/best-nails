@@ -11,6 +11,8 @@ import { deleteReward, saveBirthdayDiscount, saveReward, type ActionState } from
 import type { Settings } from "@/lib/admin-data";
 import type { Reward } from "@/lib/rewards";
 import { cn } from "@/lib/utils";
+import { useFormSubmit } from "@/lib/use-form-submit";
+import { numberInput } from "@/lib/number-input";
 
 type Item = { reward: Reward; uses: number };
 
@@ -75,10 +77,11 @@ function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => vo
     if (result?.ok) onDone();
     return result;
   }, null);
-  useActionToast(state);
+  useActionToast(state, { errors: false });
 
+  const formSubmit = useFormSubmit(state, formAction);
   return (
-    <form action={formAction} className="flex flex-col gap-4 rounded-xl border-2 border-primary p-4">
+    <form {...formSubmit} className="flex flex-col gap-4 rounded-xl border-2 border-primary p-4">
       {r && <input type="hidden" name="id" value={r.id} />}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_160px]">
         <div className="flex flex-col gap-2">
@@ -87,7 +90,7 @@ function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => vo
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="points_cost">Points needed</Label>
-          <Input id="points_cost" name="points_cost" type="number" min={1} required defaultValue={r?.points_cost ?? 10} />
+          <Input id="points_cost" name="points_cost" {...numberInput("digits")} maxLength={5} required defaultValue={r?.points_cost ?? 10} />
         </div>
       </div>
       <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
@@ -146,8 +149,9 @@ export function BirthdayDiscountForm({
   canEdit: boolean;
 }) {
   const [state, formAction, pending] = useActionState(saveBirthdayDiscount, null);
-  useActionToast(state);
+  useActionToast(state, { errors: false });
 
+  const formSubmit = useFormSubmit(state, formAction, { resetOnSuccess: false });
   return (
     <Card className="flex min-w-0 flex-[1_1_340px] flex-col gap-4 p-5">
       <div className="flex items-center gap-2.5">
@@ -158,7 +162,7 @@ export function BirthdayDiscountForm({
         Free, once per birthday, for customers with a birthday on file. Used {usedThisYear} time{usedThisYear === 1 ? "" : "s"} this
         year.
       </p>
-      <form action={formAction}>
+      <form {...formSubmit}>
         <fieldset disabled={!canEdit} className="flex flex-col gap-4">
           <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
             <input
@@ -175,9 +179,8 @@ export function BirthdayDiscountForm({
               <Input
                 id="birthday_discount_percent"
                 name="birthday_discount_percent"
-                type="number"
-                min={1}
-                max={100}
+                {...numberInput("digits")}
+                maxLength={3}
                 required
                 defaultValue={s.birthday_discount_percent}
                 className="w-28"

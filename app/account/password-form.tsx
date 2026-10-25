@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { changeOwnPassword } from "@/app/admin/account-actions";
 import type { ActionState } from "@/app/admin/actions";
 import { MIN_PASSWORD } from "@/lib/accounts";
+import { useFormSubmit } from "@/lib/use-form-submit";
 
 const COPY = {
   temporary: { title: "Choose your password", text: "You signed in with a temporary password. Choose one only you know to carry on." },
@@ -34,8 +35,9 @@ export function PasswordForm({
   }, null);
   const copy = COPY[reason ?? "change"];
 
+  const formSubmit = useFormSubmit(state, formAction, { resetOnSuccess: false });
   return (
-    <form action={formAction} className="flex flex-col gap-5 rounded-[20px] border border-border bg-card p-8">
+    <form {...formSubmit} className="flex flex-col gap-5 rounded-[20px] border border-border bg-card p-8">
       <div className="flex flex-col gap-1.5">
         <h1 className="text-[32px] leading-tight font-bold">{copy.title}</h1>
         <p className="text-[15px] text-muted-foreground">{copy.text}</p>

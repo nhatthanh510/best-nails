@@ -89,7 +89,7 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
     <>
       <PageHeader
         title="Customers"
-        subtitle={`${total.toLocaleString()} ${filter === "all" && !q ? "members" : "matching"}`}
+        subtitle={`${total.toLocaleString()} ${filter === "all" && !q ? (total === 1 ? "member" : "members") : "matching"}`}
         actions={<AddCustomerButton />}
       />
 

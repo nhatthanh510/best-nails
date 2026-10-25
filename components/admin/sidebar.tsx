@@ -10,10 +10,11 @@ const kioskLink = "flex min-h-11 items-center gap-2.5 rounded-[10px] border bord
 
 /**
  * Three layouts: a top bar with a Menu button on phones, an icon rail from md (portrait iPad),
- * and the full sidebar from lg. `account` is rendered in the top bar on phones and at the
- * bottom of the sidebar from md, so it's passed twice.
+ * and the full sidebar from lg. `account` is rendered at the bottom of the sidebar from md, and
+ * `phoneAccount` at the bottom of the phone menu (the top bar only has room for the kiosk and
+ * Menu buttons at 375 px), so it's passed twice.
  */
-export function Sidebar({ account, compactAccount }: { account: React.ReactNode; compactAccount: React.ReactNode }) {
+export function Sidebar({ account, phoneAccount }: { account: React.ReactNode; phoneAccount: React.ReactNode }) {
   return (
     <nav
       aria-label="Main"
@@ -30,7 +31,6 @@ export function Sidebar({ account, compactAccount }: { account: React.ReactNode;
               <Link href="/kiosk" aria-label="Open kiosk" className={cn(kioskLink, "w-11 justify-center px-0")}>
                 <Tablet className="size-4.5" aria-hidden="true" />
               </Link>
-              {compactAccount}
             </div>
           </>
         }
@@ -39,6 +39,7 @@ export function Sidebar({ account, compactAccount }: { account: React.ReactNode;
         <Suspense fallback={<NavLinks pathname={null} />}>
           <ActiveNavLinks />
         </Suspense>
+        <div className="mt-3 border-t border-border pt-2 md:hidden">{phoneAccount}</div>
       </PhoneMenu>
 
       <div className="hidden flex-col gap-2 md:mt-auto md:flex">

@@ -114,6 +114,21 @@ function readCustomer(formData: FormData) {
   });
 }
 
+/**
+ * Who already has this number, if anyone (not counting `exceptId`, the customer being edited),
+ * so the form can say so as soon as the number is typed rather than after filling in the rest.
+ */
+export async function findCustomerByPhone(phone: string, exceptId?: string): Promise<{ id: string; name: string } | null> {
+  await requireAdmin();
+  const e164 = normalizePhone(phone)?.e164;
+  if (!e164) return null;
+  const supabase = await createClient();
+  let query = supabase.from("customers").select("id, first_name, last_name").eq("phone", e164);
+  if (exceptId) query = query.neq("id", exceptId);
+  const { data } = await query.maybeSingle();
+  return data ? { id: data.id, name: [data.first_name, data.last_name].filter(Boolean).join(" ") } : null;
+}
+
 export async function createCustomer(_: ActionState, formData: FormData): Promise<ActionState> {
   await requireAdmin();
   const parsed = readCustomer(formData);

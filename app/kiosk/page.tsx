@@ -24,7 +24,7 @@ async function KioskGate() {
   return (
     <>
       <KioskApp content={await loadKioskContent()} isAdmin={staff.role === "admin"} />
-      {/* Messages from the header's gift voucher forms ("Sold BN… take payment at the till"). */}
+      {/* Messages from the header's gift voucher forms ("Created BN… take payment at the till"). */}
       <Toaster theme="dark" position="top-center" richColors />
     </>
   );

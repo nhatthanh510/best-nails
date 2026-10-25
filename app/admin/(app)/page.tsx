@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
+import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, fiveTileGrid, td, th } from "@/components/admin/ui";
 import { DashboardSkeleton } from "@/components/admin/skeletons";
 import { getDashboard, getSettings, getTierCounts, getUpcomingBirthdays, giftVoucherSummary, listRewards } from "@/lib/admin-data";
 import { formatMoney } from "@/lib/gift-vouchers";
@@ -43,7 +43,7 @@ async function Dashboard() {
         actions={<UseGiftVoucherButton variant="outline" />}
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] sm:gap-4">
+      <div className={fiveTileGrid}>
         <StatTile label="Check-ins today" value={stats.checkInsToday} />
         <StatTile label="New customers (7 days)" value={stats.newCustomersThisWeek} />
         <StatTile
@@ -54,7 +54,12 @@ async function Dashboard() {
         <StatTile
           label="Discounts given this month"
           value={stats.redeemedThisMonth + stats.birthdayDiscountsThisMonth}
-          hint={`${stats.redeemedThisMonth} points · ${stats.birthdayDiscountsThisMonth} birthday`}
+          hint={
+            // The birthday part only when it's on, or was used this month before being turned off.
+            settings.birthday_discount_enabled || stats.birthdayDiscountsThisMonth > 0
+              ? `${stats.redeemedThisMonth} with points · ${stats.birthdayDiscountsThisMonth} birthday`
+              : `${stats.redeemedThisMonth} with points`
+          }
         />
         <StatTile
           label="Gift voucher credit"

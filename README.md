@@ -4,7 +4,7 @@ Loyalty check-in for Best Nails: an iPad **kiosk** where customers type their ph
 
 **The program:** every check-in earns 1 point · 10 points = 10% off · a birthday 10% off, once a year within 7 days of the birthday. Customers can redeem either at the kiosk after checking in, or staff can redeem them in the admin.
 
-**Gift vouchers:** a customer buys prepaid credit (e.g. $100) and spends it over one or more visits. Staff sell one under **Gift vouchers**: the app generates a code like `BN48207138`: the business prefix and 8 digits, the last one a check digit that catches most typos (Generate makes a new one), or staff type the number printed on a voucher card. `BN` is the business prefix, which an admin can change in Settings if they run several businesses. At each visit staff enter today's service amount. If it costs more than what's left, the app uses the rest and shows how much to take at the till. A spend can be undone. Vouchers are valid for 3 years (the legal minimum in Australia), and the dashboard shows the unspent credit.
+**Gift vouchers:** a customer buys prepaid credit (e.g. $100) and spends it over one or more visits. Staff create one under **Gift vouchers** (the customer pays at the till as usual): the app generates a code like `BN48207138`: the business prefix and 8 digits, the last one a check digit that catches most typos (Generate makes a new one), or staff type the number printed on a voucher card. `BN` is the business prefix, which an admin can change in Settings if they run several businesses. At each visit staff enter today's service amount. If it costs more than what's left, the app uses the rest and shows how much to take at the till. A use entered by mistake is put back with Adjust balance (admin). Vouchers are valid for 3 years (the legal minimum in Australia), and the dashboard shows the unspent credit.
 
 
 Design: [Claude Design canvas](https://claude.ai/artifact/XJjpwCW4RTdw4cEqwgs45Y) (kiosk screens, admin pages, design tokens).
@@ -25,14 +25,14 @@ npm run dev
 ```
 
 - Admin: http://localhost:3000/admin — seed login `owner@bestnails.test` / `bestnails-dev` (admin, local only). Add staff accounts in Settings → Accounts
-- Kiosk: http://localhost:3000/kiosk — works while any account is signed in; the start screen's header has **Gift voucher** (sell or use one) and **Sign out**, plus **Admin** for admin accounts
+- Kiosk: http://localhost:3000/kiosk — works while any account is signed in; the start screen's header has **Gift voucher** (create or use one) and **Sign out**, plus **Admin** for admin accounts
 - Shop timezone is Australia/Hobart. The seed has no customers, vouchers or rewards: add a reward on **Rewards**, then sign customers up on the kiosk.
 
 ## How it works
 
 | Piece | Where |
 |---|---|
-| Schema, RLS, check-in / redeem / adjust / undo functions | `supabase/migrations/` |
+| Schema, RLS, check-in / redeem / adjust functions | `supabase/migrations/` |
 | Points rules | `_award_check_in`: 1 point per check-in, one per shop day (in `settings.timezone`) |
 | Redeeming | `kiosk_redeem` / `redeem_reward` spend points on a reward; `kiosk_redeem_birthday` / `redeem_birthday` use the birthday discount (`_birthday_status` decides eligibility). Kiosk redemption needs a check-in in the last 12 hours |
 | Phone numbers | `lib/phone.ts`: Australian numbers are stored as +61…; non-standard numbers are accepted with a warning, never blocked |
@@ -49,7 +49,7 @@ The kiosk never talks to Supabase from the browser. Its Server Actions use the s
 
 ```bash
 npm test          # unit tests (phone rules, promotion scheduling)
-npm run test:db   # pgTAP: check-in rules, one check-in a day, permissions, redeem/adjust/undo, ledger consistency
+npm run test:db   # pgTAP: check-in rules, one check-in a day, permissions, redeem/adjust, gift vouchers, business rules, ledger consistency
 npm run typecheck && npm run lint && npm run build
 ```
 

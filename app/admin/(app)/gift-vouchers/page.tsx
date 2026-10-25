@@ -27,6 +27,7 @@ import {
 import { formatMoney } from "@/lib/gift-vouchers";
 import { formatDate, formatTime, fullName } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { CopyButton } from "@/components/admin/copy-button";
 
 export const metadata = { title: "Gift vouchers" };
 
@@ -37,7 +38,7 @@ const FILTER_LABELS: Record<GiftVoucherFilter, string> = {
   expired: "Expired",
 };
 
-const KIND_LABELS: Record<GiftActivityKind, string> = { all: "All", sale: "Sold", spend: "Used" };
+const KIND_LABELS: Record<GiftActivityKind, string> = { all: "All", sale: "Created", spend: "Used" };
 const RANGE_LABELS: Record<GiftActivityRange, string> = { "7d": "7 days", "30d": "30 days", all: "All time" };
 const VIEWS = { vouchers: "Vouchers", activity: "Activity" } as const;
 type View = keyof typeof VIEWS;
@@ -47,7 +48,7 @@ const chip = (active: boolean) =>
     "flex min-h-10 flex-none items-center rounded-full border px-3 text-sm font-bold whitespace-nowrap",
     active ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card hover:bg-muted",
   );
-/** Sold and Used are opposite money flows, so each has its own colour (on the chip and the rows) to tell them apart at a glance. */
+/** Created and Used are opposite money flows, so each has its own colour (on the chip and the rows) to tell them apart at a glance. */
 const KIND_TONES: Record<GiftActivityKind, { chip: string; text: string }> = {
   all: { chip: "border-primary bg-primary text-primary-foreground", text: "" },
   sale: { chip: "border-success bg-success text-white", text: "text-success" },
@@ -98,7 +99,7 @@ async function Summary() {
     <>
       {total(s.outstandingCents)} unspent on {s.activeCount.toLocaleString()} voucher{s.activeCount === 1 ? "" : "s"} still in date
       {" · "}
-      {total(s.soldThisMonthCents)} sold this month ({s.soldThisMonth.toLocaleString()} voucher{s.soldThisMonth === 1 ? "" : "s"})
+      {total(s.soldThisMonthCents)} in new vouchers this month ({s.soldThisMonth.toLocaleString()})
     </>
   );
 }
@@ -200,7 +201,7 @@ async function VoucherList({ params }: { params: Params }) {
             <th className={`${th} hidden md:table-cell`}>Customer</th>
             <th className={`${th} w-28 text-right`}>Balance</th>
             <th className={`${th} hidden w-28 text-right xl:table-cell`}>Amount</th>
-            <th className={`${th} hidden w-32 lg:table-cell`}>Sold</th>
+            <th className={`${th} hidden w-32 lg:table-cell`}>Created</th>
             <th className={`${th} hidden w-48 lg:table-cell`}>Last used</th>
             <th className={`${th} hidden w-30 sm:table-cell`}>Status</th>
           </tr>
@@ -212,9 +213,12 @@ async function VoucherList({ params }: { params: Params }) {
           {vouchers.map((v) => (
             <tr key={v.id} className="hover:bg-background/60">
               <td className={td}>
-                <Link href={`/admin/gift-vouchers/${v.id}`} className="font-mono font-bold tracking-wider whitespace-nowrap hover:underline">
-                  {v.code}
-                </Link>
+                <span className="flex items-center gap-0.5">
+                  <Link href={`/admin/gift-vouchers/${v.id}`} className="font-mono font-bold tracking-wider whitespace-nowrap hover:underline">
+                    {v.code}
+                  </Link>
+                  <CopyButton text={v.code} label={`Copy ${v.code}`} className="-my-2" />
+                </span>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground lg:hidden">
                   {v.customer && <span className="md:hidden">{fullName(v.customer)}</span>}
                   <span>{v.lastUse ? `Last used ${formatDate(v.lastUse.created_at, tz)}` : "Not used yet"}</span>
@@ -268,7 +272,7 @@ async function VoucherList({ params }: { params: Params }) {
 /** What an activity row did, in words, with the amount signed the way the balance moved. */
 function describe(r: GiftActivityRow) {
   const amount = formatMoney(Math.abs(r.delta_cents));
-  if (r.kind === "sale") return { label: "Sold", amount: `+${amount}` };
+  if (r.kind === "sale") return { label: "Created", amount: `+${amount}` };
   if (r.kind === "spend") return { label: r.voided_at ? "Used, then undone" : "Used", amount: `−${amount}` };
   if (r.kind === "undo") return { label: "Spend undone", amount: `+${amount}` };
   return { label: "Adjusted", amount: `${r.delta_cents > 0 ? "+" : "−"}${amount}` };

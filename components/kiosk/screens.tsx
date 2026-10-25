@@ -6,6 +6,7 @@ import { Spinner as SharedSpinner } from "@/components/ui/spinner";
 import type { CheckInResult, KioskBirthday, KioskCustomer, RedeemResult, RedeemTarget, SignupInput } from "@/app/kiosk/actions";
 import type { KioskContent, KioskReward } from "@/lib/kiosk-content";
 import { birthdayWindowLabel } from "@/lib/rewards";
+import { daysInMonth } from "@/lib/birthday";
 import { fillPhoneMask, isCompleteNumber, looksStandard } from "@/lib/phone-mask";
 import Link from "next/link";
 import { KioskBrand } from "./brand";
@@ -222,18 +223,21 @@ export function EnterScreen(props: {
               <span>{typed}</span>
               <span className="text-kiosk-placeholder">{rest}</span>
             </output>
-            {props.error ? (
-              <p role="alert" className="text-base font-bold text-kiosk-notice">
-                {props.error}
-              </p>
-            ) : (
-              unusual && (
-                <p className="flex items-center gap-2 text-base font-semibold text-kiosk-notice">
-                  <TriangleAlert className="size-5 flex-none" aria-hidden="true" />
-                  Not a standard Australian number. You can still continue.
+            {/* One line is always kept for a message, so the keypad below never moves under a finger. */}
+            <div className="flex min-h-6 items-center justify-center">
+              {props.error ? (
+                <p role="alert" className="text-base font-bold text-kiosk-notice">
+                  {props.error}
                 </p>
-              )
-            )}
+              ) : (
+                unusual && (
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-kiosk-notice">
+                    <TriangleAlert className="size-4 flex-none" aria-hidden="true" />
+                    Not a standard Australian number. You can still continue.
+                  </p>
+                )
+              )}
+            </div>
           </div>
 
           <Numpad onDigit={props.onDigit} onClear={props.onClear} onBackspace={props.onBackspace} />
@@ -343,7 +347,9 @@ export function FoundScreen({
                   </div>
                   <p className="text-2xl font-extrabold">You&apos;ve had today&apos;s discount</p>
                   <p className="text-lg text-kiosk-muted">
-                    {customer.points} point{customer.points === 1 ? "" : "s"} saved for your next visit · one discount per visit
+                    {customer.points > 0
+                      ? `${customer.points} point${customer.points === 1 ? "" : "s"} saved for your next visit · one discount per visit`
+                      : "One discount per visit. See you next time!"}
                   </p>
                 </div>
                 <button type="button" onClick={onDone} className={`${primaryButton} min-h-16 min-w-64 px-11 text-2xl`}>
@@ -401,7 +407,9 @@ export function FoundScreen({
                 {ready && !customer.discountUsedToday ? (
                   <p className="text-lg font-bold text-kiosk-ready">{reward.title} is ready. Check in, then redeem it.</p>
                 ) : ready ? (
-                  <p className="text-lg text-kiosk-muted">{customer.points} points saved for your next visit.</p>
+                  <p className="text-lg text-kiosk-muted">
+                    {customer.points} point{customer.points === 1 ? "" : "s"} saved for your next visit.
+                  </p>
                 ) : (
                   <p className="text-lg text-kiosk-muted">{visitsToGo(customer.points, reward)}</p>
                 )}
@@ -468,18 +476,28 @@ export function SignupScreen({
   onSubmit: (input: SignupInput) => void;
   onBack: () => void;
 }) {
-  const [error, setError] = useState<string | null>(null);
+  // Each problem shows under the field it's about, so customers see what to fix.
+  const [error, setError] = useState<{ field: "firstName" | "birthday"; message: string } | null>(null);
+  // The day list only offers days the chosen month has (29 Feb included), so an impossible date
+  // like 31 February can't be picked; changing to a shorter month clears a day it doesn't have.
+  const [bdayDay, setBdayDay] = useState("");
+  const [bdayMonth, setBdayMonth] = useState("");
+  const maxDay = bdayMonth ? daysInMonth(Number(bdayMonth)) : 31;
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const firstName = String(form.get("firstName") ?? "").trim();
     if (!firstName) {
-      setError("Please enter your first name.");
+      setError({ field: "firstName", message: "Please enter your first name." });
       return;
     }
-    const month = String(form.get("birthdayMonth") ?? "");
-    const day = String(form.get("birthdayDay") ?? "");
+    const month = bdayMonth;
+    const day = bdayDay;
+    if (Boolean(month) !== Boolean(day)) {
+      setError({ field: "birthday", message: "Please pick both the day and the month of your birthday, or leave both blank." });
+      return;
+    }
     onSubmit({
       firstName,
       lastName: String(form.get("lastName") ?? "").trim() || undefined,
@@ -516,10 +534,16 @@ export function SignupScreen({
                 autoComplete="given-name"
                 autoFocus
                 maxLength={50}
-                aria-invalid={Boolean(error)}
-                aria-describedby={error ? "signup-error" : undefined}
-                className={fieldClass}
+                aria-invalid={error?.field === "firstName" || undefined}
+                aria-describedby={error?.field === "firstName" ? "firstName-error" : undefined}
+                onChange={() => error?.field === "firstName" && setError(null)}
+                className={`${fieldClass} ${error?.field === "firstName" ? "border-kiosk-notice" : ""}`}
               />
+              {error?.field === "firstName" && (
+                <p id="firstName-error" role="alert" className="text-lg font-bold text-kiosk-notice">
+                  {error.message}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <label htmlFor="lastName" className="text-base font-bold">
@@ -537,15 +561,35 @@ export function SignupScreen({
               </span>
             </legend>
             <div className="flex gap-3.5">
-              <select name="birthdayDay" aria-label="Birthday day" defaultValue="" className={`${fieldClass} w-32 text-2xl sm:w-40`}>
+              <select
+                name="birthdayDay"
+                aria-label="Birthday day"
+                value={bdayDay}
+                onChange={(e) => {
+                  setBdayDay(e.target.value);
+                  if (error?.field === "birthday") setError(null);
+                }}
+                className={`${fieldClass} w-32 text-2xl sm:w-40`}
+              >
                 <option value="">Day</option>
-                {Array.from({ length: 31 }, (_, i) => (
+                {Array.from({ length: maxDay }, (_, i) => (
                   <option key={i} value={i + 1}>
                     {i + 1}
                   </option>
                 ))}
               </select>
-              <select name="birthdayMonth" aria-label="Birthday month" defaultValue="" className={`${fieldClass} min-w-0 flex-1 text-2xl sm:w-60 sm:flex-none`}>
+              <select
+                name="birthdayMonth"
+                aria-label="Birthday month"
+                value={bdayMonth}
+                onChange={(e) => {
+                  const month = e.target.value;
+                  setBdayMonth(month);
+                  if (error?.field === "birthday") setError(null);
+                  if (month && Number(bdayDay) > daysInMonth(Number(month))) setBdayDay("");
+                }}
+                className={`${fieldClass} min-w-0 flex-1 text-2xl sm:w-60 sm:flex-none`}
+              >
                 <option value="">Month</option>
                 {MONTHS.map((m, i) => (
                   <option key={m} value={i + 1}>
@@ -554,13 +598,12 @@ export function SignupScreen({
                 ))}
               </select>
             </div>
+            {error?.field === "birthday" && (
+              <p role="alert" className="text-lg font-bold text-kiosk-notice">
+                {error.message}
+              </p>
+            )}
           </fieldset>
-
-          {error && (
-            <p id="signup-error" role="alert" className="text-lg font-bold text-kiosk-notice">
-              {error}
-            </p>
-          )}
         </div>
 
         <div className="flex w-full flex-none flex-col gap-4.5 lg:w-[360px] lg:pt-1.5">

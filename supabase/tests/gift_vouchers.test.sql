@@ -1,6 +1,6 @@
 -- Run with: npx supabase test db
 begin;
-select plan(40);
+select plan(39);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-4000-8000-0000000000b1', 'gift-staff@example.test'),
@@ -54,16 +54,11 @@ select is(((select v->>'balance_cents' from r where k = 'spend2'))::int, 0, 'spe
 select is((public.spend_gift_voucher((select v->>'code' from r where k = 'sold'), 1000))->>'status', 'used_up', 'an empty voucher cannot be spent');
 select throws_ok(format($$ select public.spend_gift_voucher(%L, 0) $$, (select v->>'code' from r where k = 'sold')), '22023', null, 'a $0 spend is rejected');
 
--- Undo
+-- No undo: a use entered by mistake is put back with an adjustment and its reason
+select hasnt_function('public', 'void_gift_voucher_spend', array['uuid'], 'spends cannot be undone (corrections go through adjust)');
 select is(
-  public.void_gift_voucher_spend((select id from public.gift_voucher_transactions where note = 'Gel full set')),
-  6500, 'undoing a spend puts the amount back');
-select throws_ok(
-  format($$ select public.void_gift_voucher_spend(%L) $$, (select id from public.gift_voucher_transactions where note = 'Gel full set')),
-  '22023', null, 'a spend can only be undone once');
-select throws_ok(
-  format($$ select public.void_gift_voucher_spend(%L) $$, (select id from public.gift_voucher_transactions where kind = 'sale' limit 1)),
-  'P0002', null, 'only spends can be undone');
+  public.adjust_gift_voucher((select id from public.gift_vouchers where code = (select v->>'code' from r where k = 'sold')), 6500, 'Entered by mistake'),
+  6500, 'a use entered by mistake is put back with an adjustment');
 
 -- Ledger and protection
 select is(

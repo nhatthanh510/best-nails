@@ -9,8 +9,8 @@ import { fillPhoneMask } from "@/lib/phone-mask";
 type View = "menu" | "sell" | "use";
 
 const VIEWS: Record<View, { title: string; description: string }> = {
-  menu: { title: "Gift vouchers", description: "Sell a new voucher, or take today's service off one." },
-  sell: { title: "Sell a gift voucher", description: "Take payment at the till as usual. The voucher is valid for 3 years." },
+  menu: { title: "Gift vouchers", description: "Create a new voucher, or take today's service off one." },
+  sell: { title: "Create a gift voucher", description: "Take payment at the till as usual. The voucher is valid for 3 years." },
   use: { title: "Use a gift voucher", description: "Check the balance, then take today's service off it." },
 };
 
@@ -55,7 +55,8 @@ export function GiftVoucherMenu({
         <span className="max-sm:sr-only">Gift voucher</span>
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        {/* Sized to fit an iPad (or a 13" laptop) without scrolling; it still scrolls on anything smaller. */}
+        <DialogContent className="kiosk-theme max-h-[94dvh] overflow-y-auto rounded-3xl ring-kiosk-line sm:max-w-xl">
           <DialogHeader>
             {view !== "menu" && (
               <button
@@ -67,7 +68,7 @@ export function GiftVoucherMenu({
                 Gift vouchers
               </button>
             )}
-            <DialogTitle>{VIEWS[view].title}</DialogTitle>
+            <DialogTitle className="text-[30px]">{VIEWS[view].title}</DialogTitle>
             <DialogDescription>{VIEWS[view].description}</DialogDescription>
             {formatted && (
               <p className="w-fit rounded-full bg-secondary px-3 py-1 text-sm font-semibold">
@@ -81,7 +82,7 @@ export function GiftVoucherMenu({
               <button type="button" onClick={() => setView("sell")} className={choice}>
                 <Plus className="size-6 flex-none text-primary" aria-hidden="true" />
                 <span className="flex flex-col">
-                  <span className="text-base font-bold">Sell a gift voucher</span>
+                  <span className="text-base font-bold">Create a gift voucher</span>
                   <span className="text-sm text-muted-foreground">A customer is buying one</span>
                 </span>
               </button>
@@ -94,8 +95,8 @@ export function GiftVoucherMenu({
               </button>
             </div>
           )}
-          {view === "sell" && <SellGiftVoucherForm onDone={close} openAfterSale={false} defaultPhone={formatted} />}
-          {view === "use" && <UseGiftVoucher onDone={close} defaultPhone={formatted} />}
+          {view === "sell" && <SellGiftVoucherForm onDone={close} openAfterSale={false} defaultPhone={formatted} phoneKnown={Boolean(formatted)} />}
+          {view === "use" && <UseGiftVoucher onDone={close} defaultPhone={formatted} phoneKnown={Boolean(formatted)} />}
         </DialogContent>
       </Dialog>
     </>

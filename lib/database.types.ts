@@ -306,9 +306,6 @@ isOneToOne: false
                            },
 "spend_gift_voucher":
 { Args: { "p_amount_cents": number,"p_code": string,"p_customer_id"?: string,"p_note"?: string }; Returns: Json
-                           },
-"void_gift_voucher_spend":
-{ Args: { "p_transaction_id": string }; Returns: number
                            }
           }
           Enums: {

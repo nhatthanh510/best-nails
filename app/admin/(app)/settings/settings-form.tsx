@@ -10,6 +10,8 @@ import { Card, TierBadge } from "@/components/admin/ui";
 import { useActionToast } from "@/components/admin/action-button";
 import { saveSettings, type ActionState } from "@/app/admin/actions";
 import type { Settings } from "@/lib/admin-data";
+import { useFormSubmit } from "@/lib/use-form-submit";
+import { cleanNumber, numberInput } from "@/lib/number-input";
 
 const selectClass = "h-11 rounded-[10px] border border-input bg-card px-3 text-[15px] disabled:opacity-60";
 const IDLE = [30, 60, 90, 120];
@@ -74,10 +76,12 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
   const vipN = Number(vip);
   const tiersValid = regularN >= 1 && vipN > regularN;
 
+  // Keeps what was typed if a save fails, and what was saved after it succeeds.
+  const formSubmit = useFormSubmit(state, formAction, { resetOnSuccess: false, ref: formRef });
+
   return (
     <form
-      ref={formRef}
-      action={formAction}
+      {...formSubmit}
       onChange={() => setDirty(snapshot(formRef.current) !== saved.current)}
       className="flex flex-col gap-6"
     >
@@ -98,12 +102,11 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
                 <Input
                   id="tier_regular_points"
                   name="tier_regular_points"
-                  type="number"
-                  min={1}
-                  max={9999}
+                  {...numberInput("digits")}
+                  maxLength={4}
                   required
                   value={regular}
-                  onChange={(e) => setRegular(e.target.value)}
+                  onChange={(e) => setRegular(cleanNumber("digits", e.target.value))}
                   className="w-24"
                 />
                 <span className="text-sm font-semibold">points</span>
@@ -115,12 +118,11 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
                 <Input
                   id="tier_vip_points"
                   name="tier_vip_points"
-                  type="number"
-                  min={2}
-                  max={10000}
+                  {...numberInput("digits")}
+                  maxLength={5}
                   required
                   value={vip}
-                  onChange={(e) => setVip(e.target.value)}
+                  onChange={(e) => setVip(cleanNumber("digits", e.target.value))}
                   className="w-24"
                 />
                 <span className="text-sm font-semibold">points</span>
@@ -205,7 +207,7 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
               {preview ? (
                 <>
                   New gift vouchers will look like <span className="font-mono font-bold text-foreground">{preview}</span>: your prefix
-                  and 8 digits, easy to copy from paper. Vouchers already sold keep their code.
+                  and 8 digits, easy to copy from paper. Vouchers already created keep their code.
                 </>
               ) : (
                 "2 to 4 letters, e.g. BN for Best Nails."

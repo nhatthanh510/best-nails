@@ -16,6 +16,7 @@ import { createAccount, deleteAccount, removeAccount, resetAccountPassword, rest
 import type { ActionState } from "@/app/admin/actions";
 import { generatePassword, MIN_PASSWORD } from "@/lib/accounts";
 import { cn } from "@/lib/utils";
+import { useFormSubmit } from "@/lib/use-form-submit";
 
 export type AccountRow = {
   id: string;
@@ -268,8 +269,9 @@ function AccountForm({ account, isMe = false, onDone }: { account?: AccountRow; 
   }, null);
   useActionToast(state);
 
+  const formSubmit = useFormSubmit(state, formAction);
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form {...formSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label htmlFor="account-name">Name</Label>
         <Input id="account-name" name="name" defaultValue={account?.name} maxLength={60} placeholder="As staff know them, e.g. Thu" required />
@@ -305,8 +307,9 @@ function ResetPasswordForm({ id, onDone }: { id: string; onDone: () => void }) {
     return result;
   }, null);
   useActionToast(state);
+  const formSubmit = useFormSubmit(state, formAction);
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form {...formSubmit} className="flex flex-col gap-4">
       <PasswordField />
       <Button type="submit" size="lg" pending={pending}>
         Reset password
