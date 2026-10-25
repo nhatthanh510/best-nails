@@ -263,11 +263,9 @@ function ConfirmModal({
 /** Add an account, or edit one's name and role (not your own role). */
 function AccountForm({ account, isMe = false, onDone }: { account?: AccountRow; isMe?: boolean; onDone: () => void }) {
   const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
-    const result = account ? await updateAccount(account.id, prev, fd) : await createAccount(prev, fd);
-    if (result?.ok) onDone();
-    return result;
+    return account ? await updateAccount(account.id, prev, fd) : await createAccount(prev, fd);
   }, null);
-  useActionToast(state);
+  useActionToast(state, { onSuccess: onDone });
 
   const formSubmit = useFormSubmit(state, formAction);
   return (
@@ -301,12 +299,8 @@ function AccountForm({ account, isMe = false, onDone }: { account?: AccountRow; 
 }
 
 function ResetPasswordForm({ id, onDone }: { id: string; onDone: () => void }) {
-  const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
-    const result = await resetAccountPassword(id, prev, fd);
-    if (result?.ok) onDone();
-    return result;
-  }, null);
-  useActionToast(state);
+  const [state, formAction, pending] = useActionState(resetAccountPassword.bind(null, id), null);
+  useActionToast(state, { onSuccess: onDone });
   const formSubmit = useFormSubmit(state, formAction);
   return (
     <form {...formSubmit} className="flex flex-col gap-4">

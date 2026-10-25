@@ -16,9 +16,10 @@ Local Supabase runs in Docker, so Docker Desktop must be running.
 npx supabase start        # Postgres + Auth; applies supabase/migrations and supabase/seed.sql
 npm run dev               # http://localhost:3000 (/kiosk, /admin)
 npm run typecheck && npm run lint && npm run build
-npm test                                     # Vitest (lib/**/*.test.ts)
+npm test                                     # Vitest (lib/**/*.test.ts, app/**/*.test.ts)
 npx vitest run lib/phone.test.ts -t "masks"  # single file / single test
 npm run test:db           # pgTAP: supabase/tests/*.test.sql (update `select plan(N)` when adding asserts)
+npm run test:e2e          # Playwright: e2e/*.spec.ts against the dev server + local Supabase (see docs/AUTOMATED_TESTS.md)
 npm run db:reset          # re-run all migrations + seed (also logs everyone out)
 npx supabase migration up && npm run db:types   # after adding a migration
 ```

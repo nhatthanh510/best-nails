@@ -55,5 +55,6 @@ export function formatBirthday(month: number | null, day: number | null) {
 }
 
 export function signed(n: number) {
+  if (n === 0) return "0";
   return n > 0 ? `+${n}` : `−${Math.abs(n)}`;
 }
