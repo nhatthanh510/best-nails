@@ -349,11 +349,10 @@ export function UseGiftVoucher({
       setTillCents(0);
       setCheck(null);
       if (!fixedCode) setCode("");
-      onDone?.();
     }
     return result;
   }, null);
-  useActionToast(state);
+  useActionToast(state, { onSuccess: onDone });
 
   const runCheck = (value = code) => {
     if (!value.trim()) return;

@@ -19,5 +19,5 @@ export type BirthdayStatus = {
 export function birthdayWindowLabel(days: number) {
   if (days === 0) return "on your birthday";
   if (days === 7) return "in your birthday week";
-  return `within ${days} days of your birthday`;
+  return `within ${days} day${days === 1 ? "" : "s"} of your birthday`;
 }

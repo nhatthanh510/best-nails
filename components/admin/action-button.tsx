@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -108,9 +108,19 @@ export function ConfirmButton({
 /**
  * Shows the outcome of a useActionState form submission as a toast. Forms that print their
  * error next to the fields pass `{ errors: false }`, so it isn't shown twice.
+ *
+ * A form that closes itself after saving (a dialog, an inline editor) passes the close as
+ * `onSuccess` rather than calling it inside its action: closing there unmounts the form before
+ * this effect runs, and the success toast is lost.
  */
-export function useActionToast(state: ActionState, { errors = true }: { errors?: boolean } = {}) {
+export function useActionToast(state: ActionState, { errors = true, onSuccess }: { errors?: boolean; onSuccess?: () => void } = {}) {
+  // Callers pass inline closures; a ref keeps a new one each render from re-running the effect.
+  const onSuccessRef = useRef(onSuccess);
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  });
   useEffect(() => {
     if (errors || state?.ok) report(state);
+    if (state?.ok) onSuccessRef.current?.();
   }, [state, errors]);
 }

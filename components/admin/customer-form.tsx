@@ -32,13 +32,10 @@ export function CustomerForm({
   const router = useRouter();
   const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
     const result = await action(prev, fd);
-    if (result?.ok) {
-      onDone?.();
-      if (result.href) router.push(result.href);
-    }
+    if (result?.ok && result.href) router.push(result.href);
     return result;
   }, null);
-  useActionToast(state, { errors: false });
+  useActionToast(state, { errors: false, onSuccess: onDone });
 
   // Checked when staff leave the phone field, so a duplicate shows before the rest is typed.
   const [existing, setExisting] = useState<{ id: string; name: string } | null>(null);

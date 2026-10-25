@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -45,9 +46,8 @@ function isoDate({ year, month, day }: { year: number; month: number; day: numbe
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-async function shopTimezone(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const { data } = await supabase.from("settings").select("timezone").single();
-  return data?.timezone ?? "UTC";
+async function shopTimezone() {
+  return (await getSettings()).timezone;
 }
 
 async function dayStart(supabase: Awaited<ReturnType<typeof createClient>>, daysAgo = 0) {
@@ -63,12 +63,13 @@ export async function staffNames(): Promise<Map<string, string>> {
   return new Map((data ?? []).map((s) => [s.user_id, s.display_name]));
 }
 
-export async function getSettings(): Promise<Settings> {
+/** Cached for the request: pages and the loaders that need the shop's timezone all read it. */
+export const getSettings = cache(async (): Promise<Settings> => {
   const { supabase } = await staffClient();
   const { data, error } = await supabase.from("settings").select("*").single();
   if (error) throw error;
   return data;
-}
+});
 
 // ---------------------------------------------------------------------------
 // Dashboard
@@ -78,7 +79,7 @@ const DASHBOARD_CHECK_INS = 10;
 
 export async function getDashboard() {
   const { supabase } = await staffClient();
-  const { day: dayOfMonth } = shopDate(await shopTimezone(supabase));
+  const { day: dayOfMonth } = shopDate(await shopTimezone());
   const [today, weekAgo, monthStart] = await Promise.all([dayStart(supabase), dayStart(supabase, 6), dayStart(supabase, dayOfMonth - 1)]);
   const thirtyDaysAgo = new Date(Date.now() - 30 * DAY_MS).toISOString();
 
@@ -205,7 +206,7 @@ export async function listCustomers({
     query = query.is("visit.voided_at", null).gte("visit.created_at", await dayStart(supabase, filter === "week" ? 6 : filter === "yesterday" ? 1 : 0));
     if (filter === "yesterday") query = query.lt("visit.created_at", await dayStart(supabase, 0));
   }
-  if (filter === "birthday") query = query.eq("birthday_month", shopDate(await shopTimezone(supabase)).month);
+  if (filter === "birthday") query = query.eq("birthday_month", shopDate(await shopTimezone()).month);
 
   const ascending = dir === "asc";
   if (sort === "name") query = query.order("first_name", { ascending }).order("last_name", { ascending, nullsFirst: false });
@@ -327,7 +328,7 @@ export async function listCheckIns({
       .is("voided_at", null)
       .gte("created_at", since)
       .limit(5000),
-    shopTimezone(supabase),
+    shopTimezone(),
   ]);
   if (error && error.code !== PAST_END) throw error;
   for (const r of [totals, redeems, birthdays, spends]) if (r.error) throw r.error;
@@ -372,7 +373,7 @@ export async function listRewards(): Promise<Reward[]> {
 /** Times each reward has been redeemed, and birthday discounts used since 1 January (shop time). */
 export async function rewardUsage(rewardIds: string[]) {
   const { supabase } = await staffClient();
-  const yearStart = await dayStart(supabase, shopDate(await shopTimezone(supabase)).dayOfYear - 1);
+  const yearStart = await dayStart(supabase, shopDate(await shopTimezone()).dayOfYear - 1);
   // Counted in the database: a shop has a handful of rewards, but each can have thousands of redemptions.
   const [birthdays, ...perReward] = await Promise.all([
     supabase.from("birthday_redemptions").select("id", { count: "exact", head: true }).gte("created_at", yearStart),
@@ -439,7 +440,7 @@ const CUSTOMER_REF = "customer:customers(id, first_name, last_name, phone)";
 
 export async function listGiftVouchers({ q, filter, page }: { q: string; filter: GiftVoucherFilter; page: number }) {
   const { supabase } = await staffClient();
-  const today = isoDate(shopDate(await shopTimezone(supabase)));
+  const today = isoDate(shopDate(await shopTimezone()));
   let query = supabase
     .from("gift_vouchers")
     .select("*, customer:customers(id, first_name, last_name, phone), last_use:gift_voucher_transactions(created_at, customer:customers(first_name, last_name))", {
@@ -570,7 +571,7 @@ export async function getGiftVoucher(id: string) {
       .eq("gift_voucher_id", id)
       .order("seq", { ascending: false })
       .limit(1000),
-    shopTimezone(supabase),
+    shopTimezone(),
   ]);
   if (voucher.error) throw voucher.error;
   if (!voucher.data) return null;
@@ -584,7 +585,7 @@ export async function getGiftVoucher(id: string) {
 /** Unspent credit the shop owes, and this month's sales. */
 export async function giftVoucherSummary() {
   const { supabase } = await staffClient();
-  const { year, month } = shopDate(await shopTimezone(supabase));
+  const { year, month } = shopDate(await shopTimezone());
   const [totals, sold] = await Promise.all([
     supabase.from("gift_voucher_totals").select("*").single(),
     supabase
@@ -605,7 +606,7 @@ export async function customerGiftVouchers(customerId: string) {
   const { supabase } = await staffClient();
   const [{ data }, tz] = await Promise.all([
     supabase.from("gift_vouchers").select("*").eq("customer_id", customerId).order("created_at", { ascending: false }),
-    shopTimezone(supabase),
+    shopTimezone(),
   ]);
   const today = isoDate(shopDate(tz));
   return (data ?? []).map((v) => ({ ...v, status: giftVoucherStatus(v, today) }));

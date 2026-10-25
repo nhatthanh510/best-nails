@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/admin/ui";
 import { ConfirmButton, useActionToast } from "@/components/admin/action-button";
-import { deleteReward, saveBirthdayDiscount, saveReward, type ActionState } from "@/app/admin/actions";
+import { deleteReward, saveBirthdayDiscount, saveReward } from "@/app/admin/actions";
 import type { Settings } from "@/lib/admin-data";
 import type { Reward } from "@/lib/rewards";
 import { cn } from "@/lib/utils";
@@ -72,12 +72,8 @@ export function RewardsManager({ items }: { items: Item[] }) {
 }
 
 function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => void }) {
-  const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
-    const result = await saveReward(prev, fd);
-    if (result?.ok) onDone();
-    return result;
-  }, null);
-  useActionToast(state, { errors: false });
+  const [state, formAction, pending] = useActionState(saveReward, null);
+  useActionToast(state, { errors: false, onSuccess: onDone });
 
   const formSubmit = useFormSubmit(state, formAction);
   return (
