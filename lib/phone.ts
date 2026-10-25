@@ -49,8 +49,17 @@ export function formatPhone(e164: string): string {
 }
 
 /** •••• ••• 678: shown on the kiosk so a passer-by can't read someone's number. */
+/**
+ * For the kiosk's public screen: the first two and last three digits in the usual local
+ * grouping, e.g. +61412345678 → "04•• ••• 678", so a customer recognises their number but
+ * someone looking over their shoulder can't read it.
+ */
 export function maskPhone(e164: string): string {
-  return `•••• ••• ${e164.slice(-3)}`;
+  const local = e164.startsWith("+61") ? `0${e164.slice(3)}` : e164.slice(1);
+  const masked = [...local].map((d, i) => (i < 2 || i >= local.length - 3 ? d : "•")).join("");
+  if (local.length === 10 && /^0[2378]/.test(local)) return `${masked.slice(0, 2)} ${masked.slice(2, 6)} ${masked.slice(6)}`;
+  if (local.length === 10) return `${masked.slice(0, 4)} ${masked.slice(4, 7)} ${masked.slice(7)}`;
+  return masked.match(/.{1,3}/g)!.join(" ");
 }
 
 function groupDigits(d: string) {

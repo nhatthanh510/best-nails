@@ -8,7 +8,6 @@ export type KioskContent = {
   /** Null when the birthday discount is switched off. */
   birthday: { percent: number; windowDays: number } | null;
   idleSeconds: number;
-  pointsPerVisit: number;
   timezone: string;
 };
 
@@ -26,7 +25,6 @@ export async function loadKioskContent(): Promise<KioskContent> {
       ? { percent: settings.birthday_discount_percent, windowDays: settings.birthday_window_days }
       : null,
     idleSeconds: settings?.kiosk_idle_seconds ?? 60,
-    pointsPerVisit: settings?.points_per_visit ?? 1,
     timezone: settings?.timezone ?? "Australia/Hobart",
   };
 }

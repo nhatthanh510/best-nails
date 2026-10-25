@@ -13,11 +13,12 @@ import {
   type SignupInput,
 } from "@/app/kiosk/actions";
 import type { KioskContent } from "@/lib/kiosk-content";
-import { AlreadyScreen, EnterScreen, ErrorScreen, FoundScreen, RedeemedScreen, SignupScreen, SuccessScreen } from "./screens";
+import { SignOutConfirm } from "./sign-out-confirm";
+import { GiftVoucherMenu } from "./gift-voucher-menu";
+import { AlreadyScreen, EnterScreen, ErrorScreen, FoundScreen, KioskHeader, RedeemedScreen, SignupScreen, SuccessScreen } from "./screens";
+import { cn } from "@/lib/utils";
+import { isCompleteNumber, MAX_KIOSK_DIGITS } from "@/lib/phone-mask";
 
-// Mirrors MIN_PHONE_DIGITS / MAX_PHONE_DIGITS in lib/phone.ts (kept out of the client bundle).
-const MIN_DIGITS = 8;
-const MAX_DIGITS = 12;
 
 export type Screen =
   | { name: "enter" }
@@ -30,9 +31,12 @@ export type Screen =
 
 const SUCCESS_SECONDS = 8;
 
-export function KioskApp({ content }: { content: KioskContent }) {
+export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin: boolean }) {
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>({ name: "enter" });
+  const [signingOut, setSigningOut] = useState(false);
+  // While the Gift voucher dialog is open, the idle reset and screen countdowns wait.
+  const [voucherOpen, setVoucherOpen] = useState(false);
   const [digits, setDigitsRaw] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [redeemError, setRedeemError] = useState<string | null>(null);
@@ -45,6 +49,7 @@ export function KioskApp({ content }: { content: KioskContent }) {
   const reset = useCallback(() => {
     setDigits("");
     setRedeemError(null);
+    setVoucherOpen(false);
     setScreen({ name: "enter" });
     // Pick up promotions or settings changed in the admin since the last visit.
     router.refresh();
@@ -56,7 +61,7 @@ export function KioskApp({ content }: { content: KioskContent }) {
     const atRest = screen.name === "enter" && digits === "";
     const arm = () => {
       clearTimeout(idleTimer.current);
-      if (!atRest) idleTimer.current = setTimeout(reset, content.idleSeconds * 1000);
+      if (!atRest && !voucherOpen) idleTimer.current = setTimeout(reset, content.idleSeconds * 1000);
     };
     arm();
     window.addEventListener("pointerdown", arm);
@@ -66,7 +71,7 @@ export function KioskApp({ content }: { content: KioskContent }) {
       window.removeEventListener("pointerdown", arm);
       window.removeEventListener("keydown", arm);
     };
-  }, [screen.name, digits, content.idleSeconds, reset]);
+  }, [screen.name, digits, content.idleSeconds, reset, voucherOpen]);
 
   const handleResult = (result: CheckInResult) => {
     if (result.status === "checked_in") setScreen({ name: "success", result });
@@ -76,7 +81,7 @@ export function KioskApp({ content }: { content: KioskContent }) {
   };
 
   const submitPhone = () => {
-    if (digits.length < MIN_DIGITS || pending) return;
+    if (!isCompleteNumber(digits) || pending) return;
     startTransition(async () => {
       try {
         const result = await lookupPhone(digits);
@@ -116,11 +121,13 @@ export function KioskApp({ content }: { content: KioskContent }) {
     });
   };
 
-  // A physical or Bluetooth keyboard works on the number screen too.
+  // A physical or Bluetooth keyboard works on the number screen too, except while typing into
+  // a field or a dialog (e.g. a gift voucher code from the header).
   useEffect(() => {
     if (screen.name !== "enter") return;
     const onKey = (e: KeyboardEvent) => {
-      if (/^[0-9]$/.test(e.key)) setDigits((d) => (d.length < MAX_DIGITS ? d + e.key : d));
+      if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable], [role=dialog], [role=alertdialog]")) return;
+      if (/^[0-9]$/.test(e.key)) setDigits((d) => (d.length < MAX_KIOSK_DIGITS ? d + e.key : d));
       else if (e.key === "Backspace") setDigits((d) => d.slice(0, -1));
       else if (e.key === "Escape") setDigits("");
       else if (e.key === "Enter") submitPhone();
@@ -137,49 +144,81 @@ export function KioskApp({ content }: { content: KioskContent }) {
     onRedeem: redeem,
   };
 
-  switch (screen.name) {
-    case "enter":
-      return (
-        <EnterScreen
-          digits={digits}
-          minDigits={MIN_DIGITS}
-          error={phoneError}
-          content={content}
-          pending={pending}
-          onDigit={(d) => setDigits((cur) => (cur.length < MAX_DIGITS ? cur + d : cur))}
-          onClear={() => setDigits("")}
-          onBackspace={() => setDigits((cur) => cur.slice(0, -1))}
-          onContinue={submitPhone}
-        />
-      );
-    case "found":
-      return (
-        <FoundScreen
-          customer={screen.customer}
-          content={content}
-          pending={pending}
-          onCheckIn={() => submitCheckIn()}
-          onStartOver={reset}
-        />
-      );
-    case "signup":
-      return (
-        <SignupScreen
-          formattedPhone={screen.formattedPhone}
-          nonStandard={screen.nonStandard}
-          content={content}
-          pending={pending}
-          onSubmit={submitCheckIn}
-          onBack={reset}
-        />
-      );
-    case "success":
-      return <SuccessScreen result={screen.result} seconds={SUCCESS_SECONDS} onDone={reset} {...redeemProps} />;
-    case "already":
-      return <AlreadyScreen result={screen.result} timezone={content.timezone} onDone={reset} {...redeemProps} />;
-    case "redeemed":
-      return <RedeemedScreen result={screen.result} timezone={content.timezone} onDone={reset} />;
-    case "error":
-      return <ErrorScreen message={screen.message} onDone={reset} />;
+  // Once the customer has typed their number (and they exist), a voucher sold or used here is
+  // linked to them. Before that, and on sign-up, it opens without a customer.
+  const customerName =
+    screen.name === "found"
+      ? screen.customer.firstName
+      : screen.name === "success" || screen.name === "already"
+        ? screen.result.firstName
+        : undefined;
+  const linked = screen.name === "found" || screen.name === "success" || screen.name === "already" || screen.name === "redeemed";
+
+  return (
+    // The number screen fits the screen exactly in landscape, so its keypad can fill the height.
+    <div className={cn("flex min-h-dvh w-full flex-col bg-kiosk-bg", screen.name === "enter" && "lg:h-dvh lg:min-h-[600px]")}>
+      <KioskHeader
+        isAdmin={isAdmin}
+        onSignOut={() => setSigningOut(true)}
+        voucher={
+          <GiftVoucherMenu
+            phone={linked ? digits : ""}
+            name={customerName}
+            onOpenChange={setVoucherOpen}
+          />
+        }
+      />
+      {renderScreen()}
+      {signingOut && <SignOutConfirm onClose={() => setSigningOut(false)} />}
+    </div>
+  );
+
+  function renderScreen() {
+    switch (screen.name) {
+      case "enter":
+        return (
+          <EnterScreen
+            digits={digits}
+            error={phoneError}
+            content={content}
+            pending={pending}
+            onDigit={(d) => setDigits((cur) => (cur.length < MAX_KIOSK_DIGITS ? cur + d : cur))}
+            onClear={() => setDigits("")}
+            onBackspace={() => setDigits((cur) => cur.slice(0, -1))}
+            onContinue={submitPhone}
+          />
+        );
+      case "found":
+        return (
+<FoundScreen
+            customer={screen.customer}
+            content={content}
+            pending={pending}
+            onCheckIn={() => submitCheckIn()}
+            onStartOver={reset}
+            onDone={reset}
+            redeem={redeemProps}
+          />
+        );
+      case "signup":
+        return (
+          <SignupScreen
+            formattedPhone={screen.formattedPhone}
+            nonStandard={screen.nonStandard}
+            content={content}
+            pending={pending}
+            onSubmit={submitCheckIn}
+            onBack={reset}
+          />
+        );
+      case "success":
+        return <SuccessScreen result={screen.result} seconds={SUCCESS_SECONDS} onDone={reset} paused={voucherOpen} {...redeemProps} />;
+      case "already":
+        return <AlreadyScreen result={screen.result} timezone={content.timezone} onDone={reset} {...redeemProps} />;
+      case "redeemed":
+        return <RedeemedScreen result={screen.result} timezone={content.timezone} onDone={reset} paused={voucherOpen} />;
+      case "error":
+        return <ErrorScreen message={screen.message} onDone={reset} />;
+    }
   }
 }

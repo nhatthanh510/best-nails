@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CircleCheck, CircleX, Gift, Plus, RefreshCw } from "lucide-react";
+import { CircleCheck, CircleX, Gift, Plus, RefreshCw, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,7 @@ import {
   type GiftVoucherCheck,
 } from "@/app/admin/gift-voucher-actions";
 import type { ActionState } from "@/app/admin/actions";
-import { formatGiftCode, formatMoney, GIFT_VOUCHER_PRESETS, parseDollars } from "@/lib/gift-vouchers";
+import { formatMoney, GIFT_VOUCHER_PRESETS, parseDollars } from "@/lib/gift-vouchers";
 import { formatPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +63,35 @@ export function SellGiftVoucherButton({ variant }: { variant?: "default" | "outl
   );
 }
 
-function SellGiftVoucherForm({ onDone }: { onDone: () => void }) {
+/** The front desk's "Use a gift voucher" form in a dialog, so list pages keep their room. */
+export function UseGiftVoucherButton({ variant }: { variant?: "default" | "outline" }) {
+  return (
+    <FormDialog
+      variant={variant}
+      title="Use a gift voucher"
+      description="Check the balance, then take today's service off it."
+      trigger={
+        <>
+          <WalletCards aria-hidden="true" />
+          Use gift voucher
+        </>
+      }
+    >
+      {(close) => <UseGiftVoucher onDone={close} />}
+    </FormDialog>
+  );
+}
+
+export function SellGiftVoucherForm({
+  onDone,
+  openAfterSale = true,
+  defaultPhone = "",
+}: {
+  onDone: () => void;
+  openAfterSale?: boolean;
+  /** The customer it's for, e.g. the number typed on the kiosk; staff can change or clear it. */
+  defaultPhone?: string;
+}) {
   const router = useRouter();
   const [amount, setAmount] = useState("100");
   const [code, setCode] = useState("");
@@ -83,7 +111,8 @@ function SellGiftVoucherForm({ onDone }: { onDone: () => void }) {
     const result = await sellGiftVoucher(prev, fd);
     if (result?.ok) {
       onDone();
-      if (result.href) router.push(result.href);
+      // In the admin, go to the new voucher; on the kiosk, stay on the check-in screen.
+      if (openAfterSale && result.href) router.push(result.href);
     }
     return result;
   }, null);
@@ -143,7 +172,7 @@ function SellGiftVoucherForm({ onDone }: { onDone: () => void }) {
         <Label htmlFor="gv-phone">
           Customer phone <span className="font-medium text-muted-foreground">(optional)</span>
         </Label>
-        <Input id="gv-phone" name="phone" type="tel" inputMode="tel" placeholder="0412 345 678" />
+        <Input id="gv-phone" name="phone" type="tel" inputMode="tel" placeholder="0412 345 678" defaultValue={defaultPhone} />
         <p className="text-[13px] text-muted-foreground">Leave blank if it&apos;s a present for someone who isn&apos;t a member yet.</p>
       </div>
       <div className="flex flex-col gap-2">
@@ -153,7 +182,7 @@ function SellGiftVoucherForm({ onDone }: { onDone: () => void }) {
         <Textarea id="gv-notes" name="notes" rows={2} maxLength={500} placeholder="e.g. Bought by Sarah for her mum" />
       </div>
       <FormError state={state} />
-      <Button type="submit" size="lg" disabled={pending || cents === null || cents < 100}>
+      <Button type="submit" size="lg" pending={pending} disabled={cents === null || cents < 100}>
         <Gift aria-hidden="true" />
         {pending ? "Selling…" : cents && cents >= 100 ? `Sell ${formatMoney(cents)} voucher` : "Sell voucher"}
       </Button>
@@ -170,7 +199,21 @@ function SellGiftVoucherForm({ onDone }: { onDone: () => void }) {
  * start from a known voucher (its own page) and `customerId` on a customer's page. `compact`
  * stacks the fields for a narrow column.
  */
-export function UseGiftVoucher({ code: fixedCode, customerId, compact = false }: { code?: string; customerId?: string; compact?: boolean }) {
+export function UseGiftVoucher({
+  code: fixedCode,
+  customerId,
+  compact = false,
+  onDone,
+  defaultPhone = "",
+}: {
+  code?: string;
+  customerId?: string;
+  compact?: boolean;
+  /** Called after a successful spend, e.g. to close the dialog. */
+  onDone?: () => void;
+  /** Who is using it, e.g. the number typed on the kiosk. */
+  defaultPhone?: string;
+}) {
   const [code, setCode] = useState(fixedCode ?? "");
   const [check, setCheck] = useState<GiftVoucherCheck | null>(null);
   const [amount, setAmount] = useState("");
@@ -182,6 +225,7 @@ export function UseGiftVoucher({ code: fixedCode, customerId, compact = false }:
       setAmount("");
       setCheck(null);
       if (!fixedCode) setCode("");
+      onDone?.();
     }
     return result;
   }, null);
@@ -193,7 +237,8 @@ export function UseGiftVoucher({ code: fixedCode, customerId, compact = false }:
   };
   const cents = parseDollars(amount);
   const balance = check?.ok ? check.balanceCents : 0;
-  const covered = cents === null ? 0 : Math.min(cents, balance);
+  // More than is left can't be used; staff enter what's left and take the rest at the till.
+  const over = cents !== null && cents > balance;
 
   return (
     <form action={formAction} className="flex flex-col gap-3.5">
@@ -225,13 +270,13 @@ export function UseGiftVoucher({ code: fixedCode, customerId, compact = false }:
               className="font-mono text-base tracking-wider uppercase placeholder:font-sans placeholder:tracking-normal placeholder:normal-case"
             />
           </div>
-          <Button type="button" variant="outline" onClick={runCheck} disabled={!code.trim() || checking}>
+          <Button type="button" variant="outline" onClick={runCheck} pending={checking} disabled={!code.trim()}>
             {checking ? "Checking…" : "Check balance"}
           </Button>
         </div>
       )}
       {fixedCode && !check && (
-        <Button type="button" variant="outline" onClick={runCheck} disabled={checking} className="self-start">
+        <Button type="button" variant="outline" onClick={runCheck} pending={checking} className="self-start">
           {checking ? "Checking…" : "Use this voucher"}
         </Button>
       )}
@@ -250,7 +295,7 @@ export function UseGiftVoucher({ code: fixedCode, customerId, compact = false }:
             <div className="flex flex-col">
               <span className="text-lg font-extrabold">
                 {formatMoney(check.balanceCents)} left{" "}
-                <span className="font-mono text-sm font-bold whitespace-nowrap text-muted-foreground">{formatGiftCode(check.code)}</span>
+                <span className="font-mono text-sm font-bold whitespace-nowrap text-muted-foreground">{check.code}</span>
               </span>
               <span className="text-sm text-muted-foreground">
                 of {formatMoney(check.amountCents)} · expires {dateLabel(check.expiresOn)}
@@ -272,6 +317,8 @@ export function UseGiftVoucher({ code: fixedCode, customerId, compact = false }:
                   placeholder="35"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
+                  aria-invalid={over || undefined}
+                  aria-describedby={`spend-summary${check.id}`}
                   className="bg-card pl-7 text-base tabular-nums"
                 />
               </div>
@@ -288,19 +335,25 @@ export function UseGiftVoucher({ code: fixedCode, customerId, compact = false }:
               <Label htmlFor={`spend-phone${check.id}`}>
                 Customer phone <span className="font-medium text-muted-foreground">(optional, who is using it today)</span>
               </Label>
-              <Input id={`spend-phone${check.id}`} name="phone" type="tel" inputMode="tel" placeholder="0412 345 678" className="bg-card" />
+              <Input id={`spend-phone${check.id}`} name="phone" type="tel" inputMode="tel" placeholder="0412 345 678" defaultValue={defaultPhone} className="bg-card" />
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-semibold" aria-live="polite">
-              {cents !== null && cents > 0 &&
-                (cents > balance
-                  ? `Uses all ${formatMoney(balance)}. Take ${formatMoney(cents - balance)} at the till.`
-                  : `Leaves ${formatMoney(balance - cents)} on the voucher.`)}
+            <p id={`spend-summary${check.id}`} className={cn("text-sm font-semibold", over && "text-destructive")} aria-live="polite">
+              {cents !== null && cents > 0 ? (
+                over ? (
+                  `This voucher only has ${formatMoney(balance)} left. Enter ${formatMoney(balance)} or less and take the rest at the till.`
+                ) : (
+                  `Leaves ${formatMoney(balance - cents)} on the voucher.`
+                )
+              ) : (
+                // The voucher pays like cash, so a discount comes off first.
+                <span className="font-normal text-muted-foreground">Using a discount today? Enter the price after the discount.</span>
+              )}
             </p>
-            <Button type="submit" disabled={pending || cents === null || cents <= 0}>
+            <Button type="submit" pending={pending} disabled={cents === null || cents <= 0 || over}>
               <Gift aria-hidden="true" />
-              {pending ? "Saving…" : cents && cents > 0 ? `Use ${formatMoney(covered)}` : "Use voucher"}
+              {pending ? "Saving…" : cents && cents > 0 && !over ? `Use ${formatMoney(cents)}` : "Use voucher"}
             </Button>
           </div>
         </div>
@@ -319,7 +372,7 @@ export function GiftVoucherSettingsForm({
   notes,
   expiresOn,
   minExpiry,
-  isOwner,
+  isAdmin,
 }: {
   id: string;
   phone: string | null;
@@ -327,7 +380,7 @@ export function GiftVoucherSettingsForm({
   expiresOn: string;
   /** 3 years after the sale: the earliest legal expiry. */
   minExpiry: string;
-  isOwner: boolean;
+  isAdmin: boolean;
 }) {
   const [state, formAction, pending] = useActionState(updateGiftVoucher.bind(null, id), null);
   useActionToast(state);
@@ -344,16 +397,16 @@ export function GiftVoucherSettingsForm({
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="gv-expiry">Expires</Label>
-        {isOwner ? (
+        {isAdmin ? (
           <Input id="gv-expiry" name="expires_on" type="date" min={minExpiry} defaultValue={expiresOn} />
         ) : (
           <p id="gv-expiry" className="text-sm">
-            {dateLabel(expiresOn)} <span className="text-muted-foreground">· only the owner can change it</span>
+            {dateLabel(expiresOn)} <span className="text-muted-foreground">· only an admin can change it</span>
           </p>
         )}
       </div>
       <FormError state={state} />
-      <Button type="submit" variant="outline" disabled={pending} className="self-end">
+      <Button type="submit" variant="outline" pending={pending} className="self-end">
         {pending ? "Saving…" : "Save"}
       </Button>
     </form>
@@ -361,7 +414,7 @@ export function GiftVoucherSettingsForm({
 }
 
 export function AdjustGiftVoucherForm({ id, balanceCents }: { id: string; balanceCents: number }) {
-  const [direction, setDirection] = useState<"add" | "remove">("remove");
+  const [direction, setDirection] = useState<"add" | "remove">("add");
   const [amount, setAmount] = useState("");
   const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
     const result = await adjustGiftVoucher(id, prev, fd);
@@ -389,7 +442,7 @@ export function AdjustGiftVoucherForm({ id, balanceCents }: { id: string; balanc
       </div>
       <Textarea name="note" rows={2} maxLength={200} required aria-label="Reason" placeholder="Reason, saved to the history" />
       <FormError state={state} />
-      <Button type="submit" disabled={pending || cents <= 0 || preview < 0} className="self-end">
+      <Button type="submit" pending={pending} disabled={cents <= 0 || preview < 0} className="self-end">
         {cents > 0 ? `Save · new balance ${formatMoney(preview)}` : "Save"}
       </Button>
     </form>

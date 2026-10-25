@@ -32,7 +32,7 @@ export function ActionButton({
   return (
     <Button
       {...props}
-      disabled={pending || props.disabled}
+      pending={pending}
       onClick={() =>
         startTransition(async () => {
           const result = await action();
@@ -83,7 +83,7 @@ export function ConfirmButton({
           <Button
             size="lg"
             variant="destructive"
-            disabled={pending}
+            pending={pending}
             onClick={() =>
               startTransition(async () => {
                 const result = await action();

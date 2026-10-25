@@ -3,10 +3,11 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import type { PostgrestError } from "@supabase/supabase-js";
-import { requireStaff } from "@/lib/auth";
+import { requireAdmin, requireSignedIn } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { findCustomer } from "@/lib/customer-lookup";
-import { formatGiftCode, formatMoney, GIFT_VOUCHER_PROBLEMS, parseDollars } from "@/lib/gift-vouchers";
+import { formatMoney, GIFT_VOUCHER_PROBLEMS, looksMistyped, parseDollars } from "@/lib/gift-vouchers";
 import type { ActionState } from "./actions";
 
 function fail(message: string): ActionState {
@@ -21,6 +22,12 @@ function dbError(error: PostgrestError): ActionState {
   }
   console.error(error);
   return fail("Something went wrong. Please try again.");
+}
+
+/** Why a code can't be used. An unknown code with a wrong check digit is called out as a typo. */
+function problem(status: string, code: string) {
+  const key = status === "not_found" && looksMistyped(code) ? "mistyped" : status;
+  return GIFT_VOUCHER_PROBLEMS[key] ?? "This gift voucher can't be used.";
 }
 
 const text = (max: number) =>
@@ -42,7 +49,7 @@ const sellSchema = z.object({
 });
 
 export async function sellGiftVoucher(_: ActionState, formData: FormData): Promise<ActionState> {
-  await requireStaff();
+  await requireSignedIn();
   const parsed = sellSchema.safeParse({
     amount: formData.get("amount") ?? "",
     code: formData.get("code") ?? "",
@@ -54,7 +61,9 @@ export async function sellGiftVoucher(_: ActionState, formData: FormData): Promi
   if (cents === null || cents < 100) return fail("Enter the voucher amount, e.g. 100.");
 
   const supabase = await createClient();
-  const customer = await findCustomer(supabase, parsed.data.phone, "");
+  // Staff accounts can't read customers, so the phone lookup uses the service client (it only
+  // returns the id and name, here on the server).
+  const customer = await findCustomer(createAdminClient(), parsed.data.phone, "");
   if (customer === "missing") return fail("No customer has that phone number. Leave it blank or add them first.");
 
   const { data, error } = await supabase.rpc("sell_gift_voucher", {
@@ -67,22 +76,22 @@ export async function sellGiftVoucher(_: ActionState, formData: FormData): Promi
   const r = data as { id: string; code: string };
   return {
     ok: true,
-    message: `Sold ${formatGiftCode(r.code)} for ${formatMoney(cents)}. Take payment at the till.`,
+    message: `Sold ${r.code} for ${formatMoney(cents)}. Take payment at the till.`,
     href: `/admin/gift-vouchers/${r.id}`,
   };
 }
 
 /** A fresh code with the business prefix, for the sell form's Generate button. */
 export async function generateGiftVoucherCode(): Promise<{ ok: true; code: string } | { ok: false; message: string }> {
-  await requireStaff();
+  await requireSignedIn();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("generate_gift_voucher_code");
   if (error || !data) return { ok: false, message: "Couldn't make a code. Please try again." };
-  return { ok: true, code: formatGiftCode(data) };
+  return { ok: true, code: data };
 }
 
 // ---------------------------------------------------------------------------
-// Front desk: check and spend
+// Front desk: check and spend. Like selling, open to any signed-in account (the kiosk header).
 // ---------------------------------------------------------------------------
 
 export type GiftVoucherCheck =
@@ -99,15 +108,12 @@ export type GiftVoucherCheck =
 
 /** Look a code up first, so staff can tell the customer their balance. */
 export async function checkGiftVoucherCode(code: string): Promise<GiftVoucherCheck> {
-  await requireStaff();
+  await requireSignedIn();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("check_gift_voucher", { p_code: code });
   if (error || !data) return { ok: false, message: "Couldn't check the gift voucher. Please try again." };
   const r = data as Record<string, unknown>;
-  if (r.status !== "valid") {
-    const message = GIFT_VOUCHER_PROBLEMS[r.status as string] ?? "This gift voucher can't be used.";
-    return { ok: false, message };
-  }
+  if (r.status !== "valid") return { ok: false, message: problem(r.status as string, code) };
   return {
     ok: true,
     id: r.id as string,
@@ -120,14 +126,14 @@ export async function checkGiftVoucherCode(code: string): Promise<GiftVoucherChe
 }
 
 export async function spendGiftVoucher(_: ActionState, formData: FormData): Promise<ActionState> {
-  await requireStaff();
+  await requireSignedIn();
   const code = String(formData.get("code") ?? "");
   const cents = parseDollars(String(formData.get("amount") ?? ""));
   if (cents === null || cents < 1) return fail("Enter the amount for today's service, e.g. 35.");
   const note = String(formData.get("note") ?? "").slice(0, 200);
 
   const supabase = await createClient();
-  const customer = await findCustomer(supabase, String(formData.get("phone") ?? ""), String(formData.get("customer_id") ?? ""));
+  const customer = await findCustomer(createAdminClient(), String(formData.get("phone") ?? ""), String(formData.get("customer_id") ?? ""));
   if (customer === "missing") return fail("No customer has that phone number.");
 
   const { data, error } = await supabase.rpc("spend_gift_voucher", {
@@ -138,23 +144,21 @@ export async function spendGiftVoucher(_: ActionState, formData: FormData): Prom
   });
   if (error) return dbError(error);
   const r = data as Record<string, unknown>;
-  if (r.status !== "spent") return fail(GIFT_VOUCHER_PROBLEMS[r.status as string] ?? "This gift voucher can't be used.");
+  if (r.status === "over_balance") {
+    const left = formatMoney(r.balance_cents as number);
+    return fail(`This voucher only has ${left} left. Enter ${left} or less and take the rest at the till.`);
+  }
+  if (r.status !== "spent") return fail(problem(r.status as string, code));
 
   refresh();
-  const spent = formatMoney(r.spent_cents as number);
-  const left = formatMoney(r.balance_cents as number);
-  const toPay = r.still_to_pay_cents as number;
   return {
     ok: true,
-    message:
-      toPay > 0
-        ? `Used the last ${spent} on ${formatGiftCode(r.code as string)}. Take ${formatMoney(toPay)} at the till.`
-        : `Spent ${spent} from ${formatGiftCode(r.code as string)}. ${left} left.`,
+    message: `Spent ${formatMoney(r.spent_cents as number)} from ${r.code as string}. ${formatMoney(r.balance_cents as number)} left.`,
   };
 }
 
 export async function voidGiftVoucherSpend(transactionId: string): Promise<ActionState> {
-  await requireStaff();
+  await requireAdmin();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("void_gift_voucher_spend", { p_transaction_id: transactionId });
   if (error) return dbError(error);
@@ -167,7 +171,7 @@ export async function voidGiftVoucherSpend(transactionId: string): Promise<Actio
 // ---------------------------------------------------------------------------
 
 export async function updateGiftVoucher(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
-  const staff = await requireStaff();
+  const staff = await requireAdmin();
   const notes = text(500).safeParse(formData.get("notes") ?? "");
   if (!notes.success) return fail("Notes can be at most 500 characters.");
 
@@ -181,7 +185,7 @@ export async function updateGiftVoucher(id: string, _: ActionState, formData: Fo
     notes: notes.data,
   };
   const expires = String(formData.get("expires_on") ?? "");
-  if (staff.role === "owner" && /^\d{4}-\d{2}-\d{2}$/.test(expires)) update.expires_on = expires;
+  if (staff.role === "admin" && /^\d{4}-\d{2}-\d{2}$/.test(expires)) update.expires_on = expires;
 
   const { error } = await supabase.from("gift_vouchers").update(update).eq("id", id);
   if (error) return dbError(error);
@@ -190,8 +194,8 @@ export async function updateGiftVoucher(id: string, _: ActionState, formData: Fo
 }
 
 export async function adjustGiftVoucher(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
-  const staff = await requireStaff();
-  if (staff.role !== "owner") return fail("Only the owner can adjust a gift voucher.");
+  const staff = await requireAdmin();
+  if (staff.role !== "admin") return fail("Only an admin can adjust a gift voucher.");
   const cents = parseDollars(String(formData.get("amount") ?? ""));
   if (cents === null || cents === 0) return fail("Enter an amount, e.g. 10.");
   const note = String(formData.get("note") ?? "").trim();
@@ -206,10 +210,10 @@ export async function adjustGiftVoucher(id: string, _: ActionState, formData: Fo
 }
 
 export async function deleteGiftVoucher(id: string): Promise<ActionState> {
-  const staff = await requireStaff();
-  if (staff.role !== "owner") return fail("Only the owner can delete a gift voucher.");
+  const staff = await requireAdmin();
+  if (staff.role !== "admin") return fail("Only an admin can delete a gift voucher.");
   const supabase = await createClient();
-  // RLS only lets the owner delete a voucher nothing has been spent from.
+  // RLS only lets an admin delete a voucher nothing has been spent from.
   const { data, error } = await supabase.from("gift_vouchers").delete().eq("id", id).select("id");
   if (error) return dbError(error);
   if (!data?.length) return fail("Part of this voucher has been spent, so it can't be deleted.");

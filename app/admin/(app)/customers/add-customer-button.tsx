@@ -9,7 +9,7 @@ export function AddCustomerButton() {
   return (
     <FormDialog
       title="Add customer"
-      description="They'll get the sign-up bonus on their first check-in."
+      description="They earn a point at every check-in from now on."
       trigger={
         <>
           <Plus aria-hidden="true" />

@@ -3,22 +3,27 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Card, DataTable, EmptyRow, StatTile, td, th } from "@/components/admin/ui";
+import { DetailSkeleton } from "@/components/admin/skeletons";
 import { ConfirmButton } from "@/components/admin/action-button";
 import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
 import { AdjustGiftVoucherForm, GiftVoucherSettingsForm, UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
 import { deleteGiftVoucher, voidGiftVoucherSpend } from "@/app/admin/gift-voucher-actions";
-import { requireStaff } from "@/lib/auth";
-import { getGiftVoucher, getSettings, staffNames, type GiftVoucherTransaction } from "@/lib/admin-data";
-import { formatGiftCode, formatMoney } from "@/lib/gift-vouchers";
+import { requireAdmin } from "@/lib/auth";
+import { getGiftVoucher, getSettings, giftVoucherCode, staffNames, type GiftVoucherTransaction } from "@/lib/admin-data";
+import { formatMoney } from "@/lib/gift-vouchers";
 import { formatDate, formatTime, fullName } from "@/lib/format";
 
-export const metadata = { title: "Gift voucher" };
+export async function generateMetadata({ params }: PageProps<"/admin/gift-vouchers/[id]">) {
+  const { id } = await params;
+  const code = /^[0-9a-f-]{36}$/i.test(id) ? await giftVoucherCode(id) : null;
+  return { title: code ? `Gift voucher ${code}` : "Gift voucher" };
+}
 
 const ENTRY_LABELS: Record<GiftVoucherTransaction["kind"], string> = {
   sale: "Sold",
   spend: "Spent",
   undo: "Spend undone",
-  adjust: "Adjusted by the owner",
+  adjust: "Adjusted by an admin",
 };
 
 // Sale and expiry dates are calendar dates, so format them at noon UTC to stay on the right day.
@@ -37,7 +42,7 @@ export default function GiftVoucherPage({ params }: PageProps<"/admin/gift-vouch
         <ChevronLeft className="size-4" strokeWidth={2.4} aria-hidden="true" />
         All gift vouchers
       </Link>
-      <Suspense fallback={<Card className="h-28" />}>
+      <Suspense fallback={<DetailSkeleton tiles={3} label="Loading gift voucher" />}>
         <GiftVoucherDetail params={params} />
       </Suspense>
     </>
@@ -48,11 +53,11 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
-  const [data, settings, names, staff] = await Promise.all([getGiftVoucher(id), getSettings(), staffNames(), requireStaff()]);
+  const [data, settings, names, staff] = await Promise.all([getGiftVoucher(id), getSettings(), staffNames(), requireAdmin()]);
   if (!data) notFound();
   const { voucher: v, transactions } = data;
   const tz = settings.timezone;
-  const isOwner = staff.role === "owner";
+  const isAdmin = staff.role === "admin";
   const spent = transactions.filter((t) => t.kind === "spend" && !t.voided_at).reduce((sum, t) => sum - t.delta_cents, 0);
   const everSpent = transactions.some((t) => t.kind === "spend");
   const when = (iso: string) => (
@@ -74,7 +79,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
       <Card className="flex flex-wrap items-center justify-between gap-6 p-6">
         <div className="flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-mono text-[26px] font-extrabold tracking-wider">{formatGiftCode(v.code)}</h1>
+            <h1 className="font-mono text-[26px] font-extrabold tracking-wider">{v.code}</h1>
             <GiftVoucherStatusPill status={v.status} />
           </div>
           <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -100,7 +105,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
         </div>
       </Card>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] sm:gap-4">
         <StatTile label="Balance" value={formatMoney(v.balance_cents)} hint={v.status === "expired" ? "Expired, can't be used" : undefined} />
         <StatTile label="Spent" value={formatMoney(spent)} />
         <StatTile label="Original amount" value={formatMoney(v.amount_cents)} />
@@ -147,10 +152,10 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
                       )}
                       {/* On phones the date and staff name move here. */}
                       <p className="text-[13px] text-muted-foreground sm:hidden">
-                        {formatDate(t.created_at, tz)} {formatTime(t.created_at, tz)} · {names.get(t.created_by ?? "") ?? "Staff"}
+                        {formatDate(t.created_at, tz)} {formatTime(t.created_at, tz)} · Admin · {names.get(t.created_by ?? "") ?? "staff"}
                       </p>
                     </td>
-                    <td className={`${td} hidden text-muted-foreground sm:table-cell`}>{names.get(t.created_by ?? "") ?? "Staff"}</td>
+                    <td className={`${td} hidden text-muted-foreground sm:table-cell`}>Admin · {names.get(t.created_by ?? "") ?? "staff"}</td>
                     <td
                       className={`${td} text-right font-extrabold whitespace-nowrap tabular-nums ${t.voided_at ? "line-through" : t.delta_cents > 0 ? "text-success" : "text-destructive"}`}
                     >
@@ -164,7 +169,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
                           variant="outline"
                           size="sm"
                           title="Undo this spend?"
-                          description={`Puts ${formatMoney(-t.delta_cents)} back on ${formatGiftCode(v.code)}.`}
+                          description={`Puts ${formatMoney(-t.delta_cents)} back on ${v.code}.`}
                           confirmLabel="Undo spend"
                           action={voidGiftVoucherSpend.bind(null, t.id)}
                         >
@@ -188,10 +193,10 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
               notes={v.notes}
               expiresOn={v.expires_on}
               minExpiry={threeYearsAfter(v.sold_on)}
-              isOwner={isOwner}
+              isAdmin={isAdmin}
             />
           </Card>
-          {isOwner && (
+          {isAdmin && (
             <Card className="flex flex-col gap-4 p-5">
               <div className="flex flex-col gap-1">
                 <h2 className="text-lg font-extrabold">Adjust balance</h2>
@@ -200,11 +205,11 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
               <AdjustGiftVoucherForm id={v.id} balanceCents={v.balance_cents} />
             </Card>
           )}
-          {isOwner && !everSpent && (
+          {isAdmin && !everSpent && (
             <ConfirmButton
               variant="ghost"
               className="w-fit text-destructive hover:text-destructive"
-              title={`Delete ${formatGiftCode(v.code)}?`}
+              title={`Delete ${v.code}?`}
               description="Only for a voucher sold by mistake. Refund the customer at the till. This can't be undone."
               confirmLabel="Delete voucher"
               action={deleteGiftVoucher.bind(null, v.id)}

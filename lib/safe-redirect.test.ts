@@ -4,7 +4,7 @@ import { safeRedirectPath } from "./safe-redirect";
 describe("safeRedirectPath", () => {
   it("keeps same-site paths", () => {
     expect(safeRedirectPath("/admin/customers", "/admin")).toBe("/admin/customers");
-    expect(safeRedirectPath("/kiosk/setup?x=1", "/admin")).toBe("/kiosk/setup?x=1");
+    expect(safeRedirectPath("/kiosk?x=1", "/admin")).toBe("/kiosk?x=1");
   });
 
   it("rejects anything that could leave the site", () => {

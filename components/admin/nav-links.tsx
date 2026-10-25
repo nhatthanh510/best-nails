@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CheckSquare, Gift, LayoutGrid, Settings, Users, WalletCards } from "lucide-react";
@@ -20,19 +19,8 @@ export function ActiveNavLinks() {
 }
 
 export function NavLinks({ pathname }: { pathname: string | null }) {
-  // On phones the links are a sideways-scrolling tab bar: keep the current page's tab in view.
-  // Only the bar scrolls (not scrollIntoView, which can also move the page).
-  const list = useRef<HTMLUListElement>(null);
-  useEffect(() => {
-    const ul = list.current;
-    const current = ul?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!ul || !current || ul.scrollWidth <= ul.clientWidth) return;
-    const left = current.getBoundingClientRect().left - ul.getBoundingClientRect().left + ul.scrollLeft;
-    ul.scrollLeft = left - (ul.clientWidth - current.offsetWidth) / 2;
-  }, [pathname]);
-
   return (
-    <ul ref={list} className="-mx-1 flex gap-1 overflow-x-auto px-1 md:flex-col md:overflow-visible">
+    <ul className="-mx-1 flex flex-col gap-1 px-1">
       {NAV.map(({ href, label, icon: Icon, exact }) => {
         const active = pathname !== null && (exact ? pathname === href : pathname.startsWith(href));
         return (

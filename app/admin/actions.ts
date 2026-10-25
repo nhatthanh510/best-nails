@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import type { PostgrestError } from "@supabase/supabase-js";
-import { requireStaff } from "@/lib/auth";
+import { getStaff, homeFor, requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePhone } from "@/lib/phone";
 import { isValidBirthday } from "@/lib/birthday";
@@ -56,7 +56,13 @@ export async function signIn(_: ActionState, formData: FormData): Promise<Action
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return fail("That email and password don't match.");
 
-  redirect(safeRedirectPath(next, "/admin"));
+  // Admins go back to where they were heading; staff accounts only use the kiosk.
+  const staff = await getStaff();
+  if (!staff) {
+    await supabase.auth.signOut();
+    return fail("This account doesn't have access to Best Nails yet.");
+  }
+  redirect(staff.role === "admin" ? safeRedirectPath(next, "/admin") : homeFor(staff.role));
 }
 
 export async function signOut() {
@@ -106,7 +112,7 @@ function readCustomer(formData: FormData) {
 }
 
 export async function createCustomer(_: ActionState, formData: FormData): Promise<ActionState> {
-  await requireStaff();
+  await requireAdmin();
   const parsed = readCustomer(formData);
   if (!parsed.success) return fail(parsed.error.issues[0].message);
 
@@ -122,7 +128,7 @@ export async function createCustomer(_: ActionState, formData: FormData): Promis
 }
 
 export async function updateCustomer(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
-  await requireStaff();
+  await requireAdmin();
   const parsed = readCustomer(formData);
   if (!parsed.success) return fail(parsed.error.issues[0].message);
 
@@ -138,8 +144,8 @@ export async function updateCustomer(id: string, _: ActionState, formData: FormD
 }
 
 export async function deleteCustomer(id: string): Promise<ActionState> {
-  const staff = await requireStaff();
-  if (staff.role !== "owner") return fail("Only the owner can delete customers.");
+  const staff = await requireAdmin();
+  if (staff.role !== "admin") return fail("Only an admin can delete customers.");
   const supabase = await createClient();
   const { error } = await supabase.from("customers").delete().eq("id", id);
   if (error) return dbError(error);
@@ -147,20 +153,8 @@ export async function deleteCustomer(id: string): Promise<ActionState> {
 }
 
 // ---------------------------------------------------------------------------
-// Points
+// Points (check-ins only happen on the kiosk; the admin corrects with Adjust points)
 // ---------------------------------------------------------------------------
-
-export async function checkInCustomer(customerId: string): Promise<ActionState> {
-  await requireStaff();
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("admin_check_in", { p_customer_id: customerId });
-  if (error) return dbError(error);
-
-  const result = data as { status: string; points_awarded?: number };
-  refresh();
-  if (result.status === "already_checked_in") return fail("Already checked in. Visits are limited by the cooldown in Settings.");
-  return { ok: true, message: `Checked in · +${result.points_awarded ?? 0} pts` };
-}
 
 const adjustSchema = z.object({
   direction: z.enum(["add", "remove"]),
@@ -169,7 +163,7 @@ const adjustSchema = z.object({
 });
 
 export async function adjustPoints(customerId: string, _: ActionState, formData: FormData): Promise<ActionState> {
-  await requireStaff();
+  await requireAdmin();
   const parsed = adjustSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return fail(parsed.error.issues[0].message);
   const { direction, amount, note } = parsed.data;
@@ -186,7 +180,7 @@ export async function adjustPoints(customerId: string, _: ActionState, formData:
 }
 
 export async function redeemReward(customerId: string, promotionId: string): Promise<ActionState> {
-  await requireStaff();
+  await requireAdmin();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("redeem_reward", { p_customer_id: customerId, p_promotion_id: promotionId });
   if (error) return dbError(error);
@@ -195,7 +189,7 @@ export async function redeemReward(customerId: string, promotionId: string): Pro
 }
 
 export async function voidCheckIn(checkInId: string): Promise<ActionState> {
-  await requireStaff();
+  await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase.rpc("void_check_in", { p_check_in_id: checkInId });
   if (error) return dbError(error);
@@ -215,7 +209,7 @@ const rewardSchema = z.object({
 });
 
 export async function saveReward(_: ActionState, formData: FormData): Promise<ActionState> {
-  await requireStaff();
+  await requireAdmin();
   const parsed = rewardSchema.safeParse({
     id: formData.get("id") || undefined,
     title: formData.get("title") ?? "",
@@ -235,7 +229,7 @@ export async function saveReward(_: ActionState, formData: FormData): Promise<Ac
 }
 
 export async function deleteReward(id: string): Promise<ActionState> {
-  await requireStaff();
+  await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase.from("promotions").delete().eq("id", id);
   if (error) return dbError(error);
@@ -250,8 +244,8 @@ const birthdaySchema = z.object({
 });
 
 export async function saveBirthdayDiscount(_: ActionState, formData: FormData): Promise<ActionState> {
-  const staff = await requireStaff();
-  if (staff.role !== "owner") return fail("Only the owner can change the birthday discount.");
+  const staff = await requireAdmin();
+  if (staff.role !== "admin") return fail("Only an admin can change the birthday discount.");
   const parsed = birthdaySchema.safeParse({
     birthday_discount_enabled: formData.get("birthday_discount_enabled") === "on",
     birthday_discount_percent: formData.get("birthday_discount_percent"),
@@ -267,7 +261,7 @@ export async function saveBirthdayDiscount(_: ActionState, formData: FormData): 
 }
 
 export async function redeemBirthday(customerId: string): Promise<ActionState> {
-  await requireStaff();
+  await requireAdmin();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("redeem_birthday", { p_customer_id: customerId });
   if (error) return dbError(error);
@@ -284,11 +278,9 @@ export async function redeemBirthday(customerId: string): Promise<ActionState> {
 
 const settingsSchema = z
   .object({
-    points_per_visit: z.coerce.number().int().min(1).max(10000),
-    checkin_cooldown_hours: z.coerce.number().int().min(0).max(168),
     kiosk_idle_seconds: z.coerce.number().int().min(10).max(600),
-    tier_regular_visits: z.coerce.number().int().min(1).max(9999),
-    tier_vip_visits: z.coerce.number().int().min(2).max(10000),
+    tier_regular_points: z.coerce.number().int().min(1).max(9999),
+    tier_vip_points: z.coerce.number().int().min(2).max(10000),
     code_prefix: z
       .string()
       .trim()
@@ -303,11 +295,11 @@ const settingsSchema = z
       }
     }, "Unknown timezone."),
   })
-  .refine((s) => s.tier_vip_visits > s.tier_regular_visits, { message: "VIP needs more visits than Regular." });
+  .refine((s) => s.tier_vip_points > s.tier_regular_points, { message: "VIP needs more points than Regular." });
 
 export async function saveSettings(_: ActionState, formData: FormData): Promise<ActionState> {
-  const staff = await requireStaff();
-  if (staff.role !== "owner") return fail("Only the owner can change settings.");
+  const staff = await requireAdmin();
+  if (staff.role !== "admin") return fail("Only an admin can change settings.");
   const parsed = settingsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return fail(parsed.error.issues[0].message);
 
@@ -316,13 +308,4 @@ export async function saveSettings(_: ActionState, formData: FormData): Promise<
   if (error) return dbError(error);
   refresh();
   return { ok: true, message: "Settings saved." };
-}
-
-export async function revokeKiosk(id: string): Promise<ActionState> {
-  await requireStaff();
-  const supabase = await createClient();
-  const { error } = await supabase.from("kiosk_devices").update({ revoked_at: new Date().toISOString() }).eq("id", id);
-  if (error) return dbError(error);
-  refresh();
-  return { ok: true, message: "Kiosk unpaired. It will show the setup screen." };
 }

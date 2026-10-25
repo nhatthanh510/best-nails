@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "Check in",
+  // Its own template, so pages under /kiosk (e.g. setup) keep the "· Best Nails" suffix.
+  title: { default: "Check in", template: "%s · Best Nails" },
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Best Nails", statusBarStyle: "black-translucent" },
 };

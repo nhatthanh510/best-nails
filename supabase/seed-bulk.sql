@@ -140,8 +140,9 @@ begin
     v_sale := now() - make_interval(days => floor(random() * 1270)::int, hours => floor(random() * 8)::int);
     insert into public.gift_vouchers (code, amount_cents, balance_cents, customer_id, sold_on, expires_on, sold_by, created_at)
     values (
-      -- Business prefix + 8 hex characters: the same codes on every load.
-      'BN' || upper(substr(md5('bulk-gift-' || n), 1, 8)),
+      -- Business prefix + 7 digits + check digit, as generated codes are: the same on every load.
+      'BN' || lpad((('x' || substr(md5('bulk-gift-' || n), 1, 7))::bit(28)::int % 10000000)::text, 7, '0')
+           || public._luhn_check_digit(lpad((('x' || substr(md5('bulk-gift-' || n), 1, 7))::bit(28)::int % 10000000)::text, 7, '0')),
       v_amount, 0,
       case when random() < 0.8 then v_customers[1 + floor(random() * array_length(v_customers, 1))::int] end,
       (v_sale at time zone 'Australia/Hobart')::date,

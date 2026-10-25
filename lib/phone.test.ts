@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatPhone, maskPhone, normalizePhone } from "./phone";
-import { fillPhoneMask, looksStandard } from "./phone-mask";
+import { fillPhoneMask, isCompleteNumber, looksStandard } from "./phone-mask";
 
 describe("normalizePhone", () => {
   it("accepts Australian numbers in any common format", () => {
@@ -34,7 +34,9 @@ describe("display helpers", () => {
     expect(formatPhone("+61412345678")).toBe("0412 345 678");
     expect(formatPhone("+61362345678")).toBe("(03) 6234 5678");
     expect(formatPhone("+61500000000")).toBe("0500 000 000");
-    expect(maskPhone("+61412345678")).toBe("•••• ••• 678");
+    expect(maskPhone("+61412345678")).toBe("04•• ••• 678");
+    expect(maskPhone("+61362345678")).toBe("03 •••• •678");
+    expect(maskPhone("+447700900123")).toBe("44• ••• ••• 123");
   });
 
   it("fills the kiosk mask as digits are typed", () => {
@@ -43,6 +45,14 @@ describe("display helpers", () => {
     expect(fillPhoneMask("0412345678")).toEqual({ typed: "0412 345 678", rest: "" });
     expect(fillPhoneMask("0362345678")).toEqual({ typed: "03 6234 5678", rest: "" });
     expect(fillPhoneMask("041234567890")).toEqual({ typed: "0412 345 678 90", rest: "" });
+  });
+
+  it("needs at least 10 digits of a 0… number before Continue, 8 for overseas numbers", () => {
+    expect(isCompleteNumber("041234567")).toBe(false);
+    expect(isCompleteNumber("0412345678")).toBe(true);
+    expect(isCompleteNumber("04123456789")).toBe(true);
+    expect(isCompleteNumber("4477009")).toBe(false);
+    expect(isCompleteNumber("44770090")).toBe(true);
   });
 
   it("guesses standard numbers on the client", () => {

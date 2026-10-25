@@ -1,19 +1,20 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
-import { Avatar, Card, DataTable, EmptyRow, Pager, StatTile, TierBadge, td, th } from "@/components/admin/ui";
+import { Cake, Check, ChevronLeft, NotebookPen } from "lucide-react";
+import { Avatar, Card, DataTable, EmptyRow, Pager, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
+import { DetailSkeleton } from "@/components/admin/skeletons";
 import { TIER_LABELS, nextTier, tierFor } from "@/lib/tiers";
 import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
-import { customerGiftVouchers, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
+import { customerGiftVouchers, customerTitle, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
 import { UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
 import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
-import { formatGiftCode, formatMoney } from "@/lib/gift-vouchers";
-import { requireStaff } from "@/lib/auth";
-import { checkInCustomer, deleteCustomer, redeemBirthday, redeemReward } from "@/app/admin/actions";
+import { formatMoney } from "@/lib/gift-vouchers";
+import { requireAdmin } from "@/lib/auth";
+import { deleteCustomer, redeemBirthday, redeemReward } from "@/app/admin/actions";
 import { formatPhone, isStandardPhone } from "@/lib/phone";
 import type { BirthdayStatus } from "@/lib/rewards";
-import { formatBirthday, formatDate, formatLastVisit, formatTime, fullName, initials, signed } from "@/lib/format";
+import { formatBirthday, formatDate, formatLastVisit, formatTime, fullName, initials, isShopToday, signed } from "@/lib/format";
 import { AdjustPointsForm, EditCustomerButton } from "./customer-actions";
 
 const REASON_LABELS = {
@@ -24,7 +25,11 @@ const REASON_LABELS = {
   void: "Check-in undone",
 } as const;
 
-export const metadata = { title: "Customer" };
+export async function generateMetadata({ params }: PageProps<"/admin/customers/[id]">) {
+  const { id } = await params;
+  const name = /^[0-9a-f-]{36}$/i.test(id) ? await customerTitle(id) : null;
+  return { title: name ?? "Customer" };
+}
 
 const HISTORY_PAGE_SIZE = 25;
 
@@ -35,7 +40,7 @@ export default function CustomerPage({ params, searchParams }: PageProps<"/admin
         <ChevronLeft className="size-4" strokeWidth={2.4} aria-hidden="true" />
         All customers
       </Link>
-      <Suspense fallback={<Card className="h-28" />}>
+      <Suspense fallback={<DetailSkeleton tiles={4} label="Loading customer" />}>
         <CustomerDetail params={params} searchParams={searchParams} />
       </Suspense>
     </>
@@ -57,13 +62,21 @@ async function CustomerDetail({
     getCustomer(id),
     getSettings(),
     staffNames(),
-    requireStaff(),
+    requireAdmin(),
     customerGiftVouchers(id),
   ]);
   if (!data) notFound();
   const { customer: c, ledger, rewards, birthday: bday, birthdayHistory } = data;
   const tz = settings.timezone;
   const birthday = formatBirthday(c.birthday_month, c.birthday_day);
+  // Check-ins happen on the kiosk; the header just says whether they've had today's.
+  const checkedInToday = isShopToday(c.last_visit_at, tz);
+  // The cheapest active reward is what the visits count towards (the punch card on the kiosk).
+  const reward = rewards[0] ?? null;
+  // One discount per visit (points reward or birthday), as the database enforces.
+  const discountToday =
+    ledger.find((t) => t.reason === "redeem" && isShopToday(t.created_at, tz))?.note ??
+    (birthdayHistory.some((b) => isShopToday(b.created_at, tz)) ? "Birthday discount" : null);
 
   // Birthday discounts cost no points, so they sit alongside the ledger rows in one history.
   const history = [
@@ -73,7 +86,8 @@ async function CustomerDetail({
   const historyHref = (p: number) => `/admin/customers/${c.id}${p > 1 ? `?page=${p}` : ""}`;
   if (page > 1 && (page - 1) * HISTORY_PAGE_SIZE >= history.length) redirect(historyHref(1));
   const historyPage = history.slice((page - 1) * HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE);
-  const by = (staffId: string | null) => (staffId ? (names.get(staffId) ?? "Staff") : "Kiosk");
+  // "Admin · Thu", as on Check-ins: a name on its own can read like a day ("Thu").
+  const by = (staffId: string | null) => (staffId ? `Admin · ${names.get(staffId) ?? "staff"}` : "Kiosk");
   // Date over time on phones, side by side from sm.
   const when = (iso: string) => (
     <span className="flex flex-col sm:flex-row sm:gap-1">
@@ -97,7 +111,7 @@ async function CustomerDetail({
           <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-[32px] leading-tight font-bold">{fullName(c)}</h1>
-              <TierBadge tier={tierFor(c.visit_count, settings)} showNew />
+              <TierBadge tier={tierFor(c.lifetime_points, settings)} showNew />
             </div>
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span className="tabular-nums">
@@ -109,19 +123,58 @@ async function CustomerDetail({
               {birthday && <span>Birthday {birthday}</span>}
               <span>Member since {formatDate(c.created_at, tz, { month: "short", year: "numeric" })}</span>
             </p>
+            {bday.enabled && bday.in_window && (
+              <Pill className="mt-1 w-fit bg-accent text-accent-foreground">
+                <Cake className="size-3.5" aria-hidden="true" />
+                {bday.used ? "Birthday week · discount used" : `Birthday week · ${bday.percent ?? settings.birthday_discount_percent}% off available`}
+              </Pill>
+            )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <EditCustomerButton customer={c} />
-          <ActionButton action={checkInCustomer.bind(null, c.id)}>Check in now</ActionButton>
+          {checkedInToday && (
+            <span className="flex min-h-11 items-center gap-2 rounded-[10px] bg-success-soft px-4 text-[15px] font-bold text-success">
+              <Check className="size-4.5" strokeWidth={2.6} aria-hidden="true" />
+              Checked in today · {formatTime(c.last_visit_at!, tz)}
+            </span>
+          )}
         </div>
+        {/* Notes (allergies, preferences) belong where staff look first, not at the bottom. */}
+        {c.notes && (
+          <div className="flex w-full gap-2.5 rounded-xl bg-background px-4 py-3 text-sm">
+            <NotebookPen className="mt-0.5 size-4 flex-none text-primary" aria-hidden="true" />
+            <p className="leading-relaxed whitespace-pre-line">{c.notes}</p>
+          </div>
+        )}
       </Card>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
-        <StatTile label="Points balance" value={c.points_balance} />
-        <StatTile label="Visits" value={c.visit_count} hint={tierHint(c.visit_count, settings)} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] sm:gap-4">
+        <StatTile label="Points balance" value={c.points_balance} hint={tierHint(c.lifetime_points, settings)} />
+        <StatTile label="Visits" value={c.visit_count} hint="Check-ins at the shop" />
         <StatTile label="Last visit" value={formatLastVisit(c.last_visit_at, tz)} />
-        <StatTile label="Lifetime points" value={c.lifetime_points} />
+        {/* With one point per visit, lifetime points would just repeat Visits; what's next is more useful. */}
+        <StatTile
+          label="Next reward"
+          value={!reward ? "—" : c.points_balance >= reward.points_cost ? "Ready" : `${reward.points_cost - c.points_balance} to go`}
+          hint={
+            reward && (
+              <span className="flex flex-col gap-1.5">
+                <span>
+                  {c.points_balance >= reward.points_cost
+                    ? `${reward.title} can be redeemed`
+                    : `${Math.min(c.points_balance, reward.points_cost)} / ${reward.points_cost} points to ${reward.title}`}
+                </span>
+                <span className="h-1.5 overflow-hidden rounded-full bg-secondary" aria-hidden="true">
+                  <span
+                    className="block h-full rounded-full bg-gold"
+                    style={{ width: `${Math.min(100, (c.points_balance / reward.points_cost) * 100)}%` }}
+                  />
+                </span>
+              </span>
+            )
+          }
+        />
       </div>
 
       <div className="flex flex-wrap items-start gap-5">
@@ -179,6 +232,11 @@ async function CustomerDetail({
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-5">
           <Card className="flex flex-col gap-3 p-5">
             <h2 className="text-lg font-extrabold">Redeem a discount</h2>
+            {discountToday && (
+              <p className="rounded-xl bg-success-soft px-3.5 py-2.5 text-sm font-semibold text-success">
+                {discountToday} used today. It&apos;s one discount per visit.
+              </p>
+            )}
             {rewards.length === 0 && !bday.enabled && (
               <p className="text-sm text-muted-foreground">
                 No rewards yet. <Link href="/admin/rewards" className="font-bold text-primary">Create one</Link>.
@@ -192,8 +250,8 @@ async function CustomerDetail({
                 </div>
                 <ActionButton
                   size="sm"
-                  variant={bday.eligible ? "default" : "outline"}
-                  disabled={!bday.eligible}
+                  variant={bday.eligible && !discountToday ? "default" : "outline"}
+                  disabled={!bday.eligible || Boolean(discountToday)}
                   action={redeemBirthday.bind(null, c.id)}
                 >
                   Redeem
@@ -212,8 +270,8 @@ async function CustomerDetail({
                   </div>
                   <ActionButton
                     size="sm"
-                    variant={short > 0 ? "outline" : "default"}
-                    disabled={short > 0}
+                    variant={short > 0 || discountToday ? "outline" : "default"}
+                    disabled={short > 0 || Boolean(discountToday)}
                     action={redeemReward.bind(null, c.id, r.id)}
                   >
                     Redeem
@@ -239,7 +297,7 @@ async function CustomerDetail({
                       className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5 hover:bg-muted"
                     >
                       <span className="flex flex-col gap-0.5">
-                        <span className="font-mono text-sm font-bold tracking-wider">{formatGiftCode(g.code)}</span>
+                        <span className="font-mono text-sm font-bold tracking-wider">{g.code}</span>
                         <span className="text-[13px] text-muted-foreground">of {formatMoney(g.amount_cents)}</span>
                       </span>
                       <span className="flex items-center gap-2.5">
@@ -260,12 +318,8 @@ async function CustomerDetail({
             <AdjustPointsForm customerId={c.id} balance={c.points_balance} />
           </Card>
 
-          <Card className="flex flex-col gap-2.5 p-5">
-            <h2 className="text-lg font-extrabold">Notes</h2>
-            <p className="text-sm leading-relaxed whitespace-pre-line">{c.notes || <span className="text-muted-foreground">No notes yet.</span>}</p>
-          </Card>
 
-          {staff.role === "owner" && (
+          {staff.role === "admin" && (
             <ConfirmButton
               variant="ghost"
               className="w-fit text-destructive hover:text-destructive"
@@ -291,8 +345,10 @@ function birthdayHint(b: BirthdayStatus) {
   return until > 0 ? `Available in ${until} day${until === 1 ? "" : "s"}` : "This year's birthday window has passed";
 }
 
-function tierHint(visits: number, tiers: Parameters<typeof nextTier>[1]) {
-  const next = nextTier(visits, tiers);
-  if (!next) return "Top tier";
-  return `${next.visitsToGo} more visit${next.visitsToGo === 1 ? "" : "s"} to ${TIER_LABELS[next.tier]}`;
+/** Tiers follow lifetime points: "38 earned · 2 more to VIP". */
+function tierHint(lifetimePoints: number, tiers: Parameters<typeof nextTier>[1]) {
+  const next = nextTier(lifetimePoints, tiers);
+  const earned = `${lifetimePoints} earned`;
+  if (!next) return `${earned} · top tier`;
+  return `${earned} · ${next.pointsToGo} more to ${TIER_LABELS[next.tier]}`;
 }

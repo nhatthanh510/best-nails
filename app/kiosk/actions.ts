@@ -1,10 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { getKioskDevice } from "@/lib/kiosk-device";
+import { getStaff } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPhone, maskPhone, normalizePhone } from "@/lib/phone";
-import { rateLimit } from "@/lib/rate-limit";
 import type { BirthdayStatus } from "@/lib/rewards";
 import { isValidBirthday } from "@/lib/birthday";
 
@@ -24,6 +23,10 @@ export type KioskCustomer = {
   points: number;
   visits: number;
   birthday: KioskBirthday;
+  /** When they checked in today (shop timezone), or null: someone coming back to redeem. */
+  checkedInAt: string | null;
+  /** They've had today's discount; one per visit. */
+  discountUsedToday: boolean;
 };
 
 export type LookupResult =
@@ -39,8 +42,16 @@ export type CheckInResult =
       pointsAwarded: number;
       points: number;
       birthday: KioskBirthday;
+      discountUsedToday: boolean;
     }
-  | { status: "already_checked_in"; firstName: string; lastCheckInAt: string; points: number; birthday: KioskBirthday }
+  | {
+      status: "already_checked_in";
+      firstName: string;
+      lastCheckInAt: string;
+      points: number;
+      birthday: KioskBirthday;
+      discountUsedToday: boolean;
+    }
   | { status: "not_found" }
   | { status: "error"; message: string };
 
@@ -50,22 +61,31 @@ export type RedeemResult =
   | { status: "redeemed"; title: string; pointsSpent: number; points: number; redeemedAt: string }
   | { status: "error"; message: string };
 
-const NOT_PAIRED = "This screen isn't set up as a kiosk. Ask the front desk for help.";
-const TOO_MANY = "Too many tries. Please wait a minute or ask the front desk.";
+const SIGNED_OUT = "This screen has been signed out. Ask the front desk for help.";
 const BAD_PHONE = "Please enter at least 8 digits of your phone number.";
 const OFFLINE = "We couldn't reach rewards right now.";
 
-async function guard(): Promise<{ deviceId: string } | { error: string }> {
-  const device = await getKioskDevice();
-  if (!device) return { error: NOT_PAIRED };
-  if (!rateLimit(`kiosk:${device.id}`, 30, 60_000)) return { error: TOO_MANY };
-  return { deviceId: device.id };
+/**
+ * Kiosk actions are public endpoints, so each one first checks that an account (admin or
+ * staff) is signed in on this device; only then does it use the service-role client.
+ */
+async function guard(): Promise<{ staffId: string } | { error: string }> {
+  const staff = await getStaff();
+  if (!staff) return { error: SIGNED_OUT };
+  return { staffId: staff.id };
 }
 
 async function birthdayFor(customerId: string): Promise<KioskBirthday> {
   const { data } = await createAdminClient().rpc("_birthday_status", { p_customer_id: customerId });
   const status = (data ?? {}) as BirthdayStatus;
   return { eligible: Boolean(status.eligible), used: Boolean(status.in_window && status.used) };
+}
+
+/** Whether they've checked in today and had today's discount (one per visit). */
+async function todayFor(customerId: string): Promise<{ checkedInAt: string | null; discountUsedToday: boolean }> {
+  const { data } = await createAdminClient().rpc("kiosk_today", { p_customer_id: customerId });
+  const r = (data ?? {}) as { checked_in_at?: string | null; discount_used_today?: boolean };
+  return { checkedInAt: r.checked_in_at ?? null, discountUsedToday: Boolean(r.discount_used_today) };
 }
 
 export async function lookupPhone(digits: string): Promise<LookupResult> {
@@ -83,6 +103,7 @@ export async function lookupPhone(digits: string): Promise<LookupResult> {
   if (error) return { status: "error", message: OFFLINE };
   if (!data) return { status: "not_found", formattedPhone: formatPhone(normalized.e164), nonStandard: !normalized.standard };
 
+  const [birthday, today] = await Promise.all([birthdayFor(data.id), todayFor(data.id)]);
   return {
     status: "found",
     customer: {
@@ -90,7 +111,8 @@ export async function lookupPhone(digits: string): Promise<LookupResult> {
       maskedPhone: maskPhone(data.phone),
       points: data.points_balance,
       visits: data.visit_count,
-      birthday: await birthdayFor(data.id),
+      birthday,
+      ...today,
     },
   };
 }
@@ -141,7 +163,10 @@ export async function checkIn(digits: string, signup?: SignupInput): Promise<Che
   if (result.status === "not_found") return { status: "not_found" };
 
   const firstName = (result.first_name as string) ?? "";
-  const birthday = await birthdayFor(result.customer_id as string);
+  const [birthday, { discountUsedToday }] = await Promise.all([
+    birthdayFor(result.customer_id as string),
+    todayFor(result.customer_id as string),
+  ]);
 
   if (result.status === "already_checked_in") {
     return {
@@ -150,6 +175,7 @@ export async function checkIn(digits: string, signup?: SignupInput): Promise<Che
       lastCheckInAt: result.last_check_in_at as string,
       points: result.points_balance as number,
       birthday,
+      discountUsedToday,
     };
   }
 
@@ -159,6 +185,7 @@ export async function checkIn(digits: string, signup?: SignupInput): Promise<Che
     pointsAwarded: result.points_awarded as number,
     points: result.points_balance as number,
     birthday,
+    discountUsedToday,
   };
 }
 
@@ -169,6 +196,7 @@ const REDEEM_ERRORS: Record<string, string> = {
   insufficient_points: "You don't have enough points for that reward yet.",
   already_used: "Your birthday discount has already been used this year.",
   not_eligible: "Your birthday discount isn't available today.",
+  discount_used_today: "You've already had a discount today. It's one per visit, so save your points for next time.",
 };
 
 const targetSchema = z.discriminatedUnion("kind", [

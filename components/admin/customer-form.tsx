@@ -61,21 +61,22 @@ export function CustomerForm({
         />
       </div>
       <fieldset className="flex flex-col gap-2">
+        {/* Day before month, as on the kiosk and as dates are written in Australia. */}
         <legend className="mb-2 text-sm font-bold">Birthday</legend>
         <div className="flex gap-3">
-          <select name="birthday_month" aria-label="Birthday month" defaultValue={customer?.birthday_month ?? ""} className={selectClass}>
-            <option value="">Month</option>
-            {MONTHS.map((m, i) => (
-              <option key={m} value={i + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
           <select name="birthday_day" aria-label="Birthday day" defaultValue={customer?.birthday_day ?? ""} className={selectClass}>
             <option value="">Day</option>
             {Array.from({ length: 31 }, (_, i) => (
               <option key={i} value={i + 1}>
                 {i + 1}
+              </option>
+            ))}
+          </select>
+          <select name="birthday_month" aria-label="Birthday month" defaultValue={customer?.birthday_month ?? ""} className={selectClass}>
+            <option value="">Month</option>
+            {MONTHS.map((m, i) => (
+              <option key={m} value={i + 1}>
+                {m}
               </option>
             ))}
           </select>
@@ -91,7 +92,7 @@ export function CustomerForm({
         </p>
       )}
       <div className="flex justify-end">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" pending={pending}>
           {pending ? "Saving…" : submitLabel}
         </Button>
       </div>

@@ -1,5 +1,5 @@
 import "server-only";
-import { requireStaff } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 import type { BirthdayStatus, Reward } from "@/lib/rewards";
@@ -7,14 +7,14 @@ import { isBirthdayOn } from "@/lib/birthday";
 import { tierRange, type Tier, type TierThresholds } from "@/lib/tiers";
 import { giftVoucherStatus, type GiftVoucherStatus } from "@/lib/gift-vouchers";
 
-// Every read starts with requireStaff(): RLS would return nothing to a non-staff user anyway,
+// Every read starts with requireAdmin(): RLS would return nothing to a non-staff user anyway,
 // but this sends them to the login page instead of showing an empty admin.
 
 type Tables = Database["public"]["Tables"];
 export type Customer = Tables["customers"]["Row"];
 export type Settings = Tables["settings"]["Row"];
 export type CheckInRow = Tables["check_ins"]["Row"] & {
-  customer: Pick<Customer, "id" | "first_name" | "last_name" | "phone" | "visit_count"> | null;
+  customer: Pick<Customer, "id" | "first_name" | "last_name" | "phone" | "lifetime_points"> | null;
 };
 export type LedgerRow = Tables["point_transactions"]["Row"];
 export type BirthdayRedemption = Tables["birthday_redemptions"]["Row"];
@@ -22,7 +22,7 @@ export type BirthdayRedemption = Tables["birthday_redemptions"]["Row"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function staffClient() {
-  const staff = await requireStaff();
+  const staff = await requireAdmin();
   return { staff, supabase: await createClient() };
 }
 
@@ -57,7 +57,7 @@ async function dayStart(supabase: Awaited<ReturnType<typeof createClient>>, days
 export async function staffNames(): Promise<Map<string, string>> {
   const { supabase } = await staffClient();
   const { data } = await supabase.from("staff").select("user_id, display_name, role");
-  return new Map((data ?? []).map((s) => [s.user_id, `${s.display_name}${s.role === "owner" ? " (owner)" : ""}`]));
+  return new Map((data ?? []).map((s) => [s.user_id, s.display_name]));
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -82,7 +82,7 @@ export async function getDashboard() {
   const [checkIns, todayCount, newCustomers, total, active, redeemed, birthdays] = await Promise.all([
     supabase
       .from("check_ins")
-      .select("*, customer:customers(id, first_name, last_name, phone, visit_count)")
+      .select("*, customer:customers(id, first_name, last_name, phone, lifetime_points)")
       .gte("created_at", today)
       .order("created_at", { ascending: false })
       .limit(DASHBOARD_CHECK_INS),
@@ -111,8 +111,8 @@ export async function getTierCounts(tiers: TierThresholds): Promise<Record<Tier,
   const { supabase } = await staffClient();
   const count = async (tier: Tier) => {
     const { min, max } = tierRange(tier, tiers);
-    let q = supabase.from("customers").select("id", { count: "exact", head: true }).gte("visit_count", min);
-    if (max !== null) q = q.lt("visit_count", max);
+    let q = supabase.from("customers").select("id", { count: "exact", head: true }).gte("lifetime_points", min);
+    if (max !== null) q = q.lt("lifetime_points", max);
     return (await q).count ?? 0;
   };
   const [vip, regular, fresh] = await Promise.all([count("vip"), count("regular"), count("new")]);
@@ -129,14 +129,23 @@ export async function getUpcomingBirthdays(timezone: string) {
   const months = [...new Set(days.map((d) => d.month))];
   const { data } = await supabase
     .from("customers")
-    .select("id, first_name, last_name, birthday_month, birthday_day")
+    .select("id, first_name, last_name, phone, birthday_month, birthday_day")
     .in("birthday_month", months);
 
-  return days.flatMap(({ year, month, day, date }) =>
+  const upcoming = days.flatMap(({ year, month, day, date }) =>
     (data ?? [])
       .filter((c) => c.birthday_month && c.birthday_day && isBirthdayOn(c.birthday_month, c.birthday_day, year, month, day))
-      .map((c) => ({ ...c, date })),
+      .map((c) => ({ ...c, date, year })),
   );
+  // Who has already had this birthday's discount (it can be used up to a week early).
+  const { data: used } = upcoming.length
+    ? await supabase
+        .from("birthday_redemptions")
+        .select("customer_id, birthday_year")
+        .in("customer_id", upcoming.map((c) => c.id))
+    : { data: [] };
+  const usedKeys = new Set((used ?? []).map((u) => `${u.customer_id}:${u.birthday_year}`));
+  return upcoming.map((c) => ({ ...c, used: usedKeys.has(`${c.id}:${c.year}`) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +156,7 @@ export const CUSTOMER_FILTERS = ["all", "vip", "regular", "recent", "birthday", 
 export type CustomerFilter = (typeof CUSTOMER_FILTERS)[number];
 export const PAGE_SIZE = 25;
 
-export const CUSTOMER_SORTS = ["last_visit", "name", "points", "visits", "joined"] as const;
+export const CUSTOMER_SORTS = ["last_visit", "name", "points", "lifetime", "joined"] as const;
 export type CustomerSort = (typeof CUSTOMER_SORTS)[number];
 export type SortDir = "asc" | "desc";
 /** The direction a column sorts in when first clicked: biggest and newest first, names A–Z. */
@@ -155,7 +164,7 @@ export const DEFAULT_SORT_DIR: Record<CustomerSort, SortDir> = {
   last_visit: "desc",
   name: "asc",
   points: "desc",
-  visits: "desc",
+  lifetime: "desc",
   joined: "desc",
 };
 
@@ -180,17 +189,9 @@ export async function listCustomers({
   const { supabase } = await staffClient();
   let query = supabase.from("customers").select("*", { count: "exact" });
 
-  // PostgREST's or() syntax treats these as separators, so drop them from user input.
-  const term = q.replace(/[,()*%\\]/g, " ").trim();
-  if (term) {
-    const digits = term.replace(/\D/g, "");
-    if (digits.length >= 3 && digits.length === term.replace(/[\s\-+.()]/g, "").length) {
-      // Stored as +61412…, so a typed local "0412…" matches on "61412…".
-      query = query.like("phone", `%${digits.startsWith("0") ? `61${digits.slice(1)}` : digits}%`);
-    } else {
-      query = query.or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%`);
-    }
-  }
+  const search = customerSearch(q);
+  if (search?.phone) query = query.like("phone", search.phone);
+  if (search?.name) query = query.or(search.name);
 
   const now = Date.now();
   if (filter === "recent") query = query.gte("last_visit_at", new Date(now - 30 * DAY_MS).toISOString());
@@ -198,14 +199,15 @@ export async function listCustomers({
   if (filter === "birthday") query = query.eq("birthday_month", shopDate(await shopTimezone(supabase)).month);
   if (filter === "vip" || filter === "regular") {
     const { min, max } = tierRange(filter, tiers);
-    query = query.gte("visit_count", min);
-    if (max !== null) query = query.lt("visit_count", max);
+    query = query.gte("lifetime_points", min);
+    if (max !== null) query = query.lt("lifetime_points", max);
   }
 
   const ascending = dir === "asc";
   if (sort === "name") query = query.order("first_name", { ascending }).order("last_name", { ascending, nullsFirst: false });
   else if (sort === "points") query = query.order("points_balance", { ascending });
-  else if (sort === "visits") query = query.order("visit_count", { ascending });
+  // Lifetime points decide the tier, so that is what the list shows and sorts by (not visits).
+  else if (sort === "lifetime") query = query.order("lifetime_points", { ascending });
   else if (sort === "joined") query = query.order("created_at", { ascending });
   // Customers who never visited go last whichever way the list is sorted.
   else query = query.order("last_visit_at", { ascending, nullsFirst: false });
@@ -224,6 +226,28 @@ export async function listCustomers({
 // A customer's history is paged in memory: it merges points and birthday rows,
 // and even a weekly regular builds up only a few hundred rows in years.
 const HISTORY_LIMIT = 1000;
+
+/** Just the name, for the browser tab title. */
+export async function customerTitle(id: string) {
+  const { supabase } = await staffClient();
+  const { data } = await supabase.from("customers").select("first_name, last_name").eq("id", id).maybeSingle();
+  return data ? (data.last_name ? `${data.first_name} ${data.last_name}` : data.first_name) : null;
+}
+
+/**
+ * A typed search as PostgREST filters on a customer: digits match the phone (a local "0412…"
+ * matches the stored "61412…"), anything else the first or last name.
+ */
+function customerSearch(q: string): { phone?: string; name?: string } | null {
+  // PostgREST's or() syntax treats these as separators, so drop them from user input.
+  const term = q.replace(/[,()*%\\]/g, " ").trim();
+  if (!term) return null;
+  const digits = term.replace(/\D/g, "");
+  if (digits.length >= 3 && digits.length === term.replace(/[\s\-+.()]/g, "").length) {
+    return { phone: `%${digits.startsWith("0") ? `61${digits.slice(1)}` : digits}%` };
+  }
+  return { name: `first_name.ilike.%${term}%,last_name.ilike.%${term}%` };
+}
 
 export async function getCustomer(id: string) {
   const { supabase } = await staffClient();
@@ -256,22 +280,30 @@ export const CHECK_INS_PAGE_SIZE = 50;
 export async function listCheckIns({
   range,
   source,
+  q = "",
   page,
 }: {
   range: CheckInRange;
   source: "all" | "kiosk" | "admin";
+  /** A customer's name or phone, as on Customers. */
+  q?: string;
   page: number;
 }) {
   const { supabase } = await staffClient();
   const since = await dayStart(supabase, CHECK_IN_RANGES[range]);
   const from = (page - 1) * CHECK_INS_PAGE_SIZE;
+  const search = customerSearch(q);
+  // An inner join, so a customer search drops the other check-ins. Every check-in has a
+  // customer, so without a search it returns the same rows.
   let query = supabase
     .from("check_ins")
-    .select("*, customer:customers(id, first_name, last_name, phone, visit_count)", { count: "exact" })
+    .select("*, customer:customers!inner(id, first_name, last_name, phone, lifetime_points)", { count: "exact" })
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .range(from, from + CHECK_INS_PAGE_SIZE - 1);
   if (source !== "all") query = query.eq("source", source);
+  if (search?.phone) query = query.like("customer.phone", search.phone);
+  if (search?.name) query = query.or(search.name, { referencedTable: "customer" });
   const [{ data, count, error }, totals] = await Promise.all([
     query,
     supabase.rpc("check_in_totals", { p_since: since, p_source: source === "all" ? undefined : source }),
@@ -314,12 +346,6 @@ export async function rewardUsage(rewardIds: string[]) {
   return { counts, birthdaysThisYear: birthdays.count ?? 0 };
 }
 
-export async function listKiosks() {
-  const { supabase } = await staffClient();
-  const { data } = await supabase.from("kiosk_devices").select("*").is("revoked_at", null).order("created_at");
-  return data ?? [];
-}
-
 export async function listStaff() {
   const { supabase } = await staffClient();
   const { data } = await supabase.from("staff").select("*").order("role").order("display_name");
@@ -331,7 +357,12 @@ export async function listStaff() {
 // ---------------------------------------------------------------------------
 
 type CustomerRef = Pick<Customer, "id" | "first_name" | "last_name" | "phone">;
-export type GiftVoucherRow = Tables["gift_vouchers"]["Row"] & { customer: CustomerRef | null; status: GiftVoucherStatus };
+export type GiftVoucherRow = Tables["gift_vouchers"]["Row"] & {
+  customer: CustomerRef | null;
+  status: GiftVoucherStatus;
+  /** The most recent spend still standing (not undone): when, and by which customer. */
+  lastUse: { created_at: string; customer: Pick<Customer, "first_name" | "last_name"> | null } | null;
+};
 export type GiftVoucherTransaction = Tables["gift_voucher_transactions"]["Row"] & { customer: CustomerRef | null };
 
 export const GIFT_VOUCHER_FILTERS = ["all", "active", "used_up", "expired"] as const;
@@ -343,7 +374,16 @@ const CUSTOMER_REF = "customer:customers(id, first_name, last_name, phone)";
 export async function listGiftVouchers({ q, filter, page }: { q: string; filter: GiftVoucherFilter; page: number }) {
   const { supabase } = await staffClient();
   const today = isoDate(shopDate(await shopTimezone(supabase)));
-  let query = supabase.from("gift_vouchers").select(`*, ${CUSTOMER_REF}`, { count: "exact" });
+  let query = supabase
+    .from("gift_vouchers")
+    .select("*, customer:customers(id, first_name, last_name, phone), last_use:gift_voucher_transactions(created_at, customer:customers(first_name, last_name))", {
+      count: "exact",
+    })
+    // Only the latest spend that wasn't undone, for the list's "Last used" column.
+    .eq("last_use.kind", "spend")
+    .is("last_use.voided_at", null)
+    .order("seq", { referencedTable: "last_use", ascending: false })
+    .limit(1, { referencedTable: "last_use" });
 
   // Codes are stored without dashes or spaces, so search the same way.
   const code = q.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -360,10 +400,97 @@ export async function listGiftVouchers({ q, filter, page }: { q: string; filter:
   if (error?.code === PAST_END) return { vouchers: [] as GiftVoucherRow[], total: 0, pastEnd: true };
   if (error) throw error;
   return {
-    vouchers: (data as unknown as Omit<GiftVoucherRow, "status">[]).map((v) => ({ ...v, status: giftVoucherStatus(v, today) })),
+    vouchers: (data as unknown as (Omit<GiftVoucherRow, "status" | "lastUse"> & { last_use: GiftVoucherRow["lastUse"][] })[]).map(
+      ({ last_use, ...v }) => ({ ...v, status: giftVoucherStatus(v, today), lastUse: last_use[0] ?? null }),
+    ),
     total: count ?? 0,
     pastEnd: false,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Gift voucher activity: every sale, spend, undo and adjustment, across all vouchers
+// ---------------------------------------------------------------------------
+
+export const GIFT_ACTIVITY_KINDS = ["all", "sale", "spend"] as const;
+export type GiftActivityKind = (typeof GIFT_ACTIVITY_KINDS)[number];
+export const GIFT_ACTIVITY_RANGES = { "7d": 6, "30d": 29, all: null } as const;
+export type GiftActivityRange = keyof typeof GIFT_ACTIVITY_RANGES;
+export const GIFT_ACTIVITY_PAGE_SIZE = 50;
+
+export type GiftActivityRow = Tables["gift_voucher_transactions"]["Row"] & {
+  voucher: { id: string; code: string };
+  customer: CustomerRef | null;
+};
+
+/**
+ * The voucher ledger newest first, so staff can see who bought, who used and when without
+ * opening each voucher. `q` matches a voucher code, or a customer's name or phone (what they
+ * used, plus everything on the vouchers they hold).
+ */
+export async function listGiftVoucherActivity({
+  q,
+  kind,
+  range,
+  page,
+}: {
+  q: string;
+  kind: GiftActivityKind;
+  range: GiftActivityRange;
+  page: number;
+}) {
+  const { supabase } = await staffClient();
+  let query = supabase
+    .from("gift_voucher_transactions")
+    .select("*, voucher:gift_vouchers!inner(id, code), customer:customers(id, first_name, last_name, phone)", { count: "exact" });
+  if (kind !== "all") query = query.eq("kind", kind);
+  const days = GIFT_ACTIVITY_RANGES[range];
+  if (days !== null) query = query.gte("created_at", await dayStart(supabase, days));
+
+  // A search can be a code or a customer: find both, then show either's entries.
+  const term = q.trim();
+  if (term) {
+    const code = term.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const search = customerSearch(term);
+    const [codes, people] = await Promise.all([
+      code ? supabase.from("gift_vouchers").select("id").like("code", `%${code}%`).limit(200) : { data: [] },
+      search
+        ? (search.phone
+            ? supabase.from("customers").select("id").like("phone", search.phone)
+            : supabase.from("customers").select("id").or(search.name!)
+          ).limit(200)
+        : { data: [] },
+    ]);
+    const customerIds = (people.data ?? []).map((r) => r.id);
+    // A customer's activity is what they used and everything on vouchers they hold.
+    const held = customerIds.length
+      ? await supabase.from("gift_vouchers").select("id").in("customer_id", customerIds).limit(200)
+      : { data: [] };
+    const voucherIds = [...new Set([...(codes.data ?? []), ...(held.data ?? [])].map((r) => r.id))];
+    if (!voucherIds.length && !customerIds.length) return { rows: [] as GiftActivityRow[], total: 0, pastEnd: false };
+    const either = [
+      voucherIds.length ? `gift_voucher_id.in.(${voucherIds.join(",")})` : null,
+      customerIds.length ? `customer_id.in.(${customerIds.join(",")})` : null,
+    ].filter(Boolean);
+    query = query.or(either.join(","));
+  }
+
+  const from = (page - 1) * GIFT_ACTIVITY_PAGE_SIZE;
+  // By time, then by ledger order for entries written in the same transaction.
+  const { data, count, error } = await query
+    .order("created_at", { ascending: false })
+    .order("seq", { ascending: false })
+    .range(from, from + GIFT_ACTIVITY_PAGE_SIZE - 1);
+  if (error?.code === PAST_END) return { rows: [] as GiftActivityRow[], total: 0, pastEnd: true };
+  if (error) throw error;
+  return { rows: (data ?? []) as unknown as GiftActivityRow[], total: count ?? 0, pastEnd: false };
+}
+
+/** Just the code, for the browser tab title. */
+export async function giftVoucherCode(id: string) {
+  const { supabase } = await staffClient();
+  const { data } = await supabase.from("gift_vouchers").select("code").eq("id", id).maybeSingle();
+  return data?.code ?? null;
 }
 
 /** One gift voucher with its whole history (a voucher only ever has a handful of entries). */

@@ -19,13 +19,26 @@ export function parseDollars(input: string): number | null {
   return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
 }
 
+/** As the database stores and compares codes: upper-case letters and digits only. */
+export function normalizeGiftCode(input: string) {
+  return input.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 /**
- * Generated codes (a 2–4 letter business prefix + 8 characters) are shown in groups:
- * BN-7K3M-9QX2. Printed numbers typed in by staff are shown as stored.
+ * Generated codes are a 2–4 letter business prefix + 7 digits + a Luhn check digit, e.g.
+ * BN48207138 (`_new_gift_voucher_code`). True when a code has that shape but the check digit
+ * is wrong: almost certainly a typo (one wrong digit, or two swapped) rather than another code.
  */
-export function formatGiftCode(code: string) {
-  const m = /^([A-Z]{2,4})([A-Z0-9]{4})([A-Z0-9]{4})$/.exec(code);
-  return m ? `${m[1]}-${m[2]}-${m[3]}` : code;
+export function looksMistyped(input: string) {
+  const m = /^[A-Z]{2,4}(\d{8})$/.exec(normalizeGiftCode(input));
+  if (!m) return false;
+  let sum = 0;
+  [...m[1]].reverse().forEach((c, i) => {
+    let d = Number(c);
+    if (i % 2 === 1) d = d * 2 > 9 ? d * 2 - 9 : d * 2;
+    sum += d;
+  });
+  return sum % 10 !== 0;
 }
 
 /** The owner's business prefix for generated codes: 2 to 4 letters, e.g. BN for Best Nails. */
@@ -47,6 +60,7 @@ export const GIFT_VOUCHER_STATUS_LABELS: Record<GiftVoucherStatus, string> = {
 /** Messages for check_gift_voucher / spend_gift_voucher statuses that mean "can't use it". */
 export const GIFT_VOUCHER_PROBLEMS: Record<string, string> = {
   not_found: "No gift voucher has this code. Check it was typed correctly.",
+  mistyped: "This code looks mistyped: one of the digits is probably wrong. Check it against the voucher.",
   used_up: "This gift voucher has no balance left.",
   expired: "This gift voucher has expired.",
 };

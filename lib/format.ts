@@ -22,6 +22,13 @@ export function formatDate(iso: string, timeZone: string, opts: Intl.DateTimeFor
 }
 
 /** "Today", "Yesterday", "Oct 12" or "Jun 3, 2025". */
+/** Whether `iso` falls on today's date in the shop's timezone (a customer can check in once a day). */
+export function isShopToday(iso: string | null, timeZone: string) {
+  if (!iso) return false;
+  const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone });
+  return day(new Date(iso)) === day(new Date());
+}
+
 export function formatLastVisit(iso: string | null, timeZone: string) {
   if (!iso) return "Never";
   const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone });
@@ -43,7 +50,8 @@ export function initials(c: { first_name: string; last_name: string | null }) {
 export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export function formatBirthday(month: number | null, day: number | null) {
-  return month && day ? `${MONTHS[month - 1].slice(0, 3)} ${day}` : null;
+  // Day first, as dates are written in Australia: "27 Oct".
+  return month && day ? `${day} ${MONTHS[month - 1].slice(0, 3)}` : null;
 }
 
 export function signed(n: number) {

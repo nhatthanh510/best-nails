@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatGiftCode, formatMoney, giftVoucherStatus, parseDollars } from "./gift-vouchers";
+import { formatMoney, giftVoucherStatus, looksMistyped, parseDollars } from "./gift-vouchers";
 
 describe("parseDollars", () => {
   it("reads whole and decimal dollar amounts as cents", () => {
@@ -26,16 +26,22 @@ describe("formatMoney", () => {
   });
 });
 
-describe("formatGiftCode", () => {
-  it("groups generated codes, whatever the business prefix", () => {
-    expect(formatGiftCode("BN7K3M9QX2")).toBe("BN-7K3M-9QX2");
-    expect(formatGiftCode("TBH7K3M9QX2")).toBe("TBH-7K3M-9QX2");
-    expect(formatGiftCode("GV7K3M9QX2")).toBe("GV-7K3M-9QX2");
+describe("looksMistyped", () => {
+  it("accepts generated codes whose check digit is right, however they're typed", () => {
+    expect(looksMistyped("BN48207138")).toBe(false);
+    expect(looksMistyped("bn 4820 7138")).toBe(false);
+    expect(looksMistyped("TBH73159287")).toBe(false);
   });
 
-  it("leaves printed numbers alone", () => {
-    expect(formatGiftCode("PV004217")).toBe("PV004217");
-    expect(formatGiftCode("0412345678")).toBe("0412345678");
+  it("catches one wrong digit or two swapped digits", () => {
+    expect(looksMistyped("BN48207139")).toBe(true);
+    expect(looksMistyped("BN48207183")).toBe(true);
+    expect(looksMistyped("BN84207138")).toBe(true);
+  });
+
+  it("leaves printed numbers and older codes alone", () => {
+    expect(looksMistyped("PV004217")).toBe(false);
+    expect(looksMistyped("BN7K3M9QX2")).toBe(false);
   });
 });
 

@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 type Item = { reward: Reward; uses: number };
 
-export function RewardsManager({ items, pointsPerVisit }: { items: Item[]; pointsPerVisit: number }) {
+export function RewardsManager({ items }: { items: Item[] }) {
   // "new" opens a blank editor; an id edits that reward.
   const [editing, setEditing] = useState<string | "new" | null>(null);
 
@@ -31,7 +31,7 @@ export function RewardsManager({ items, pointsPerVisit }: { items: Item[]; point
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        Each check-in earns {pointsPerVisit} point{pointsPerVisit === 1 ? "" : "s"} (change it in Settings).
+        Each check-in earns 1 point, once a day, so a reward&apos;s points are also the visits it takes.
       </p>
 
       {items.length === 0 && <p className="text-sm text-muted-foreground">No rewards yet.</p>}
@@ -43,7 +43,7 @@ export function RewardsManager({ items, pointsPerVisit }: { items: Item[]; point
             <div className="flex flex-col gap-0.5">
               <span className="text-base font-extrabold">{r.title}</span>
               <span className="text-sm text-muted-foreground">
-                {r.points_cost} points{pointsPerVisit === 1 ? ` (${r.points_cost} visits)` : ""} · redeemed {uses} time
+                {r.points_cost} points ({r.points_cost} visits) · redeemed {uses} time
                 {uses === 1 ? "" : "s"}
               </span>
             </div>
@@ -119,7 +119,7 @@ function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => vo
           <Button type="button" variant="outline" onClick={onDone}>
             Cancel
           </Button>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" pending={pending}>
             {pending ? "Saving…" : r ? "Save reward" : "Create reward"}
           </Button>
         </div>
@@ -203,14 +203,14 @@ export function BirthdayDiscountForm({
               ))}
             </select>
           </div>
-          {!canEdit && <p className="text-sm font-semibold text-muted-foreground">Only the owner can change this.</p>}
+          {!canEdit && <p className="text-sm font-semibold text-muted-foreground">Only an admin can change this.</p>}
           {state && !state.ok && (
             <p role="alert" className="text-sm font-semibold text-destructive">
               {state.message}
             </p>
           )}
           {canEdit && (
-            <Button type="submit" disabled={pending} className="self-end">
+            <Button type="submit" pending={pending} className="self-end">
               {pending ? "Saving…" : "Save birthday discount"}
             </Button>
           )}

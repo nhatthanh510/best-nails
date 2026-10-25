@@ -32,6 +32,19 @@ export function fillPhoneMask(digits: string): { typed: string; rest: string } {
   return { typed: out.slice(0, cut), rest: out.slice(cut) };
 }
 
+/** Mirrors MAX_PHONE_DIGITS in lib/phone.ts (kept out of the client bundle). */
+export const MAX_KIOSK_DIGITS = 12;
+
+/**
+ * When the kiosk's Continue can be pressed. Every Australian number written with a leading 0
+ * (mobile or landline) has 10 digits, so those need at least 10; anything else (an overseas
+ * number) at least 8. Longer numbers are allowed, with the "not a standard Australian number"
+ * warning, so unusual numbers are never blocked.
+ */
+export function isCompleteNumber(digits: string): boolean {
+  return digits.length >= (digits.startsWith("0") ? 10 : 8);
+}
+
 /** A quick client-side guess matching normalizePhone().standard for typical AU numbers. */
 export function looksStandard(digits: string): boolean {
   return /^0[23478]\d{8}$/.test(digits) || /^1[38]00\d{6}$/.test(digits);

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 // Refreshes the Supabase session cookie and sends signed-out visitors to the login page.
-// This is only an optimistic check: every admin page and action calls requireStaff() itself.
+// This is only an optimistic check: every admin page and action calls requireAdmin() itself.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -38,5 +38,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/kiosk/setup"],
+  // The kiosk needs a signed-in account too, so its session is kept fresh here as well.
+  matcher: ["/admin/:path*", "/kiosk"],
 };

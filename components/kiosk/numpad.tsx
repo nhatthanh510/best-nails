@@ -5,7 +5,7 @@ import { Delete } from "lucide-react";
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 const keyBase =
-  "flex min-h-15 items-center justify-center rounded-[20px] select-none transition-transform duration-75 active:scale-95 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-kiosk-accent";
+  "flex min-h-14 items-center justify-center sm:min-h-17 lg:min-h-15 rounded-[20px] select-none transition-transform duration-75 active:scale-95 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-kiosk-accent";
 
 export function Numpad({
   onDigit,

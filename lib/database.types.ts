@@ -129,20 +129,6 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"kiosk_devices": {
-                  Row: {
-                    "created_at": string,"id": string,"last_seen_at": string | null,"name": string,"paired_by": string | null,"revoked_at": string | null,"token_hash": string
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name": string,"paired_by"?: string | null,"revoked_at"?: string | null,"token_hash": string
-                  }
-                  Update: {
-                    "created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name"?: string,"paired_by"?: string | null,"revoked_at"?: string | null,"token_hash"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
                 },"point_transactions": {
                   Row: {
                     "balance_after": number,"check_in_id": string | null,"created_at": string,"created_by": string | null,"customer_id": string,"delta": number,"id": string,"note": string | null,"promotion_id": string | null,"reason": Database["public"]['Enums']["point_reason"],"seq": number
@@ -191,14 +177,14 @@ isOneToOne: false
                   ]
                 },"settings": {
                   Row: {
-                    "birthday_discount_enabled": boolean,"birthday_discount_percent": number,"birthday_window_days": number,"checkin_cooldown_hours": number,"code_prefix": string,"id": boolean,"kiosk_idle_seconds": number,"points_per_visit": number,"tier_regular_visits": number,"tier_vip_visits": number,"timezone": string,"updated_at": string
+                    "birthday_discount_enabled": boolean,"birthday_discount_percent": number,"birthday_window_days": number,"code_prefix": string,"id": boolean,"kiosk_idle_seconds": number,"tier_regular_points": number,"tier_vip_points": number,"timezone": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"checkin_cooldown_hours"?: number,"code_prefix"?: string,"id"?: boolean,"kiosk_idle_seconds"?: number,"points_per_visit"?: number,"tier_regular_visits"?: number,"tier_vip_visits"?: number,"timezone"?: string,"updated_at"?: string
+                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"code_prefix"?: string,"id"?: boolean,"kiosk_idle_seconds"?: number,"tier_regular_points"?: number,"tier_vip_points"?: number,"timezone"?: string,"updated_at"?: string
                   }
                   Update: {
-                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"checkin_cooldown_hours"?: number,"code_prefix"?: string,"id"?: boolean,"kiosk_idle_seconds"?: number,"points_per_visit"?: number,"tier_regular_visits"?: number,"tier_vip_visits"?: number,"timezone"?: string,"updated_at"?: string
+                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"code_prefix"?: string,"id"?: boolean,"kiosk_idle_seconds"?: number,"tier_regular_points"?: number,"tier_vip_points"?: number,"timezone"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -240,6 +226,12 @@ isOneToOne: false
 "_checked_in_recently":
 { Args: { "p_customer_id": string }; Returns: boolean
                            },
+"_discount_used_today":
+{ Args: { "p_customer_id": string }; Returns: boolean
+                           },
+"_luhn_check_digit":
+{ Args: { "p_digits": string }; Returns: number
+                           },
 "_new_gift_voucher_code":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
@@ -261,8 +253,8 @@ isOneToOne: false
 "adjust_points":
 { Args: { "p_customer_id": string,"p_delta": number,"p_note": string }; Returns: number
                            },
-"admin_check_in":
-{ Args: { "p_customer_id": string }; Returns: Json
+"assert_signed_in":
+{ Args: Record<PropertyKey, never>; Returns: undefined
                            },
 "assert_staff":
 { Args: Record<PropertyKey, never>; Returns: undefined
@@ -294,6 +286,9 @@ isOneToOne: false
 "kiosk_redeem_birthday":
 { Args: { "p_phone": string }; Returns: Json
                            },
+"kiosk_today":
+{ Args: { "p_customer_id": string }; Returns: Json
+                           },
 "normalize_voucher_code":
 { Args: { "p_code": string }; Returns: string
                            },
@@ -320,7 +315,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "check_in_source": "kiosk"|"admin","gift_voucher_entry": "sale"|"spend"|"undo"|"adjust","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "owner"|"staff"
+            "check_in_source": "kiosk"|"admin","gift_voucher_entry": "sale"|"spend"|"undo"|"adjust","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "admin"|"staff"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -440,7 +435,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "check_in_source": ["kiosk", "admin"],"gift_voucher_entry": ["sale", "spend", "undo", "adjust"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["owner", "staff"]
+            "check_in_source": ["kiosk", "admin"],"gift_voucher_entry": ["sale", "spend", "undo", "adjust"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["admin", "staff"]
           }
         }
 } as const

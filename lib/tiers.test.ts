@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { nextTier, tierFor, tierRange } from "./tiers";
 
-const t = { tier_regular_visits: 10, tier_vip_visits: 20 };
+const t = { tier_regular_points: 10, tier_vip_points: 20 };
 
 describe("tiers", () => {
   it("assigns tiers at the thresholds", () => {
@@ -13,8 +13,8 @@ describe("tiers", () => {
   });
 
   it("says how far the next tier is", () => {
-    expect(nextTier(7, t)).toEqual({ tier: "regular", visitsToGo: 3 });
-    expect(nextTier(12, t)).toEqual({ tier: "vip", visitsToGo: 8 });
+    expect(nextTier(7, t)).toEqual({ tier: "regular", pointsToGo: 3 });
+    expect(nextTier(12, t)).toEqual({ tier: "vip", pointsToGo: 8 });
     expect(nextTier(25, t)).toBeNull();
   });
 

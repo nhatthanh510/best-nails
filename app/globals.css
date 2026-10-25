@@ -3,6 +3,17 @@
 @import "shadcn/tailwind.css";
 
 
+/* Sideways-scrolling rows on phones (the nav tabs, filter chips): no scrollbar, and the edges
+   fade so it's clear there's more to swipe to. */
+@utility scroll-row {
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 24px), transparent);
+}
+
 /* Landscape iPads with browser chrome, or older 768px-tall iPads */
 @custom-variant short (@media (max-height: 780px));
 
@@ -132,6 +143,17 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Keep the scrollbar's space in the admin, so the page doesn't jump sideways when a list gets
+     shorter (e.g. while searching). The kiosk is one fixed screen, so it's left out. */
+  html:has([data-admin]) {
+    scrollbar-gutter: stable;
+  }
+  /* A page with a list panel fits the screen and <main> keeps the gutter instead (admin layout). */
+  @media (width >= 48rem) {
+    html:has([data-list-panel]) {
+      scrollbar-gutter: auto;
+    }
   }
   h1 {
     font-family: var(--font-heading);

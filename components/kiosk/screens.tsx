@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Cake, Check, Clock, Gift, LoaderCircle, RotateCw, TriangleAlert, WifiOff } from "lucide-react";
+import { ArrowRight, Cake, Check, ChevronLeft, Gift, LayoutGrid, LogOut, RotateCw, TriangleAlert, WifiOff } from "lucide-react";
+import { Spinner as SharedSpinner } from "@/components/ui/spinner";
 import type { CheckInResult, KioskBirthday, KioskCustomer, RedeemResult, RedeemTarget, SignupInput } from "@/app/kiosk/actions";
 import type { KioskContent, KioskReward } from "@/lib/kiosk-content";
 import { birthdayWindowLabel } from "@/lib/rewards";
-import { fillPhoneMask, looksStandard } from "@/lib/phone-mask";
+import { fillPhoneMask, isCompleteNumber, looksStandard } from "@/lib/phone-mask";
+import Link from "next/link";
 import { KioskBrand } from "./brand";
 import { Numpad } from "./numpad";
 
@@ -17,10 +19,10 @@ const outlineButton =
 function Shell({ children, centered = false }: { children: React.ReactNode; centered?: boolean }) {
   return (
     <main
-      className={`flex min-h-dvh w-full bg-kiosk-bg text-kiosk-ink ${
+      className={`flex min-h-0 w-full flex-1 text-kiosk-ink ${
         centered
-          ? "flex-col items-center justify-center gap-7 p-16 text-center short:gap-5 short:p-10"
-          : "flex-col gap-8 px-16 py-12 short:gap-6 short:py-8"
+          ? "flex-col items-center justify-center gap-7 px-5 py-10 text-center sm:p-10 lg:p-16 short:gap-5 lg:short:p-10"
+          : "flex-col gap-8 px-5 py-6 sm:px-10 sm:py-8 lg:px-16 lg:py-10 short:gap-6 lg:short:py-6"
       }`}
     >
       {children}
@@ -28,17 +30,64 @@ function Shell({ children, centered = false }: { children: React.ReactNode; cent
   );
 }
 
-function Header({ action }: { action: React.ReactNode }) {
+const headerButton = "flex min-h-12 items-center gap-2 rounded-full px-4 text-base sm:px-5";
+
+/**
+ * One header above every kiosk step, so the shop's frame never changes: the brand on the left;
+ * Gift voucher, Admin (admin accounts) and Sign out (asks first) on the right. Staff controls
+ * stay quiet so customers read them as the shop's. A step's own way back lives in the step
+ * (StepBack), not here. On phones the controls are icons and only the logo shows.
+ */
+export function KioskHeader({
+  isAdmin,
+  onSignOut,
+  voucher,
+}: {
+  isAdmin: boolean;
+  onSignOut: () => void;
+  voucher: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center justify-between">
-      <KioskBrand />
-      {action}
-    </div>
+    <header className="flex-none px-5 pt-5 sm:px-10 sm:pt-8 lg:px-16 lg:short:pt-5">
+      <div className="flex items-center justify-between gap-3 border-b border-kiosk-line pb-5 short:pb-3">
+        <KioskBrand compactOnPhone />
+        <div className="flex items-center gap-1">
+          {voucher}
+          {isAdmin && (
+            <Link href="/admin" className={`${headerButton} border border-kiosk-line font-bold text-kiosk-muted hover:text-kiosk-ink`}>
+              <LayoutGrid className="size-5" aria-hidden="true" />
+              <span className="max-sm:sr-only">Admin</span>
+            </Link>
+          )}
+          <button type="button" onClick={onSignOut} className={`${headerButton} font-semibold text-kiosk-faint hover:text-kiosk-muted`}>
+            <LogOut className="size-5" aria-hidden="true" />
+            <span className="max-sm:sr-only">Sign out</span>
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/**
+ * A step's way back, at the top-left of its content above the heading (where the start screen
+ * has its "Rewards check-in" line): a labelled pill in the kiosk's outline style.
+ */
+function StepBack({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-12 w-fit items-center gap-1.5 rounded-full border-2 border-kiosk-line pr-5 pl-3 text-base font-bold text-kiosk-muted hover:text-kiosk-ink active:bg-kiosk-surface focus-visible:outline-3 focus-visible:outline-kiosk-accent"
+    >
+      <ChevronLeft className="size-5" strokeWidth={2.4} aria-hidden="true" />
+      {label}
+    </button>
   );
 }
 
 function Spinner() {
-  return <LoaderCircle className="size-7 animate-spin" aria-hidden="true" />;
+  return <SharedSpinner className="size-7" />;
 }
 
 /** The main reward (cheapest active one): what the punch card counts towards. */
@@ -93,7 +142,7 @@ function ProgramCard({ content }: { content: KioskContent }) {
               {reward.cost} points = {reward.title}
             </p>
             <p className="text-base text-kiosk-muted">
-              Every check-in earns {content.pointsPerVisit} point{content.pointsPerVisit === 1 ? "" : "s"}.
+              Every check-in earns 1 point.
             </p>
           </div>
         </div>
@@ -117,7 +166,6 @@ function ProgramCard({ content }: { content: KioskContent }) {
 
 export function EnterScreen(props: {
   digits: string;
-  minDigits: number;
   error: string | null;
   content: KioskContent;
   pending: boolean;
@@ -127,75 +175,79 @@ export function EnterScreen(props: {
   onContinue: () => void;
 }) {
   const { typed, rest } = fillPhoneMask(props.digits);
-  const ready = props.digits.length >= props.minDigits;
+  // A 0… number needs all 10 digits; overseas numbers 8 or more (see isCompleteNumber).
+  const ready = isCompleteNumber(props.digits);
   // Unusual numbers are allowed; this just nudges people to double-check. Don't flag a "04…"
   // number that's simply still being typed (the sign-up screen warns if they stop short).
   const unusual =
     ready && !looksStandard(props.digits) && (props.digits.length >= 10 || !props.digits.startsWith("0"));
 
   return (
-    <main className="flex h-dvh min-h-[600px] w-full gap-14 bg-kiosk-bg px-16 py-14 text-kiosk-ink short:py-8">
-      <div className="flex min-w-0 flex-1 flex-col justify-between gap-6">
-        <KioskBrand />
-
-        <div className="flex flex-col gap-5">
-          <p className="text-[15px] font-bold tracking-[0.14em] text-kiosk-accent uppercase">Rewards check-in</p>
-          <h1 className="text-[60px] leading-[1.05] font-extrabold tracking-[-0.03em] short:text-[52px]">
-            Welcome in.
-            <br />
-            Earn a point every visit.
-          </h1>
-          <p className="max-w-[440px] text-[22px] leading-normal text-kiosk-muted">
-            Type your phone number to check in and see your rewards.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <ProgramCard content={props.content} />
-          <p className="text-sm text-kiosk-faint">We only use your number for Best Nails rewards.</p>
-        </div>
-      </div>
-
-      <div className="flex w-[500px] flex-none flex-col gap-5">
-        <div className="flex flex-none flex-col gap-2 rounded-3xl bg-kiosk-surface px-7 py-6.5 short:py-4">
-          <label htmlFor="phone" className="text-[15px] font-semibold text-kiosk-muted">
-            Phone number
-          </label>
-          <output
-            id="phone"
-            aria-live="polite"
-            aria-label={props.digits ? `Phone number ${props.digits.split("").join(" ")}` : "Phone number, empty"}
-            className="text-[46px] font-bold tracking-[0.02em] whitespace-pre tabular-nums short:text-[40px]"
-          >
-            <span>{typed}</span>
-            <span className="text-kiosk-placeholder">{rest}</span>
-          </output>
-          {props.error ? (
-            <p role="alert" className="text-base font-bold text-kiosk-notice">
-              {props.error}
+    <main className="flex min-h-0 w-full flex-1 flex-col gap-6 px-5 pt-6 pb-8 text-kiosk-ink sm:px-10 lg:gap-8 lg:px-16 lg:pt-8 lg:pb-10 lg:short:pt-4 lg:short:pb-6">
+      {/* Landscape (lg and up): welcome on the left, keypad on the right. Narrower screens stack
+          welcome, keypad, then the program card (the left column's children join the stack). */}
+      <div className="flex min-h-0 flex-1 flex-col gap-8 lg:flex-row lg:gap-14">
+        <div className="flex min-w-0 flex-1 flex-col justify-between gap-6 max-lg:contents">
+          <div className="flex flex-col gap-3 max-lg:order-1 max-lg:items-center max-lg:text-center lg:gap-5 lg:pt-4 lg:short:pt-0">
+            <p className="text-[15px] font-bold tracking-[0.14em] text-kiosk-accent uppercase">Rewards check-in</p>
+            <h1 className="text-[36px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[48px] lg:text-[60px] lg:short:text-[52px]">
+              Welcome in.
+              <br />
+              Earn a point every visit.
+            </h1>
+            <p className="max-w-[440px] text-lg leading-normal text-kiosk-muted max-sm:hidden sm:text-[22px]">
+              Type your phone number to check in and see your rewards.
             </p>
-          ) : (
-            unusual && (
-              <p className="flex items-center gap-2 text-base font-semibold text-kiosk-notice">
-                <TriangleAlert className="size-5 flex-none" aria-hidden="true" />
-                Not a standard Australian number. You can still continue.
-              </p>
-            )
-          )}
+          </div>
+
+          <div className="flex flex-col gap-4 max-lg:order-3 max-lg:mx-auto max-lg:w-full max-lg:max-w-[500px]">
+            <ProgramCard content={props.content} />
+            <p className="text-sm text-kiosk-faint">We only use your number for Best Nails rewards.</p>
+          </div>
         </div>
 
-        <Numpad onDigit={props.onDigit} onClear={props.onClear} onBackspace={props.onBackspace} />
+        <div className="flex w-full max-w-[500px] flex-none flex-col gap-4 max-lg:order-2 max-lg:self-center lg:w-[500px]">
+          {/* The instruction sits right above the box the number goes into. */}
+          <label htmlFor="phone" className="text-center text-[22px] font-bold short:text-xl">
+            Enter your phone number
+          </label>
+          <div className="flex flex-none flex-col items-center gap-2 rounded-3xl bg-kiosk-surface px-7 py-5 text-center short:py-3.5">
+            <output
+              id="phone"
+              aria-live="polite"
+              aria-label={props.digits ? `Phone number ${props.digits.split("").join(" ")}` : "Phone number, empty"}
+              className="text-[34px] font-bold tracking-[0.02em] whitespace-pre tabular-nums sm:text-[46px] lg:short:text-[40px]"
+            >
+              <span>{typed}</span>
+              <span className="text-kiosk-placeholder">{rest}</span>
+            </output>
+            {props.error ? (
+              <p role="alert" className="text-base font-bold text-kiosk-notice">
+                {props.error}
+              </p>
+            ) : (
+              unusual && (
+                <p className="flex items-center gap-2 text-base font-semibold text-kiosk-notice">
+                  <TriangleAlert className="size-5 flex-none" aria-hidden="true" />
+                  Not a standard Australian number. You can still continue.
+                </p>
+              )
+            )}
+          </div>
 
-        <button
-          type="button"
-          onClick={props.onContinue}
-          disabled={!ready || props.pending}
-          className={`${primaryButton} h-23 flex-none text-[26px] short:h-18 disabled:bg-kiosk-line disabled:bg-none disabled:text-kiosk-faint disabled:opacity-100`}
-        >
-          {props.pending ? <Spinner /> : null}
-          Continue
-          {!props.pending && <ArrowRight className="size-7" strokeWidth={2.5} aria-hidden="true" />}
-        </button>
+          <Numpad onDigit={props.onDigit} onClear={props.onClear} onBackspace={props.onBackspace} />
+
+          <button
+            type="button"
+            onClick={props.onContinue}
+            disabled={!ready || props.pending}
+            className={`${primaryButton} h-16 flex-none text-[24px] sm:h-23 sm:text-[26px] lg:short:h-18 disabled:bg-kiosk-line disabled:bg-none disabled:text-kiosk-faint disabled:opacity-100`}
+          >
+            {props.pending ? <Spinner /> : null}
+            Continue
+            {!props.pending && <ArrowRight className="size-7" strokeWidth={2.5} aria-hidden="true" />}
+          </button>
+        </div>
       </div>
     </main>
   );
@@ -231,39 +283,109 @@ export function FoundScreen({
   pending,
   onCheckIn,
   onStartOver,
+  onDone,
+  redeem,
 }: {
   customer: KioskCustomer;
   content: KioskContent;
   pending: boolean;
   onCheckIn: () => void;
   onStartOver: () => void;
+  onDone: () => void;
+  redeem: RedeemProps;
 }) {
   const reward = mainReward(content.rewards);
   const ready = reward && customer.points >= reward.cost;
+  // Already checked in today: they've come back (usually at the till) to redeem, so skip the
+  // check-in and go straight to what they can use, or say they're all set.
+  const returning = customer.checkedInAt !== null;
+  const options = returning ? redeemOptions(customer.points, customer.birthday, redeem, customer.discountUsedToday) : [];
+  const checkedInTime =
+    customer.checkedInAt && new Date(customer.checkedInAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: content.timezone });
+
+  if (returning) {
+    return (
+      <Shell>
+        {/* One decision, one column: redeem or not, or "all set". */}
+        <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-7">
+          <StepBack label="Not you? Start over" onClick={onStartOver} />
+          <div className="flex flex-1 flex-col items-center justify-center gap-7 pb-6 text-center">
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-lg text-kiosk-muted tabular-nums">{customer.maskedPhone}</p>
+              <h1 className="text-[36px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[48px] lg:text-[56px]">
+                Welcome back, {customer.firstName}!
+              </h1>
+              <p className="flex flex-wrap items-center justify-center gap-x-2 text-lg text-kiosk-muted">
+                <span className="flex items-center gap-1.5 font-semibold text-kiosk-ready">
+                  <Check className="size-5" strokeWidth={2.6} aria-hidden="true" />
+                  Checked in today at {checkedInTime}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  <span className="font-bold text-kiosk-ink tabular-nums">{customer.points}</span> point{customer.points === 1 ? "" : "s"}
+                </span>
+              </p>
+            </div>
+
+            {options.length > 0 ? (
+              <>
+                <RedeemList options={options} pending={redeem.pending} error={redeem.error} onRedeem={redeem.onRedeem} />
+                <button type="button" onClick={onDone} className={`${outlineButton} min-h-16 justify-center px-9 text-xl text-kiosk-ink`}>
+                  No thanks, I&apos;m done
+                </button>
+              </>
+            ) : customer.discountUsedToday ? (
+              <>
+                <div className="flex flex-col items-center gap-3 rounded-3xl bg-kiosk-surface px-8 py-7">
+                  <div className="flex size-16 items-center justify-center rounded-full bg-kiosk-accent">
+                    <Gift className="size-8 text-kiosk-bg" strokeWidth={2.2} aria-hidden="true" />
+                  </div>
+                  <p className="text-2xl font-extrabold">You&apos;ve had today&apos;s discount</p>
+                  <p className="text-lg text-kiosk-muted">
+                    {customer.points} point{customer.points === 1 ? "" : "s"} saved for your next visit · one discount per visit
+                  </p>
+                </div>
+                <button type="button" onClick={onDone} className={`${primaryButton} min-h-16 min-w-64 px-11 text-2xl`}>
+                  Done
+                </button>
+              </>
+            ) : (
+              <>
+                {reward && (
+                  <div className="flex flex-col items-center gap-3 rounded-3xl bg-kiosk-surface px-8 py-7">
+                    <PunchCard points={customer.points} cost={reward.cost} size="md" />
+                    <p className="text-lg text-kiosk-muted">{visitsToGo(customer.points, reward)}</p>
+                  </div>
+                )}
+                <p className="text-xl text-kiosk-muted">You&apos;re all checked in for today. See you next time!</p>
+                <button type="button" onClick={onDone} className={`${primaryButton} min-h-16 min-w-64 px-11 text-2xl`}>
+                  Done
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </Shell>
+    );
+  }
 
   return (
     <Shell>
-      <Header
-        action={
-          <button type="button" onClick={onStartOver} className={outlineButton}>
-            <ArrowLeft className="size-5" strokeWidth={2.2} aria-hidden="true" />
-            Not you? Start over
-          </button>
-        }
-      />
-
-      <div className="flex min-h-0 flex-1 gap-8">
+      <div className="flex min-h-0 flex-1 flex-col gap-8 lg:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <p className="text-lg text-kiosk-muted tabular-nums">{customer.maskedPhone}</p>
-            <h1 className="text-[56px] leading-[1.05] font-extrabold tracking-[-0.03em]">Welcome back, {customer.firstName}!</h1>
+          <div className="flex flex-col gap-3">
+            <StepBack label="Not you? Start over" onClick={onStartOver} />
+            <div className="flex flex-col gap-1">
+              <p className="text-lg text-kiosk-muted tabular-nums">{customer.maskedPhone}</p>
+              <h1 className="text-[36px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[48px] lg:text-[56px]">Welcome back, {customer.firstName}!</h1>
+            </div>
           </div>
 
-          <section className="flex flex-col gap-5 rounded-3xl bg-kiosk-surface px-8 py-7">
-            <div className="flex items-end gap-12">
+          <section className="flex flex-col gap-5 rounded-3xl bg-kiosk-surface px-5 py-5 sm:px-8 sm:py-7">
+            <div className="flex items-end gap-8 sm:gap-12">
               <div className="flex flex-col gap-1">
                 <p className="text-base font-semibold text-kiosk-muted">Your points</p>
-                <p className="text-[72px] leading-none font-extrabold tracking-[-0.03em] text-kiosk-accent tabular-nums">
+                <p className="text-[56px] leading-none font-extrabold tracking-[-0.03em] text-kiosk-accent tabular-nums sm:text-[72px]">
                   {customer.points}
                 </p>
               </div>
@@ -275,8 +397,10 @@ export function FoundScreen({
             {reward && (
               <div className="flex flex-col gap-3">
                 <PunchCard points={customer.points} cost={reward.cost} />
-                {ready ? (
+                {ready && !customer.discountUsedToday ? (
                   <p className="text-lg font-bold text-kiosk-ready">{reward.title} is ready. Check in, then redeem it.</p>
+                ) : ready ? (
+                  <p className="text-lg text-kiosk-muted">{customer.points} points saved for your next visit.</p>
                 ) : (
                   <p className="text-lg text-kiosk-muted">{visitsToGo(customer.points, reward)}</p>
                 )}
@@ -285,7 +409,7 @@ export function FoundScreen({
           </section>
         </div>
 
-        <div className="flex w-[380px] flex-none flex-col justify-end gap-5">
+        <div className="flex w-full flex-none flex-col justify-end gap-5 lg:w-[380px]">
           <BirthdayNote birthday={customer.birthday} percent={content.birthday?.percent} />
           <button type="button" onClick={onCheckIn} disabled={pending} className={`${primaryButton} h-26 flex-none text-3xl`}>
             {pending ? <Spinner /> : <Check className="size-8" strokeWidth={2.6} aria-hidden="true" />}
@@ -309,9 +433,7 @@ function ProgramLines({ content }: { content: KioskContent }) {
   return (
     <ul className="flex flex-col gap-2 text-lg leading-snug">
       <li>
-        <span className="font-bold text-kiosk-accent">
-          {content.pointsPerVisit} point{content.pointsPerVisit === 1 ? "" : "s"}
-        </span>{" "}
+        <span className="font-bold text-kiosk-accent">1 point</span>{" "}
         every visit
       </li>
       {reward && (
@@ -366,20 +488,12 @@ export function SignupScreen({
 
   return (
     <Shell>
-      <Header
-        action={
-          <button type="button" onClick={onBack} className={outlineButton}>
-            <ArrowLeft className="size-5" strokeWidth={2.2} aria-hidden="true" />
-            Wrong number? Go back
-          </button>
-        }
-      />
-
       {/* The form sits at the top so the on-screen keyboard never covers it. */}
-      <form onSubmit={submit} className="flex items-start gap-12">
+      <form onSubmit={submit} className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-12">
         <div className="flex min-w-0 flex-1 flex-col gap-6">
           <div className="flex flex-col gap-2.5">
-            <h1 className="text-[52px] leading-[1.05] font-extrabold tracking-[-0.03em]">Nice to meet you!</h1>
+            <StepBack label="Wrong number? Go back" onClick={onBack} />
+            <h1 className="text-[36px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[44px] lg:text-[52px]">Nice to meet you!</h1>
             <p className="text-xl text-kiosk-muted">{formattedPhone} isn&apos;t in our rewards yet. Join in a few seconds.</p>
             {nonStandard && (
               <p className="flex items-center gap-2.5 text-lg font-semibold text-kiosk-notice">
@@ -389,7 +503,7 @@ export function SignupScreen({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4.5">
+          <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <label htmlFor="firstName" className="text-base font-bold">
                 First name <span className="text-kiosk-accent">*</span>
@@ -421,7 +535,7 @@ export function SignupScreen({
               </span>
             </legend>
             <div className="flex gap-3.5">
-              <select name="birthdayDay" aria-label="Birthday day" defaultValue="" className={`${fieldClass} w-40 text-2xl`}>
+              <select name="birthdayDay" aria-label="Birthday day" defaultValue="" className={`${fieldClass} w-32 text-2xl sm:w-40`}>
                 <option value="">Day</option>
                 {Array.from({ length: 31 }, (_, i) => (
                   <option key={i} value={i + 1}>
@@ -429,7 +543,7 @@ export function SignupScreen({
                   </option>
                 ))}
               </select>
-              <select name="birthdayMonth" aria-label="Birthday month" defaultValue="" className={`${fieldClass} w-60 text-2xl`}>
+              <select name="birthdayMonth" aria-label="Birthday month" defaultValue="" className={`${fieldClass} min-w-0 flex-1 text-2xl sm:w-60 sm:flex-none`}>
                 <option value="">Month</option>
                 {MONTHS.map((m, i) => (
                   <option key={m} value={i + 1}>
@@ -447,7 +561,7 @@ export function SignupScreen({
           )}
         </div>
 
-        <div className="flex w-[360px] flex-none flex-col gap-4.5 pt-1.5">
+        <div className="flex w-full flex-none flex-col gap-4.5 lg:w-[360px] lg:pt-1.5">
           <div className="flex flex-col gap-3 rounded-3xl bg-kiosk-surface p-6.5">
             <p className="text-[15px] font-bold tracking-[0.12em] text-kiosk-muted uppercase">How it works</p>
             <ProgramLines content={content} />
@@ -490,8 +604,10 @@ export type RedeemProps = {
 
 type Option = { key: string; title: string; detail: string; target: RedeemTarget; birthday: boolean };
 
-function redeemOptions(points: number, birthday: KioskBirthday, { rewards, birthdayPercent }: RedeemProps): Option[] {
+function redeemOptions(points: number, birthday: KioskBirthday, { rewards, birthdayPercent }: RedeemProps, discountUsedToday = false): Option[] {
   const options: Option[] = [];
+  // One discount per visit: nothing more to offer once today's has been used.
+  if (discountUsedToday) return options;
   if (birthday.eligible && birthdayPercent) {
     options.push({
       key: "birthday",
@@ -526,7 +642,7 @@ function RedeemList({ options, pending, error, onRedeem }: { options: Option[] }
       <h2 className="text-xl font-extrabold">Ready to redeem today</h2>
       <ul className="flex flex-col gap-2.5">
         {options.map((o) => (
-          <li key={o.key} className="flex min-h-18 items-center justify-between gap-4 rounded-2xl bg-kiosk-bg px-5 py-3">
+          <li key={o.key} className="flex min-h-18 flex-wrap items-center justify-between gap-4 rounded-2xl bg-kiosk-bg px-5 py-3">
             <div className="flex items-center gap-4">
               {o.birthday ? (
                 <Cake className="size-7 flex-none text-kiosk-accent" aria-hidden="true" />
@@ -578,16 +694,19 @@ export function SuccessScreen({
   result,
   seconds,
   onDone,
+  paused = false,
   ...redeem
 }: RedeemProps & {
   result: Extract<CheckInResult, { status: "checked_in" }>;
   seconds: number;
   onDone: () => void;
+  /** Hold the countdown, e.g. while staff use the Gift voucher dialog. */
+  paused?: boolean;
 }) {
-  const options = redeemOptions(result.points, result.birthday, redeem);
+  const options = redeemOptions(result.points, result.birthday, redeem, result.discountUsedToday);
   const canRedeem = options.length > 0;
   // Don't rush someone who is about to redeem; the idle timeout still applies.
-  const left = useCountdown(canRedeem ? null : seconds, onDone);
+  const left = useCountdown(canRedeem || paused ? null : seconds, onDone);
   const reward = mainReward(redeem.rewards);
   const earned = result.pointsAwarded;
 
@@ -597,13 +716,16 @@ export function SuccessScreen({
         <Check className={`text-kiosk-bg ${canRedeem ? "size-10" : "size-15"}`} strokeWidth={2.6} aria-hidden="true" />
       </div>
       <div className="flex flex-col items-center gap-3">
-        <h1 className={`leading-[1.05] font-extrabold tracking-[-0.03em] ${canRedeem ? "text-[48px]" : "text-[60px]"}`} role="status">
+        <h1
+          className={`leading-[1.05] font-extrabold tracking-[-0.03em] ${canRedeem ? "text-[34px] sm:text-[48px]" : "text-[38px] sm:text-[48px] lg:text-[60px]"}`}
+          role="status"
+        >
           You&apos;re checked in, {result.firstName}!
         </h1>
-        {!canRedeem && <p className="text-2xl text-kiosk-muted">Have a seat. We&apos;ll be with you shortly.</p>}
+        {!canRedeem && <p className="text-xl text-kiosk-muted sm:text-2xl">Have a seat. We&apos;ll be with you shortly.</p>}
       </div>
 
-      <div className="flex flex-col items-center gap-4 rounded-3xl bg-kiosk-surface px-10 py-6">
+      <div className="flex flex-col items-center gap-4 rounded-3xl bg-kiosk-surface px-6 py-6 sm:px-10">
         <p className="text-xl">
           <span className="font-extrabold text-kiosk-accent">
             +{earned} point{earned === 1 ? "" : "s"}
@@ -640,25 +762,28 @@ export function AlreadyScreen({
   onDone: () => void;
 }) {
   const time = new Date(result.lastCheckInAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: timezone });
-  const options = redeemOptions(result.points, result.birthday, redeem);
+  const options = redeemOptions(result.points, result.birthday, redeem, result.discountUsedToday);
   const canRedeem = options.length > 0;
   return (
     <Shell centered>
+      {/* Not an error: they're simply checked in already. A calm tick, not a warning. */}
       {!canRedeem && (
-        <div className="flex size-32 items-center justify-center rounded-full border-3 border-kiosk-notice">
-          <Clock className="size-15 text-kiosk-notice" strokeWidth={2.2} aria-hidden="true" />
+        <div className="flex size-28 items-center justify-center rounded-full border-3 border-kiosk-accent">
+          <Check className="size-14 text-kiosk-accent" strokeWidth={2.4} aria-hidden="true" />
         </div>
       )}
       <div className="flex max-w-[760px] flex-col items-center gap-3.5">
-        <h1 className={`leading-[1.08] font-extrabold tracking-[-0.03em] ${canRedeem ? "text-[44px]" : "text-[56px]"}`}>
-          You&apos;re already checked in, {result.firstName}
+        <h1
+          className={`leading-[1.08] font-extrabold tracking-[-0.03em] ${canRedeem ? "text-[32px] sm:text-[44px]" : "text-[36px] sm:text-[48px] lg:text-[56px]"}`}
+        >
+          {canRedeem ? `Welcome back, ${result.firstName}!` : `You're all checked in for today, ${result.firstName}`}
         </h1>
-        <p className="text-[22px] leading-normal text-kiosk-muted">
-          Points are added once per visit. You checked in at {time}, and you have{" "}
+        <p className="text-lg leading-normal text-kiosk-muted sm:text-[22px]">
+          You checked in at {time} and have{" "}
           <span className="font-bold text-kiosk-ink">
             {result.points} point{result.points === 1 ? "" : "s"}
           </span>
-          .
+          .{result.discountUsedToday && " You've had today's discount, one per visit."}
         </p>
       </div>
       <RedeemList options={options} pending={redeem.pending} error={redeem.error} onRedeem={redeem.onRedeem} />
@@ -674,13 +799,15 @@ export function RedeemedScreen({
   result,
   timezone,
   onDone,
+  paused = false,
 }: {
   result: Extract<RedeemResult, { status: "redeemed" }>;
   timezone: string;
   onDone: () => void;
+  paused?: boolean;
 }) {
   // Long enough to walk the iPad over or call someone to the desk.
-  const left = useCountdown(60, onDone);
+  const left = useCountdown(paused ? null : 60, onDone);
   const at = new Date(result.redeemedAt).toLocaleString("en-AU", {
     weekday: "short",
     day: "numeric",
@@ -702,19 +829,19 @@ export function RedeemedScreen({
       </div>
       <div className="flex flex-col items-center gap-3">
         <p className="text-[15px] font-bold tracking-[0.14em] text-kiosk-ready uppercase">Redeemed</p>
-        <h1 className="text-[60px] leading-[1.05] font-extrabold tracking-[-0.03em]" role="status">
+        <h1 className="text-[38px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[48px] lg:text-[60px]" role="status">
           {result.title}
         </h1>
-        <p className="text-2xl text-kiosk-muted">Show this screen to the front desk when you pay.</p>
+        <p className="text-xl text-kiosk-muted sm:text-2xl">Show this screen to the front desk when you pay.</p>
       </div>
-      <div className="flex gap-5">
+      <div className="flex flex-wrap justify-center gap-4 sm:gap-5">
         {!birthday && (
-          <div className="flex min-w-56 flex-col gap-1.5 rounded-3xl bg-kiosk-surface px-10 py-5">
+          <div className="flex min-w-40 flex-col gap-1.5 rounded-3xl bg-kiosk-surface px-6 py-5 sm:min-w-56 sm:px-10">
             <p className="text-base font-semibold text-kiosk-muted">Points used</p>
             <p className="text-[48px] leading-none font-extrabold tabular-nums">−{result.pointsSpent}</p>
           </div>
         )}
-        <div className="flex min-w-56 flex-col gap-1.5 rounded-3xl bg-kiosk-surface px-10 py-5">
+        <div className="flex min-w-40 flex-col gap-1.5 rounded-3xl bg-kiosk-surface px-6 py-5 sm:min-w-56 sm:px-10">
           <p className="text-base font-semibold text-kiosk-muted">Points left</p>
           <p className="text-[48px] leading-none font-extrabold tabular-nums">{result.points}</p>
         </div>
@@ -735,10 +862,10 @@ export function ErrorScreen({ message, onDone }: { message: string; onDone: () =
         <WifiOff className="size-15 text-kiosk-muted" strokeWidth={2} aria-hidden="true" />
       </div>
       <div className="flex max-w-[720px] flex-col items-center gap-3.5">
-        <h1 className="text-[52px] leading-[1.08] font-extrabold tracking-[-0.03em]" role="alert">
+        <h1 className="text-[36px] leading-[1.08] font-extrabold tracking-[-0.03em] sm:text-[52px]" role="alert">
           Something went wrong
         </h1>
-        <p className="text-[22px] leading-normal text-kiosk-muted">
+        <p className="text-lg leading-normal text-kiosk-muted sm:text-[22px]">
           {message} Please let the front desk know you&apos;re here. Your visit can still be added from the admin page.
         </p>
       </div>

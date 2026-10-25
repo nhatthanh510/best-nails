@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown, Crown, Star } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Crown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TIER_LABELS, type Tier } from "@/lib/tiers";
 
@@ -18,7 +18,11 @@ export function PageHeader({
         <h1 className="text-[2.375rem] leading-tight font-bold">{title}</h1>
         {subtitle && <div className="text-sm text-muted-foreground">{subtitle}</div>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2.5">{actions}</div>}
+      {/* On phones the buttons share one full-width row instead of stacking; without their icons
+          and with less padding, two labels fit side by side down to 375px. */}
+      {actions && (
+        <div className="flex gap-2.5 max-sm:w-full max-sm:gap-2 max-sm:*:flex-1 max-sm:*:px-3 max-sm:[&_svg]:hidden sm:flex-wrap">{actions}</div>
+      )}
     </div>
   );
 }
@@ -29,9 +33,10 @@ export function Card({ className, ...props }: React.ComponentProps<"section">) {
 
 export function StatTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: React.ReactNode }) {
   return (
-    <Card className="flex flex-col gap-1.5 p-5">
+    <Card className="flex flex-col gap-1.5 p-4 sm:p-5">
       <p className="text-sm font-semibold text-muted-foreground">{label}</p>
-      <p className="text-4xl font-extrabold tracking-tight tabular-nums">{value}</p>
+      {/* Smaller on phones, where tiles sit two to a row. */}
+      <p className="text-2xl font-extrabold tracking-tight tabular-nums sm:text-4xl">{value}</p>
       {hint && <p className="text-[13px] text-muted-foreground">{hint}</p>}
     </Card>
   );
@@ -60,12 +65,40 @@ export function Avatar({ text, size = "md" }: { text: string; size?: "md" | "lg"
 }
 
 /** Table shell with a horizontal scroll box so wide tables don't break phone layouts. */
-export function DataTable({ minWidth = 720, children }: { minWidth?: number; children: React.ReactNode }) {
+/**
+ * The card around a searchable list, with `<DataTable fill>` inside. From tablet width up, a page
+ * with one fits the screen (see the admin layout): the card takes the height left under the
+ * content above it and only its rows scroll, so the page doesn't change height or get a second
+ * scrollbar as results change. Phones keep the normal page scroll.
+ */
+export function ListPanel({ className, ...props }: React.ComponentProps<"section">) {
+  return <Card data-list-panel className={cn("overflow-hidden md:flex md:min-h-56 md:flex-1 md:flex-col", className)} {...props} />;
+}
+
+export function DataTable({
+  minWidth = 720,
+  fill = false,
+  children,
+}: {
+  minWidth?: number;
+  /** Fill a `ListPanel`: the rows scroll inside it under pinned column headers. */
+  fill?: boolean;
+  children: React.ReactNode;
+}) {
   // `relative` keeps absolutely positioned cells (the sr-only "Actions" headers) inside the
   // scroll box; without it they widen the whole page.
   return (
-    <div className="relative overflow-x-auto">
-      <table className="w-full border-collapse text-sm" style={{ minWidth }}>
+    <div className={cn("relative overflow-x-auto", fill && "md:min-h-0 md:flex-1 md:overflow-y-auto md:[scrollbar-gutter:stable]")}>
+      <table
+        className={cn(
+          "w-full border-collapse text-sm",
+          // Sticky cells lose their collapsed border, so the header's bottom line is a shadow.
+          // Rows are a little denser, so a short laptop screen shows more of them.
+          fill &&
+            "md:[&_td]:py-2 md:[&_th]:sticky md:[&_th]:top-0 md:[&_th]:z-10 md:[&_th]:bg-card md:[&_th]:shadow-[inset_0_-1px_0_var(--color-border)]",
+        )}
+        style={{ minWidth }}
+      >
         {children}
       </table>
     </div>
@@ -138,6 +171,7 @@ export function TierBadge({ tier, showNew = false }: { tier: Tier; showNew?: boo
 /**
  * "Showing 26–50 of 611" with Previous / Next links, under a paged table. `anchor` is the id of
  * the list's card: the links scroll back to its top rather than leaving you at the bottom.
+ * `compact` is the toolbar version above a ListPanel, "26–50 of 611 ‹ ›", like Gmail's.
  */
 export function Pager({
   page,
@@ -146,6 +180,8 @@ export function Pager({
   href,
   noun = "",
   anchor,
+  compact = false,
+  className,
 }: {
   page: number;
   pageSize: number;
@@ -153,11 +189,28 @@ export function Pager({
   href: (page: number) => string;
   noun?: string;
   anchor?: string;
+  compact?: boolean;
+  className?: string;
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const link = (p: number) => `${href(p)}${anchor ? `#${anchor}` : ""}`;
+  if (compact)
+    return (
+      <nav aria-label="Pages" className={cn("flex items-center gap-1.5 text-sm text-muted-foreground tabular-nums", className)}>
+        {/* A fixed width, so "No results" vs "26–50 of 1,234" doesn't nudge the search box. */}
+        <span className="mr-1 min-w-28 text-right whitespace-nowrap">
+          {total === 0 ? "No results" : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total.toLocaleString()}`}
+        </span>
+        <PageLink href={link(page - 1)} disabled={page <= 1} label="Previous page">
+          <ChevronLeft className="size-4.5" aria-hidden="true" />
+        </PageLink>
+        <PageLink href={link(page + 1)} disabled={page >= pages} label="Next page">
+          <ChevronRight className="size-4.5" aria-hidden="true" />
+        </PageLink>
+      </nav>
+    );
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm text-muted-foreground">
+    <div className={cn("flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm text-muted-foreground", className)}>
       <span>
         {total === 0
           ? "No results"
@@ -175,16 +228,17 @@ export function Pager({
   );
 }
 
-function PageLink({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
-  const cls = "flex min-h-10 items-center rounded-[10px] border px-3.5 text-sm font-semibold";
+/** `label` names an icon-only link. */
+function PageLink({ href, disabled, label, children }: { href: string; disabled: boolean; label?: string; children: React.ReactNode }) {
+  const cls = cn("flex min-h-10 items-center rounded-[10px] border text-sm font-semibold", label ? "min-w-10 justify-center" : "px-3.5");
   if (disabled)
     return (
-      <span aria-disabled="true" className={`${cls} border-border text-muted-foreground/70`}>
+      <span aria-disabled="true" aria-label={label} className={`${cls} border-border text-muted-foreground/70`}>
         {children}
       </span>
     );
   return (
-    <Link href={href} className={`${cls} border-input bg-card text-foreground hover:bg-muted`}>
+    <Link href={href} aria-label={label} className={`${cls} border-input bg-card text-foreground hover:bg-muted`}>
       {children}
     </Link>
   );

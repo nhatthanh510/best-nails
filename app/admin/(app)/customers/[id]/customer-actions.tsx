@@ -65,7 +65,7 @@ export function AdjustPointsForm({ customerId, balance }: { customerId: string; 
           {state.message}
         </p>
       )}
-      <Button type="submit" disabled={pending || n <= 0 || preview < 0} className="self-end">
+      <Button type="submit" pending={pending} disabled={n <= 0 || preview < 0} className="self-end">
         {n > 0 ? `Save · new balance ${preview}` : "Save"}
       </Button>
     </form>

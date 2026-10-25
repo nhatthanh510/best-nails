@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Plus, WalletCards } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
+import { DashboardSkeleton } from "@/components/admin/skeletons";
 import { getDashboard, getSettings, getTierCounts, getUpcomingBirthdays, giftVoucherSummary, listRewards } from "@/lib/admin-data";
 import { formatMoney } from "@/lib/gift-vouchers";
+import { UseGiftVoucherButton } from "@/components/admin/gift-voucher-forms";
 import { tierFor } from "@/lib/tiers";
 import { birthdayWindowLabel } from "@/lib/rewards";
 import { formatPhone } from "@/lib/phone";
@@ -14,7 +14,7 @@ export const metadata = { title: "Dashboard" };
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<PageHeader title="Today at Best Nails" subtitle="Loading…" />}>
+    <Suspense fallback={<DashboardSkeleton />}>
       <Dashboard />
     </Suspense>
   );
@@ -26,7 +26,8 @@ async function Dashboard() {
   const [stats, rewards, birthdays, tiers, gifts] = await Promise.all([
     getDashboard(),
     listRewards(),
-    getUpcomingBirthdays(tz),
+    // The list is for offering the birthday discount, so it's skipped while that's switched off.
+    settings.birthday_discount_enabled ? getUpcomingBirthdays(tz) : [],
     getTierCounts(settings),
     giftVoucherSummary(),
   ]);
@@ -37,25 +38,12 @@ async function Dashboard() {
       <PageHeader
         title="Today at Best Nails"
         subtitle={new Date().toLocaleDateString("en-AU", { weekday: "long", month: "long", day: "numeric", timeZone: tz })}
-        actions={
-          <>
-          <Button asChild variant="outline">
-            <Link href="/admin/gift-vouchers">
-              <WalletCards aria-hidden="true" />
-              Gift voucher
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href="/admin/customers">
-              <Plus aria-hidden="true" />
-              Manual check-in
-            </Link>
-          </Button>
-          </>
-        }
+        // A missed visit is a real check-in (Customers → Check in) or, for an earlier day, points
+        // added with Adjust points, which count towards the tier.
+        actions={<UseGiftVoucherButton variant="outline" />}
       />
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] sm:gap-4">
         <StatTile label="Check-ins today" value={stats.checkInsToday} />
         <StatTile label="New customers (7 days)" value={stats.newCustomersThisWeek} />
         <StatTile
@@ -104,7 +92,7 @@ async function Dashboard() {
                         <Link href={`/admin/customers/${c.customer.id}`} className="hover:underline">
                           {fullName(c.customer)}
                         </Link>
-                        <TierBadge tier={tierFor(c.customer.visit_count, settings)} />
+                        <TierBadge tier={tierFor(c.customer.lifetime_points, settings)} />
                       </span>
                     )}
                   </td>
@@ -130,9 +118,7 @@ async function Dashboard() {
             <ul className="flex flex-col gap-2 text-sm">
               <li className="flex justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5">
                 <span className="font-bold">Each check-in</span>
-                <span>
-                  +{settings.points_per_visit} point{settings.points_per_visit === 1 ? "" : "s"}
-                </span>
+                <span>+1 point, once a day</span>
               </li>
               {activeRewards.map((r) => (
                 <li key={r.id} className="flex justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5">
@@ -153,9 +139,9 @@ async function Dashboard() {
             <ul className="flex flex-col gap-2 text-sm">
               {(
                 [
-                  ["vip", `${settings.tier_vip_visits}+ visits`, "/admin/customers?filter=vip"],
-                  ["regular", `${settings.tier_regular_visits}–${settings.tier_vip_visits - 1} visits`, "/admin/customers?filter=regular"],
-                  ["new", `under ${settings.tier_regular_visits} visits`, null],
+                  ["vip", `${settings.tier_vip_points}+ points`, "/admin/customers?filter=vip"],
+                  ["regular", `${settings.tier_regular_points}–${settings.tier_vip_points - 1} points`, "/admin/customers?filter=regular"],
+                  ["new", `under ${settings.tier_regular_points} points`, null],
                 ] as const
               ).map(([tier, range, href]) => {
                 const row = (
@@ -182,22 +168,51 @@ async function Dashboard() {
               })}
             </ul>
           </Card>
-          <Card className="flex flex-col gap-3 p-5">
-            <h2 className="text-lg font-extrabold">Birthdays this week</h2>
-            {birthdays.length === 0 && <p className="text-sm text-muted-foreground">None in the next 7 days.</p>}
-            {birthdays.map((b) => (
-              <div key={b.id} className="flex justify-between text-sm">
-                <Link href={`/admin/customers/${b.id}`} className="font-bold hover:underline">
-                  {fullName(b)}
-                </Link>
-                <span className="text-muted-foreground">
-                  {formatDate(b.date.toISOString(), tz, { weekday: "short", month: "short", day: "numeric" })}
-                </span>
+          {settings.birthday_discount_enabled && (
+            <Card className="flex flex-col gap-3 p-5">
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="text-lg font-extrabold">Birthdays this week</h2>
+                {birthdays.length > 0 && <span className="text-sm text-muted-foreground">{birthdays.length}</span>}
               </div>
-            ))}
-          </Card>
+              {birthdays.length === 0 && <p className="text-sm text-muted-foreground">None in the next 7 days.</p>}
+              <BirthdayList birthdays={birthdays.slice(0, BIRTHDAYS_SHOWN)} tz={tz} />
+              {/* A long week folds away, so the dashboard doesn't grow a tall column. */}
+              {birthdays.length > BIRTHDAYS_SHOWN && (
+                <details className="group flex flex-col gap-3">
+                  <summary className="w-fit cursor-pointer text-sm font-bold text-primary hover:underline group-open:hidden">
+                    Show {birthdays.length - BIRTHDAYS_SHOWN} more
+                  </summary>
+                  <BirthdayList birthdays={birthdays.slice(BIRTHDAYS_SHOWN)} tz={tz} />
+                </details>
+              )}
+            </Card>
+          )}
         </div>
       </div>
     </>
+  );
+}
+
+const BIRTHDAYS_SHOWN = 8;
+
+/** Name and phone (first names alone are often shared), the day, and whether the discount's been used. */
+function BirthdayList({ birthdays, tz }: { birthdays: Awaited<ReturnType<typeof getUpcomingBirthdays>>; tz: string }) {
+  return (
+    <ul className="flex flex-col gap-2.5">
+      {birthdays.map((b) => (
+        <li key={b.id} className="flex items-start justify-between gap-3 text-sm">
+          <span className="flex min-w-0 flex-col">
+            <Link href={`/admin/customers/${b.id}`} className="font-bold hover:underline">
+              {fullName(b)}
+            </Link>
+            <span className="text-[13px] text-muted-foreground tabular-nums">{formatPhone(b.phone)}</span>
+          </span>
+          <span className="flex flex-none flex-col items-end gap-1">
+            <span className="text-muted-foreground">{formatDate(b.date.toISOString(), tz, { weekday: "short", day: "numeric", month: "short" })}</span>
+            {b.used && <Pill className="text-[12px]">Discount used</Pill>}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

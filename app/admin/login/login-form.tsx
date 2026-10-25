@@ -31,7 +31,7 @@ export function LoginForm() {
           {state.message}
         </p>
       )}
-      <Button type="submit" size="lg" disabled={pending}>
+      <Button type="submit" size="lg" pending={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>

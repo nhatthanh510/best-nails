@@ -1,5 +1,6 @@
 -- Local development seed. Never run against production.
--- Staff login: owner@bestnails.test / bestnails-dev  (front desk: staff@bestnails.test / bestnails-dev)
+-- Logins: owner@bestnails.test / bestnails-dev is an admin (admin pages and the kiosk);
+--   staff@bestnails.test / bestnails-dev is staff (the kiosk only).
 --
 -- Program: 1 point per check-in, 10 points = 10% off, birthday 10% off within 7 days of the birthday.
 -- Customers to try on the kiosk (all numbers fictional):
@@ -9,8 +10,8 @@
 --   0456 789 012  Lily       birthday 3 days ago, discount already used
 --   0423 456 789  Mia        checked in 2 hours ago -> "already checked in"
 --   (03) 6234 5678 Sophie    landline, long-time member
--- Gift vouchers to try at /admin/gift-vouchers: BN-7K3M-9QX2 (Charlotte, $65 of $100 left), PV004217 ($150, unlinked),
---   BN-H4WP-8NZ6 (Mia, used up), BN-Q2RT-5YB8 (Sophie, expired with $20 left).
+-- Gift vouchers to try at /admin/gift-vouchers: BN48207138 (Charlotte, $65 of $100 left), PV004217 ($150, unlinked),
+--   BN73159287 (Mia, used up), BN60294816 (Sophie, expired with $20 left). BN48207183 is a typo of the first.
 
 -- ---------------------------------------------------------------------------
 -- Staff accounts
@@ -36,15 +37,14 @@ select gen_random_uuid(), u.id, u.id::text,
  where u.email in ('owner@bestnails.test', 'staff@bestnails.test');
 
 insert into public.staff (user_id, display_name, role) values
-  ('11111111-1111-4111-8111-111111111111', 'Kim', 'owner'),
+  ('11111111-1111-4111-8111-111111111111', 'Kim', 'admin'),
   ('22222222-2222-4222-8222-222222222222', 'Thu', 'staff');
 
 -- ---------------------------------------------------------------------------
 -- Program settings and the one points reward
 -- ---------------------------------------------------------------------------
 update public.settings
-   set points_per_visit = 1, checkin_cooldown_hours = 12,
-       birthday_discount_enabled = true, birthday_discount_percent = 10, birthday_window_days = 7,
+   set birthday_discount_enabled = true, birthday_discount_percent = 10, birthday_window_days = 7,
        timezone = 'Australia/Hobart'
  where id;
 
@@ -152,7 +152,7 @@ begin
   -- Charlotte: $100, spent $35 last month, $65 left.
   v_sale := now() - interval '40 days';
   insert into public.gift_vouchers (code, amount_cents, balance_cents, customer_id, notes, sold_on, expires_on, sold_by, created_at)
-  select 'BN7K3M9QX2', 10000, 6500, id, 'Christmas present from her partner', (v_sale at time zone 'Australia/Hobart')::date,
+  select 'BN48207138', 10000, 6500, id, 'Christmas present from her partner', (v_sale at time zone 'Australia/Hobart')::date,
          ((v_sale at time zone 'Australia/Hobart')::date + interval '3 years')::date, v_staff, v_sale
     from public.customers where phone = '+61412345678'
   returning id into v_id;
@@ -164,7 +164,7 @@ begin
   -- Mia: $50, all used.
   v_sale := now() - interval '200 days';
   insert into public.gift_vouchers (code, amount_cents, balance_cents, customer_id, sold_on, expires_on, sold_by, created_at)
-  select 'BNH4WP8NZ6', 5000, 0, id, (v_sale at time zone 'Australia/Hobart')::date,
+  select 'BN73159287', 5000, 0, id, (v_sale at time zone 'Australia/Hobart')::date,
          ((v_sale at time zone 'Australia/Hobart')::date + interval '3 years')::date, v_owner, v_sale
     from public.customers where phone = '+61423456789'
   returning id into v_id;
@@ -187,7 +187,7 @@ begin
   -- Sophie: sold over 3 years ago, $20 left but expired.
   v_sale := now() - interval '3 years 20 days';
   insert into public.gift_vouchers (code, amount_cents, balance_cents, customer_id, sold_on, expires_on, sold_by, created_at)
-  select 'BNQ2RT5YB8', 8000, 2000, id, (v_sale at time zone 'Australia/Hobart')::date,
+  select 'BN60294816', 8000, 2000, id, (v_sale at time zone 'Australia/Hobart')::date,
          ((v_sale at time zone 'Australia/Hobart')::date + interval '3 years')::date, v_owner, v_sale
     from public.customers where phone = '+61362345678'
   returning id into v_id;

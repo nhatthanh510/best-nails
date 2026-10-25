@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { BrandMark } from "@/components/kiosk/brand";
 import { LoginForm } from "./login-form";
 
@@ -12,17 +11,12 @@ export default function LoginPage() {
         <div className="flex flex-col items-center gap-3">
           <BrandMark className="size-24 ring-4 ring-gold/25" sizes="96px" />
           <span className="font-heading text-4xl font-bold tracking-wide">Best Nails</span>
-          <span className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase">Staff admin</span>
+          <span className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase">Sign in</span>
         </div>
         <Suspense>
           <LoginForm />
         </Suspense>
-        <p className="text-center text-sm text-muted-foreground">
-          Setting up the shop iPad?{" "}
-          <Link href="/kiosk/setup" className="font-semibold text-primary hover:underline">
-            Open kiosk setup
-          </Link>
-        </p>
+        <p className="text-center text-sm text-muted-foreground">Admins go to the admin; staff accounts open the check-in kiosk.</p>
       </div>
     </main>
   );
