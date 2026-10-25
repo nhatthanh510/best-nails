@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { signOut } from "@/app/admin/actions";
 
 const button = "flex min-h-16 flex-1 items-center justify-center rounded-2xl px-8 text-xl font-extrabold";
@@ -39,6 +40,10 @@ export function SignOutConfirm({ onClose }: { onClose: () => void }) {
             </button>
           </form>
         </div>
+        {/* The signed-in account's own settings live behind this staff-only dialog, not on the customer-facing screen. */}
+        <Link href="/account" className="mx-auto flex min-h-11 items-center text-base font-semibold text-kiosk-muted underline-offset-4 hover:underline">
+          Change password
+        </Link>
       </div>
     </div>
   );

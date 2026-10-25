@@ -3,17 +3,6 @@
 @import "shadcn/tailwind.css";
 
 
-/* Sideways-scrolling rows on phones (the nav tabs, filter chips): no scrollbar, and the edges
-   fade so it's clear there's more to swipe to. */
-@utility scroll-row {
-  overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-  mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 24px), transparent);
-}
-
 /* Landscape iPads with browser chrome, or older 768px-tall iPads */
 @custom-variant short (@media (max-height: 780px));
 

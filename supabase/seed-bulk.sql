@@ -24,7 +24,7 @@ declare
   v_last text[] := array['Smith','Jones','Williams','Brown','Wilson','Taylor','Nguyen','Johnson','Martin','White',
                          'Anderson','Walker','Tran','Thompson','Le','Harris','Lee','Ryan','Robinson','Kelly',
                          'King','Pham','Davis','Wright','Clarke','Mitchell','Young','Hall','Wood','Chen'];
-  v_staff uuid := '22222222-2222-4222-8222-222222222222';
+  v_staff uuid := '11111111-1111-4111-8111-111111111111';
   v_reward public.promotions;
   v_today date := (now() at time zone 'Australia/Hobart')::date;
   v_id uuid;
@@ -121,7 +121,7 @@ $$;
 -- 140 sold over the last 3.5 years, most with one to four spends; the oldest have expired.
 do $$
 declare
-  v_staff uuid := '22222222-2222-4222-8222-222222222222';
+  v_staff uuid := '11111111-1111-4111-8111-111111111111';
   v_customers uuid[];
   v_id uuid;
   v_amount integer;

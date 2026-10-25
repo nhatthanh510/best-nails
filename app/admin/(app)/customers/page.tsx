@@ -6,6 +6,7 @@ import { ListPanelSkeleton } from "@/components/admin/skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { tierFor } from "@/lib/tiers";
 import { SearchBox } from "@/components/admin/search-box";
+import { FilterSelect } from "@/components/admin/filter-select";
 import { AddCustomerButton } from "./add-customer-button";
 import {
   CUSTOMER_FILTERS,
@@ -26,11 +27,10 @@ export const metadata = { title: "Customers" };
 
 const FILTER_LABELS: Record<CustomerFilter, string> = {
   all: "All",
-  vip: "VIP",
-  regular: "Regular",
-  recent: "Visited in 30 days",
+  today: "Today",
+  yesterday: "Yesterday",
+  week: "Last 7 days",
   birthday: "Birthday this month",
-  lapsed: "No visit in 90 days",
 };
 
 export default function CustomersPage({ searchParams }: PageProps<"/admin/customers">) {
@@ -57,7 +57,7 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
   const page = Math.max(1, Number(params.page) || 1);
 
   const settings = await getSettings();
-  const { customers, total, pastEnd } = await listCustomers({ q, filter, sort, dir, page, tiers: settings });
+  const { customers, total, pastEnd } = await listCustomers({ q, filter, sort, dir, page });
   const tz = settings.timezone;
 
   // Every link keeps the search, filter and sort; anything that changes the list goes back to page 1.
@@ -103,13 +103,20 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
             label="Search customers"
             placeholder="Search by name or phone"
             defaultValue={q}
-            className="flex-[1_1_200px]"
+            className="w-full md:w-auto md:flex-[1_1_200px]"
           >
             {filter !== "all" && <input type="hidden" name="filter" value={filter} />}
             {sort !== "last_visit" && <input type="hidden" name="sort" value={sort} />}
             {dir !== DEFAULT_SORT_DIR[sort] && <input type="hidden" name="dir" value={dir} />}
           </SearchBox>
-          <div role="group" aria-label="Filter" className="-mx-4 flex gap-2 px-4 max-md:scroll-row md:mx-0 md:flex-wrap md:px-0">
+          {/* Phones: one dropdown beside the search. From tablet width up: the chips. */}
+          <FilterSelect
+            label="Filter customers"
+            value={filter}
+            options={CUSTOMER_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], href: href({ filter: f }) }))}
+            className="w-full md:hidden"
+          />
+          <div role="group" aria-label="Filter" className="hidden flex-wrap gap-2 md:flex">
             {CUSTOMER_FILTERS.map((f) => (
               <Link
                 key={f}
@@ -117,7 +124,7 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
                 aria-current={f === filter ? "true" : undefined}
                 className={cn(
                   "flex min-h-10 flex-none items-center rounded-full border px-3 text-sm font-bold whitespace-nowrap",
-                  f === filter ? "border-foreground bg-foreground text-background" : "border-input bg-card hover:bg-muted",
+                  f === filter ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card hover:bg-muted",
                 )}
               >
                 {FILTER_LABELS[f]}
@@ -166,7 +173,11 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
                   <TierBadge tier={tierFor(c.lifetime_points, settings)} showNew />
                 </td>
                 <td className={`${td} hidden whitespace-nowrap text-muted-foreground tabular-nums sm:table-cell`}>{formatPhone(c.phone)}</td>
-                <td className={`${td} text-right font-bold tabular-nums`}>{c.points_balance}</td>
+                <td className={`${td} text-right font-bold tabular-nums`}>
+                  {c.points_balance}
+                  {/* The Lifetime points column is hidden on phones; it decides the tier, so keep it here. */}
+                  <span className="block text-[12px] font-medium whitespace-nowrap text-muted-foreground sm:hidden">{c.lifetime_points} lifetime</span>
+                </td>
                 <td className={`${td} hidden text-right tabular-nums sm:table-cell`}>{c.lifetime_points}</td>
                 <td className={`${td} hidden whitespace-nowrap text-muted-foreground md:table-cell`}>{formatLastVisit(c.last_visit_at, tz)}</td>
                 <td className={`${td} hidden text-muted-foreground xl:table-cell`}>

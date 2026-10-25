@@ -1,7 +1,9 @@
 import { Suspense } from "react";
-import { Card, PageHeader } from "@/components/admin/ui";
+import { PageHeader } from "@/components/admin/ui";
+import { AccountsCard } from "@/components/admin/accounts-card";
 import { FormCardsSkeleton } from "@/components/admin/skeletons";
-import { getSettings, listStaff } from "@/lib/admin-data";
+import { getSettings, listAccounts } from "@/lib/admin-data";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { requireAdmin } from "@/lib/auth";
 import { SettingsForm } from "./settings-form";
 
@@ -19,26 +21,20 @@ export default function SettingsPage() {
 }
 
 async function Settings() {
-  const [staff, settings, team] = await Promise.all([requireAdmin(), getSettings(), listStaff()]);
+  const [staff, settings, accounts] = await Promise.all([requireAdmin(), getSettings(), listAccounts()]);
 
   return (
     <>
       <SettingsForm settings={settings} canEdit={staff.role === "admin"} />
 
-      <Card className="flex flex-col gap-2 p-6">
-        <h2 className="text-lg font-extrabold">Accounts</h2>
-        <ul className="flex flex-col">
-          {team.map((s) => (
-            <li key={s.user_id} className="flex justify-between border-b border-secondary py-2.5 text-sm last:border-0">
-              <span className="font-bold">{s.display_name}</span>
-              <span className="text-muted-foreground">{s.role === "admin" ? "Admin · admin and kiosk" : "Staff · kiosk only"}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="text-[13px] text-muted-foreground">
-          Admins use the admin and the kiosk; staff sign in to the kiosk only. New accounts are invited from the Supabase dashboard (Authentication → Users), then added to the staff table with a role.
-        </p>
-      </Card>
+      <AccountsCard
+        meId={staff.id}
+        accounts={accounts.map(({ lastSignInAt, removedAt, ...a }) => ({
+          ...a,
+          lastSignIn: lastSignInAt && formatDateTime(lastSignInAt, settings.timezone),
+          removedOn: removedAt && formatDate(removedAt, settings.timezone),
+        }))}
+      />
     </>
   );
 }

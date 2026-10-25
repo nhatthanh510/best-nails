@@ -191,14 +191,14 @@ isOneToOne: false
                   ]
                 },"staff": {
                   Row: {
-                    "created_at": string,"display_name": string,"role": Database["public"]['Enums']["staff_role"],"user_id": string
+                    "created_at": string,"display_name": string,"removed_at": string | null,"role": Database["public"]['Enums']["staff_role"],"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"display_name": string,"role"?: Database["public"]['Enums']["staff_role"],"user_id": string
+                    "created_at"?: string,"display_name": string,"removed_at"?: string | null,"role"?: Database["public"]['Enums']["staff_role"],"user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"display_name"?: string,"role"?: Database["public"]['Enums']["staff_role"],"user_id"?: string
+                    "created_at"?: string,"display_name"?: string,"removed_at"?: string | null,"role"?: Database["public"]['Enums']["staff_role"],"user_id"?: string
                   }
                   Relationships: [
                     
@@ -306,9 +306,6 @@ isOneToOne: false
                            },
 "spend_gift_voucher":
 { Args: { "p_amount_cents": number,"p_code": string,"p_customer_id"?: string,"p_note"?: string }; Returns: Json
-                           },
-"void_check_in":
-{ Args: { "p_check_in_id": string }; Returns: number
                            },
 "void_gift_voucher_spend":
 { Args: { "p_transaction_id": string }; Returns: number

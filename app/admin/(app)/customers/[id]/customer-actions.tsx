@@ -45,7 +45,7 @@ export function AdjustPointsForm({ customerId, balance }: { customerId: string; 
             onClick={() => setDirection(d)}
             className={cn(
               "min-h-11 rounded-[10px] border text-sm font-bold capitalize",
-              direction === d ? "border-foreground bg-foreground text-background" : "border-input bg-card hover:bg-muted",
+              direction === d ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card hover:bg-muted",
             )}
           >
             {d}

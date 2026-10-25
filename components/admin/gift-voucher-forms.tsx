@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 const segment = (active: boolean) =>
   cn(
     "min-h-11 rounded-[10px] border text-sm font-bold tabular-nums",
-    active ? "border-foreground bg-foreground text-background" : "border-input bg-card hover:bg-muted",
+    active ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card hover:bg-muted",
   );
 
 const dateLabel = (d: string) =>

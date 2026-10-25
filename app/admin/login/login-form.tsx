@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,12 @@ export function LoginForm() {
         <Input id="email" name="email" type="email" autoComplete="email" placeholder="you@bestnails.com" required />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="password">Password</Label>
+        <div className="flex items-baseline justify-between gap-3">
+          <Label htmlFor="password">Password</Label>
+          <Link href="/admin/login/forgot" className="text-sm font-bold text-primary hover:underline">
+            Forgot password?
+          </Link>
+        </div>
         <Input id="password" name="password" type="password" autoComplete="current-password" required />
       </div>
       {state && !state.ok && (

@@ -27,7 +27,9 @@ export async function proxy(request: NextRequest) {
   const signedIn = Boolean(data?.claims?.sub);
   const { pathname } = request.nextUrl;
 
-  if (!signedIn && pathname.startsWith("/admin") && pathname !== "/admin/login") {
+  // /admin/login and its "forgot password" page are for signed-out visitors; /account needs a sign-in.
+  const needsSignIn = (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) || pathname === "/account";
+  if (!signedIn && needsSignIn) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
     url.search = pathname === "/admin" ? "" : `?next=${encodeURIComponent(pathname)}`;
@@ -39,5 +41,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // The kiosk needs a signed-in account too, so its session is kept fresh here as well.
-  matcher: ["/admin/:path*", "/kiosk"],
+  matcher: ["/admin/:path*", "/kiosk", "/account"],
 };

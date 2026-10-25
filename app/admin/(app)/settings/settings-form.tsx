@@ -10,7 +10,6 @@ import { Card, TierBadge } from "@/components/admin/ui";
 import { useActionToast } from "@/components/admin/action-button";
 import { saveSettings, type ActionState } from "@/app/admin/actions";
 import type { Settings } from "@/lib/admin-data";
-import { cn } from "@/lib/utils";
 
 const selectClass = "h-11 rounded-[10px] border border-input bg-card px-3 text-[15px] disabled:opacity-60";
 const IDLE = [30, 60, 90, 120];
@@ -69,14 +68,6 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
       document.removeEventListener("click", onClick, true);
     };
   }, [dirty]);
-
-  const discard = () => {
-    formRef.current?.reset();
-    setPrefix(s.code_prefix);
-    setRegular(String(s.tier_regular_points));
-    setVip(String(s.tier_vip_points));
-    setDirty(false);
-  };
 
   const preview = /^[A-Z]{2,4}$/.test(prefix) ? `${prefix}48207138` : null;
   const regularN = Number(regular);
@@ -223,26 +214,12 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
           </div>
         </Card>
 
-        {/* Only there while something has changed, and stuck to the bottom of the screen while the
-            form scrolls, so it's always clear what's unsaved and where to save it. */}
+        {/* Always there, as in the design. Unsaved changes still ask before leaving the page. */}
         {canEdit && (
-          <div
-            aria-hidden={!dirty}
-            inert={!dirty}
-            className={cn(
-              "sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-foreground px-5 py-3 text-background shadow-lg transition-all duration-200",
-              dirty ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
-            )}
-          >
-            <span className="text-sm font-semibold">You have unsaved changes</span>
-            <div className="flex gap-2">
-              <Button type="button" variant="ghost" onClick={discard} className="text-background hover:bg-background/10 hover:text-background">
-                Discard
-              </Button>
-              <Button type="submit" pending={pending} disabled={!tiersValid}>
-                {pending ? "Saving…" : "Save changes"}
-              </Button>
-            </div>
+          <div className="flex justify-end">
+            <Button type="submit" size="lg" pending={pending} disabled={!tiersValid}>
+              {pending ? "Saving…" : "Save changes"}
+            </Button>
           </div>
         )}
       </fieldset>

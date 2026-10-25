@@ -77,12 +77,11 @@ async function Dashboard() {
                 <th className={th}>Time</th>
                 <th className={th}>Customer</th>
                 <th className={`${th} hidden sm:table-cell`}>Phone</th>
-                <th className={`${th} hidden sm:table-cell`}>Source</th>
                 <th className={`${th} text-right`}>Points</th>
               </tr>
             </thead>
             <tbody>
-              {stats.checkIns.length === 0 && <EmptyRow colSpan={5}>No check-ins yet today.</EmptyRow>}
+              {stats.checkIns.length === 0 && <EmptyRow colSpan={4}>No check-ins yet today.</EmptyRow>}
               {stats.checkIns.map((c) => (
                 <tr key={c.id} className={c.voided_at ? "text-muted-foreground line-through" : undefined}>
                   <td className={`${td} whitespace-nowrap text-muted-foreground tabular-nums`}>{formatTime(c.created_at, tz)}</td>
@@ -97,9 +96,6 @@ async function Dashboard() {
                     )}
                   </td>
                   <td className={`${td} hidden whitespace-nowrap text-muted-foreground tabular-nums sm:table-cell`}>{c.customer && formatPhone(c.customer.phone)}</td>
-                  <td className={`${td} hidden sm:table-cell`}>
-                    <Pill>{c.source === "kiosk" ? "Kiosk" : "Admin"}</Pill>
-                  </td>
                   <td className={`${td} text-right font-bold tabular-nums`}>+{c.points_awarded}</td>
                 </tr>
               ))}
@@ -139,33 +135,19 @@ async function Dashboard() {
             <ul className="flex flex-col gap-2 text-sm">
               {(
                 [
-                  ["vip", `${settings.tier_vip_points}+ points`, "/admin/customers?filter=vip"],
-                  ["regular", `${settings.tier_regular_points}–${settings.tier_vip_points - 1} points`, "/admin/customers?filter=regular"],
-                  ["new", `under ${settings.tier_regular_points} points`, null],
+                  ["vip", `${settings.tier_vip_points}+ points`],
+                  ["regular", `${settings.tier_regular_points}–${settings.tier_vip_points - 1} points`],
+                  ["new", `under ${settings.tier_regular_points} points`],
                 ] as const
-              ).map(([tier, range, href]) => {
-                const row = (
-                  <>
-                    <span className="flex items-center gap-2">
-                      <TierBadge tier={tier} showNew />
-                      <span className="text-muted-foreground">{range}</span>
-                    </span>
-                    <span className="font-extrabold tabular-nums">{tiers[tier].toLocaleString()}</span>
-                  </>
-                );
-                const cls = "flex items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5";
-                return (
-                  <li key={tier}>
-                    {href ? (
-                      <Link href={href} className={`${cls} hover:bg-muted`}>
-                        {row}
-                      </Link>
-                    ) : (
-                      <div className={cls}>{row}</div>
-                    )}
-                  </li>
-                );
-              })}
+              ).map(([tier, range]) => (
+                <li key={tier} className="flex items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5">
+                  <span className="flex items-center gap-2">
+                    <TierBadge tier={tier} showNew />
+                    <span className="text-muted-foreground">{range}</span>
+                  </span>
+                  <span className="font-extrabold tabular-nums">{tiers[tier].toLocaleString()}</span>
+                </li>
+              ))}
             </ul>
           </Card>
           {settings.birthday_discount_enabled && (

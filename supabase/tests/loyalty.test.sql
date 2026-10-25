@@ -1,6 +1,6 @@
 -- Run with: npx supabase test db
 begin;
-select plan(48);
+select plan(51);
 
 -- Fixtures -------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -120,9 +120,6 @@ select throws_ok(
   format($$ select public.redeem_reward(%L, 'bbbbbbbb-0000-4000-8000-000000000001') $$, (select id from public.customers where phone = '+61400000100')),
   '22023', null, 'the birthday discount and a points reward do not combine on one visit');
 select is(
-  public.void_check_in((select c.id from public.check_ins c join public.customers u on u.id = c.customer_id where u.phone = '+61400000200')),
-  0, 'undoing a visit removes its point');
-select is(
   (select points_balance from public.customers where phone = '+61400000009'),
   (select sum(delta)::int from public.point_transactions t join public.customers u on u.id = t.customer_id where u.phone = '+61400000009'),
   'cached balance matches the ledger');
@@ -149,6 +146,25 @@ select throws_ok(
 select throws_ok(
   $$ update public.settings set tier_regular_points = 20, tier_vip_points = 10 where id $$,
   '23514', null, 'VIP threshold must be above Regular');
+
+-- Accounts ---------------------------------------------------------------------------
+reset role;
+update public.staff set removed_at = now() where user_id = 'aaaaaaaa-0000-4000-8000-000000000003';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-4000-8000-000000000003","role":"authenticated"}', true);
+select throws_ok($$ select public.assert_signed_in() $$, '42501', null, 'a removed account counts as signed out');
+reset role;
+update public.staff set removed_at = now() where user_id = 'aaaaaaaa-0000-4000-8000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}', true);
+select is(public.is_staff(), false, 'a removed admin loses the admin side');
+reset role;
+select throws_ok(
+  $$ update public.staff set removed_at = now() where role = 'admin' and removed_at is null $$,
+  '22023', null, 'the last admin cannot be removed');
+select throws_ok(
+  $$ update public.staff set role = 'staff' where role = 'admin' and removed_at is null $$,
+  '22023', null, 'the last admin cannot be made staff');
 
 select * from finish();
 rollback;

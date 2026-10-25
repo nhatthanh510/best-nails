@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getStaff } from "@/lib/auth";
 import { loadKioskContent } from "@/lib/kiosk-content";
 import { KioskApp } from "@/components/kiosk/kiosk-app";
@@ -19,6 +20,7 @@ export default function KioskPage() {
 async function KioskGate() {
   const staff = await getStaff();
   if (!staff) return <SignedOut />;
+  if (staff.mustChangePassword) redirect("/account");
   return (
     <>
       <KioskApp content={await loadKioskContent()} isAdmin={staff.role === "admin"} />

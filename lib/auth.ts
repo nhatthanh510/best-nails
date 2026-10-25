@@ -7,7 +7,14 @@ export type Staff = {
   id: string;
   displayName: string;
   role: Database["public"]["Enums"]["staff_role"];
+  email: string;
+  /** Signed in with a password an admin set (new account or reset): choose their own before anything else. */
+  mustChangePassword: boolean;
+  /** Signed in from a "forgot password" email link, so they can set a new one without the old one. */
+  fromResetLink: boolean;
 };
+
+type Claims = { sub?: string; email?: string; app_metadata?: { temp_password?: boolean }; amr?: { method: string }[] };
 
 /**
  * The signed-in account, or null. Verifies the JWT rather than trusting the cookie. Two roles:
@@ -16,17 +23,26 @@ export type Staff = {
 export async function getStaff(): Promise<Staff | null> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
-  const userId = data?.claims?.sub;
+  const claims = data?.claims as Claims | undefined;
+  const userId = claims?.sub;
   if (!userId) return null;
 
   const { data: staff } = await supabase
     .from("staff")
-    .select("user_id, display_name, role")
+    .select("user_id, display_name, role, removed_at")
     .eq("user_id", userId)
     .maybeSingle();
-  if (!staff) return null;
+  // A removed account counts as signed out straight away, even while its session lasts.
+  if (!staff || staff.removed_at) return null;
 
-  return { id: staff.user_id, displayName: staff.display_name, role: staff.role };
+  return {
+    id: staff.user_id,
+    displayName: staff.display_name,
+    role: staff.role,
+    email: claims.email ?? "",
+    mustChangePassword: claims.app_metadata?.temp_password === true,
+    fromResetLink: claims.amr?.some((a) => a.method === "recovery") ?? false,
+  };
 }
 
 /**
@@ -36,6 +52,7 @@ export async function getStaff(): Promise<Staff | null> {
 export async function requireAdmin(): Promise<Staff> {
   const staff = await getStaff();
   if (!staff) redirect("/admin/login");
+  if (staff.mustChangePassword) redirect("/account");
   if (staff.role !== "admin") redirect("/kiosk");
   return staff;
 }
@@ -47,6 +64,7 @@ export async function requireAdmin(): Promise<Staff> {
 export async function requireSignedIn(): Promise<Staff> {
   const staff = await getStaff();
   if (!staff) redirect("/admin/login");
+  if (staff.mustChangePassword) redirect("/account");
   return staff;
 }
 

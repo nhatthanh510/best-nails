@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SearchBox } from "@/components/admin/search-box";
+import { FilterSelect } from "@/components/admin/filter-select";
 import { DataTable, ListPanel, EmptyRow, PageHeader, Pager, td, th } from "@/components/admin/ui";
 import { ListPanelSkeleton } from "@/components/admin/skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,7 +37,7 @@ const FILTER_LABELS: Record<GiftVoucherFilter, string> = {
   expired: "Expired",
 };
 
-const KIND_LABELS: Record<GiftActivityKind, string> = { all: "Everything", sale: "Sold", spend: "Used" };
+const KIND_LABELS: Record<GiftActivityKind, string> = { all: "All", sale: "Sold", spend: "Used" };
 const RANGE_LABELS: Record<GiftActivityRange, string> = { "7d": "7 days", "30d": "30 days", all: "All time" };
 const VIEWS = { vouchers: "Vouchers", activity: "Activity" } as const;
 type View = keyof typeof VIEWS;
@@ -44,12 +45,23 @@ type View = keyof typeof VIEWS;
 const chip = (active: boolean) =>
   cn(
     "flex min-h-10 flex-none items-center rounded-full border px-3 text-sm font-bold whitespace-nowrap",
-    active ? "border-foreground bg-foreground text-background" : "border-input bg-card hover:bg-muted",
+    active ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card hover:bg-muted",
+  );
+/** Sold and Used are opposite money flows, so each has its own colour (on the chip and the rows) to tell them apart at a glance. */
+const KIND_TONES: Record<GiftActivityKind, { chip: string; text: string }> = {
+  all: { chip: "border-primary bg-primary text-primary-foreground", text: "" },
+  sale: { chip: "border-success bg-success text-white", text: "text-success" },
+  spend: { chip: "border-warning bg-warning text-white", text: "text-warning" },
+};
+const kindChip = (kind: GiftActivityKind, active: boolean) =>
+  cn(
+    "flex min-h-10 flex-none items-center rounded-full border px-3 text-sm font-bold whitespace-nowrap",
+    active ? KIND_TONES[kind].chip : "border-input bg-card hover:bg-muted",
   );
 const segment = (active: boolean) =>
   cn(
     "flex min-h-10 items-center px-3.5 text-sm font-bold whitespace-nowrap border-l border-input first:border-l-0",
-    active ? "bg-foreground text-background" : "bg-card hover:bg-muted",
+    active ? "bg-primary text-primary-foreground" : "bg-card hover:bg-muted",
   );
 
 
@@ -125,7 +137,7 @@ function ToolbarStart({ view, q, hidden }: { view: View; q: string; hidden: Reco
         label={view === "activity" ? "Search activity by code, name or phone" : "Search by code"}
         placeholder={view === "activity" ? "Code, name or phone" : "Search by code"}
         defaultValue={q}
-        className="flex-[1_1_200px]"
+        className="w-full max-md:order-first md:w-auto md:flex-[1_1_200px]"
       >
         {Object.entries(hidden).map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
@@ -161,7 +173,14 @@ async function VoucherList({ params }: { params: Params }) {
           part of the list rather than an empty table. */}
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border p-4">
         <ToolbarStart view="vouchers" q={q} hidden={filter !== "all" ? { filter } : {}} />
-        <div role="group" aria-label="Filter" className="-mx-4 flex gap-2 px-4 max-md:scroll-row md:mx-0 md:flex-wrap md:px-0">
+        {/* Phones: one dropdown beside the search. From tablet width up: the chips. */}
+        <FilterSelect
+          label="Filter gift vouchers"
+          value={filter}
+          options={GIFT_VOUCHER_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], href: href({ filter: f }) }))}
+          className="min-w-0 flex-1 md:hidden"
+        />
+        <div role="group" aria-label="Filter" className="hidden flex-wrap gap-2 md:flex">
           {GIFT_VOUCHER_FILTERS.map((f) => (
             <Link key={f} href={href({ filter: f })} aria-current={f === filter ? "true" : undefined} className={chip(f === filter)}>
               {FILTER_LABELS[f]}
@@ -197,7 +216,7 @@ async function VoucherList({ params }: { params: Params }) {
                   {v.code}
                 </Link>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground lg:hidden">
-                  <span className="md:hidden">{v.customer ? fullName(v.customer) : "Not linked"}</span>
+                  {v.customer && <span className="md:hidden">{fullName(v.customer)}</span>}
                   <span>{v.lastUse ? `Last used ${formatDate(v.lastUse.created_at, tz)}` : "Not used yet"}</span>
                   <span className="sm:hidden">
                     <GiftVoucherStatusPill status={v.status} />
@@ -210,7 +229,9 @@ async function VoucherList({ params }: { params: Params }) {
                     {fullName(v.customer)}
                   </Link>
                 ) : (
-                  <span className="text-muted-foreground">Not linked</span>
+                  <span className="text-muted-foreground" aria-label="Not linked">
+                    –
+                  </span>
                 )}
               </td>
               <td className={`${td} text-right font-extrabold whitespace-nowrap tabular-nums`}>{formatMoney(v.balance_cents)}</td>
@@ -285,9 +306,15 @@ async function ActivityList({ params }: { params: Params }) {
     <ListPanel id="list" className="scroll-mt-4">
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border p-4">
         <ToolbarStart view="activity" q={q} hidden={hidden} />
-        <div role="group" aria-label="What happened" className="-mx-4 flex gap-2 px-4 max-md:scroll-row md:mx-0 md:flex-wrap md:px-0">
+        <FilterSelect
+          label="What happened"
+          value={kind}
+          options={GIFT_ACTIVITY_KINDS.map((k) => ({ value: k, label: KIND_LABELS[k], href: href({ kind: k }) }))}
+          className="min-w-0 flex-1 md:hidden"
+        />
+        <div role="group" aria-label="What happened" className="hidden flex-wrap gap-2 md:flex">
           {GIFT_ACTIVITY_KINDS.map((k) => (
-            <Link key={k} href={href({ kind: k })} aria-current={k === kind ? "true" : undefined} className={chip(k === kind)}>
+            <Link key={k} href={href({ kind: k })} aria-current={k === kind ? "true" : undefined} className={kindChip(k, k === kind)}>
               {KIND_LABELS[k]}
             </Link>
           ))}
@@ -331,7 +358,7 @@ async function ActivityList({ params }: { params: Params }) {
                   </span>
                 </td>
                 <td className={td}>
-                  <span className="font-bold">{d.label}</span>
+                  <span className={cn("font-bold", !r.voided_at && (r.kind === "sale" || r.kind === "spend") && KIND_TONES[r.kind].text)}>{d.label}</span>
                   {r.note && <span className="block text-[13px] text-muted-foreground">{r.note}</span>}
                   <span className="mt-0.5 flex flex-wrap gap-x-2 text-[13px] text-muted-foreground lg:hidden">
                     <Link href={`/admin/gift-vouchers/${r.voucher.id}`} className="font-mono font-bold hover:underline md:hidden">
@@ -351,7 +378,9 @@ async function ActivityList({ params }: { params: Params }) {
                       {who}
                     </Link>
                   ) : (
-                    <span className="text-muted-foreground">Not given</span>
+                    <span className="text-muted-foreground" aria-label="No customer given">
+                      –
+                    </span>
                   )}
                 </td>
                 <td className={cn(`${td} text-right font-extrabold whitespace-nowrap tabular-nums`, r.voided_at && "line-through")}>{d.amount}</td>
