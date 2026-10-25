@@ -10,7 +10,6 @@
     "test": "vitest run",
     "test:db": "supabase test db",
     "db:reset": "supabase db reset",
-    "db:seed:bulk": "docker exec -i supabase_db_best-nails psql -U postgres -v ON_ERROR_STOP=1 -q -1 < supabase/seed-bulk.sql",
     "db:types": "supabase gen types typescript --local > lib/database.types.ts",
     "typecheck": "tsc --noEmit"
   },

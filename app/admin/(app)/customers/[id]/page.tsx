@@ -158,7 +158,9 @@ async function CustomerDetail({
           label="Next reward"
           value={!reward ? "—" : c.points_balance >= reward.points_cost ? "Ready" : `${reward.points_cost - c.points_balance} to go`}
           hint={
-            reward && (
+            !reward ? (
+              "No reward set up yet"
+            ) : (
               <span className="flex flex-col gap-1.5">
                 <span>
                   {c.points_balance >= reward.points_cost

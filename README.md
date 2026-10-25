@@ -24,10 +24,9 @@ npx supabase status -o env    # copy API_URL / PUBLISHABLE_KEY / SECRET_KEY into
 npm run dev
 ```
 
-- Admin: http://localhost:3000/admin — seed logins `owner@bestnails.test` (admin) / `staff@bestnails.test` (staff: kiosk only), password `bestnails-dev` (local only)
+- Admin: http://localhost:3000/admin — seed login `owner@bestnails.test` / `bestnails-dev` (admin, local only). Add staff accounts in Settings → Accounts
 - Kiosk: http://localhost:3000/kiosk — works while any account is signed in; the start screen's header has **Gift voucher** (sell or use one) and **Sign out**, plus **Admin** for admin accounts
-- Shop timezone is Australia/Hobart. Seed customers to try (see `supabase/seed.sql`): Charlotte 0412 345 678 (9 points: check in → 10% off), Ava 0434 567 890 (10% off ready), Grace 0445 678 901 (birthday in 2 days), Lily 0456 789 012 (birthday discount used), Mia 0423 456 789 (already checked in today)
-- Seed gift vouchers: `BN-7K3M-9QX2` (Charlotte, $65 of $100 left), `PV004217` ($150 present, not linked), `BN-H4WP-8NZ6` (used up), `BN-Q2RT-5YB8` (expired)
+- Shop timezone is Australia/Hobart. The seed has no customers, vouchers or rewards: add a reward on **Rewards**, then sign customers up on the kiosk.
 
 ## How it works
 
@@ -57,12 +56,11 @@ npm run typecheck && npm run lint && npm run build
 ## Common tasks
 
 - Change the schema: add a file under `supabase/migrations/`, then `npx supabase migration up && npm run db:types`
-- Start over with fresh seed data: `npm run db:reset` (this also signs everyone out)
-- Load lots of demo data to try paging and long lists: `npm run db:reset && npm run db:seed:bulk`
-- Add a staff member: create the user in Supabase Auth, then insert a row into `public.staff` (`role` = `admin` for the admin and kiosk, or `staff` for the kiosk only)
+- Start over from an empty database (just the admin login): `npm run db:reset` (this also signs everyone out)
+- Add a staff member: Settings → Accounts → Add account (Admin for the admin and kiosk, Staff for the kiosk only), with a temporary password they change on first sign-in
 
 ## Deploying
 
-Create a Supabase project and run `npx supabase link` then `npx supabase db push`. Don't run `seed.sql` in production. Deploy the app to Vercel with the three env vars. On the iPad, sign in, open `/kiosk`, "Add to Home Screen" (no address bar), and turn on Guided Access while a customer has it.
+Create a Supabase project and run `npx supabase link` then `npx supabase db push`. Don't run `seed.sql` in production. Create the first admin once: add a user in the Supabase dashboard (Authentication → Users, with "Auto confirm"), then in the SQL editor run `insert into public.staff (user_id, display_name, role) select id, 'Your name', 'admin' from auth.users where email = 'you@example.com';`. Everyone after that is added in Settings → Accounts. Deploy the app to Vercel with the three env vars. On the iPad, sign in, open `/kiosk`, "Add to Home Screen" (no address bar), and turn on Guided Access while a customer has it.
 
-Known limits: account invites are done from the Supabase dashboard.
+Known limits: "Forgot password?" emails need your own email (SMTP) set up in Supabase; until then an admin resets passwords in Settings → Accounts.

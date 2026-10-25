@@ -132,6 +132,8 @@
   }
   html {
     @apply font-sans;
+    /* Plus Jakarta Sans joins "ff" into one glyph, which makes "10% off" read like a typo. */
+    font-variant-ligatures: no-common-ligatures;
   }
   /* Keep the scrollbar's space in the admin, so the page doesn't jump sideways when a list gets
      shorter (e.g. while searching). The kiosk is one fixed screen, so it's left out. */

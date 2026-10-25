@@ -112,16 +112,21 @@ async function Dashboard() {
               </Link>
             </div>
             <ul className="flex flex-col gap-2 text-sm">
-              <li className="flex justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5">
-                <span className="font-bold">Each check-in</span>
-                <span>+1 point, once a day</span>
-              </li>
               {activeRewards.map((r) => (
                 <li key={r.id} className="flex justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5">
                   <span className="font-bold">{r.title}</span>
                   <span>{r.points_cost} points</span>
                 </li>
               ))}
+              {/* A new shop starts without a reward: points pile up with nothing to spend them on. */}
+              {activeRewards.length === 0 && (
+                <li className="flex justify-between gap-3 rounded-xl bg-warning-soft px-3.5 py-2.5 text-warning">
+                  <span className="font-bold">No reward yet</span>
+                  <Link href="/admin/rewards" className="font-bold hover:underline">
+                    Add one
+                  </Link>
+                </li>
+              )}
               {settings.birthday_discount_enabled && (
                 <li className="flex justify-between gap-3 rounded-xl bg-background px-3.5 py-2.5">
                   <span className="font-bold">Birthday {settings.birthday_discount_percent}% off</span>

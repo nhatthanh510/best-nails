@@ -130,6 +130,8 @@ function PunchCard({ points, cost, size = "lg" }: { points: number; cost: number
 
 function ProgramCard({ content }: { content: KioskContent }) {
   const reward = mainReward(content.rewards);
+  // A shop with no reward yet and the birthday discount off has nothing to advertise.
+  if (!reward && !content.birthday) return null;
   return (
     <div className="flex flex-col gap-3.5 rounded-[20px] bg-kiosk-surface px-6 py-5">
       {reward && (
@@ -138,11 +140,10 @@ function ProgramCard({ content }: { content: KioskContent }) {
             <Gift className="size-6 text-kiosk-accent" aria-hidden="true" />
           </div>
           <div className="flex flex-col gap-0.5">
-            <p className="text-[19px] font-bold">
-              {reward.cost} points = {reward.title}
-            </p>
+            {/* The reward's own name leads, whatever the shop calls it ("10% off", "Free nail art"). */}
+            <p className="text-[19px] font-bold">{reward.title}</p>
             <p className="text-base text-kiosk-muted">
-              Every check-in earns 1 point.
+              After {reward.cost} visit{reward.cost === 1 ? "" : "s"}
             </p>
           </div>
         </div>
@@ -428,26 +429,27 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 const fieldClass =
   "h-18 rounded-[18px] border-2 border-kiosk-line bg-kiosk-surface px-5.5 text-[26px] font-semibold text-kiosk-ink outline-none placeholder:text-kiosk-placeholder focus:border-kiosk-accent";
 
+/** What joining gets you: the reward and the birthday discount. Hidden when the shop offers neither. */
 function ProgramLines({ content }: { content: KioskContent }) {
   const reward = mainReward(content.rewards);
+  if (!reward && !content.birthday) return null;
   return (
-    <ul className="flex flex-col gap-2 text-lg leading-snug">
-      <li>
-        <span className="font-bold text-kiosk-accent">1 point</span>{" "}
-        every visit
-      </li>
-      {reward && (
-        <li>
-          <span className="font-bold text-kiosk-accent">{reward.cost} points</span> = {reward.title}
-        </li>
-      )}
-      {content.birthday && (
-        <li>
-          <span className="font-bold text-kiosk-accent">{content.birthday.percent}% off</span>{" "}
-          {birthdayWindowLabel(content.birthday.windowDays)}
-        </li>
-      )}
-    </ul>
+    <div className="flex flex-col gap-3 rounded-3xl bg-kiosk-surface p-6.5">
+      <p className="text-[15px] font-bold tracking-[0.12em] text-kiosk-muted uppercase">How it works</p>
+      <ul className="flex flex-col gap-2 text-lg leading-snug">
+        {reward && (
+          <li>
+            <span className="font-bold text-kiosk-accent">{reward.title}</span> after {reward.cost} visit{reward.cost === 1 ? "" : "s"}
+          </li>
+        )}
+        {content.birthday && (
+          <li>
+            <span className="font-bold text-kiosk-accent">{content.birthday.percent}% off</span>{" "}
+            {birthdayWindowLabel(content.birthday.windowDays)}
+          </li>
+        )}
+      </ul>
+    </div>
   );
 }
 
@@ -562,10 +564,7 @@ export function SignupScreen({
         </div>
 
         <div className="flex w-full flex-none flex-col gap-4.5 lg:w-[360px] lg:pt-1.5">
-          <div className="flex flex-col gap-3 rounded-3xl bg-kiosk-surface p-6.5">
-            <p className="text-[15px] font-bold tracking-[0.12em] text-kiosk-muted uppercase">How it works</p>
-            <ProgramLines content={content} />
-          </div>
+          <ProgramLines content={content} />
           <button type="submit" disabled={pending} className={`${primaryButton} h-26 text-[28px]`}>
             {pending && <Spinner />}
             Join &amp; check in

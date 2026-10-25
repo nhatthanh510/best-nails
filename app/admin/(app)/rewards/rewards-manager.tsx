@@ -31,7 +31,7 @@ export function RewardsManager({ items }: { items: Item[] }) {
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        Each check-in earns 1 point, once a day, so a reward&apos;s points are also the visits it takes.
+        A reward&apos;s points are also the visits it takes.
       </p>
 
       {items.length === 0 && <p className="text-sm text-muted-foreground">No rewards yet.</p>}

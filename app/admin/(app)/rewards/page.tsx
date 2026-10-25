@@ -12,7 +12,7 @@ export default function RewardsPage() {
     <div className="flex max-w-[1100px] flex-col gap-6">
       <PageHeader
         title="Rewards"
-        subtitle="Customers earn points at every check-in and spend them on rewards. The birthday discount is free, once a year."
+        subtitle="What customers can spend their points on, and the birthday discount."
       />
       <Suspense
         fallback={
