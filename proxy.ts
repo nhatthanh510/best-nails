@@ -39,7 +39,33 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+// Link prefetches skip the proxy: they only fetch a page's shell (skeletons, no data), and
+// checking the session for each of the sidebar's links slowed the first admin load. The
+// navigation itself still comes through here. (Next reads this config at build time, so it
+// has to stay a plain literal.)
 export const config = {
   // The kiosk needs a signed-in account too, so its session is kept fresh here as well.
-  matcher: ["/admin/:path*", "/kiosk", "/account"],
+  matcher: [
+    {
+      source: "/admin/:path*",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+    {
+      source: "/kiosk",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+    {
+      source: "/account",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+  ],
 };
