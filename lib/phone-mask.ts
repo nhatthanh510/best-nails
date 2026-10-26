@@ -49,3 +49,12 @@ export function isCompleteNumber(digits: string): boolean {
 export function looksStandard(digits: string): boolean {
   return /^0[23478]\d{8}$/.test(digits) || /^1[38]00\d{6}$/.test(digits);
 }
+
+/**
+ * A stored +61… number as a local "0412 345 678" / "03 6234 5678", for pre-filling a phone
+ * field in a client form; anything else stays as stored. formatPhone in lib/phone.ts is the
+ * full version, but it brings libphonenumber into the browser bundle.
+ */
+export function formatPhoneInput(e164: string): string {
+  return e164.startsWith("+61") ? fillPhoneMask(`0${e164.slice(3)}`).typed : e164;
+}

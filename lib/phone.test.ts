@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatPhone, isStandardPhone, maskPhone, MAX_PHONE_DIGITS, normalizePhone } from "./phone";
-import { fillPhoneMask, isCompleteNumber, looksStandard, MAX_KIOSK_DIGITS } from "./phone-mask";
+import { fillPhoneMask, formatPhoneInput, isCompleteNumber, looksStandard, MAX_KIOSK_DIGITS } from "./phone-mask";
 
 describe("normalizePhone", () => {
   it("accepts Australian numbers in any common format", () => {
@@ -151,5 +151,17 @@ describe("client and server agree (P-07, P-08)", () => {
     expect(isCompleteNumber("")).toBe(false);
     expect(isCompleteNumber("0".repeat(9))).toBe(false);
     expect(isCompleteNumber("041234567890")).toBe(true);
+  });
+});
+
+describe("formatPhoneInput (client forms)", () => {
+  it("shows Australian numbers in local groups, like formatPhone for mobiles", () => {
+    expect(formatPhoneInput("+61412345678")).toBe("0412 345 678");
+    expect(formatPhoneInput("+61412345678")).toBe(formatPhone("+61412345678"));
+    expect(formatPhoneInput("+61362345678")).toBe("03 6234 5678");
+  });
+
+  it("leaves overseas numbers as stored", () => {
+    expect(formatPhoneInput("+6421234567")).toBe("+6421234567");
   });
 });

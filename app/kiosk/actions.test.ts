@@ -4,8 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // tests cover the validation and the mapping to what the public screen shows.
 const h = vi.hoisted(() => ({
   staff: null as null | { id: string; role: "admin" | "staff" },
-  customer: null as null | Record<string, unknown>,
-  selectError: null as null | { message: string },
   rpc: vi.fn(),
   from: vi.fn(),
 }));
@@ -14,10 +12,8 @@ vi.mock("@/lib/auth", () => ({ getStaff: vi.fn(async () => h.staff) }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     rpc: h.rpc,
-    from: h.from.mockImplementation(() => {
-      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ data: h.customer, error: h.selectError }) };
-      return q;
-    }),
+    // The actions only call functions; a table read would show up here.
+    from: h.from,
   }),
 }));
 
@@ -37,8 +33,6 @@ function rpcReturns(main: Record<string, unknown> | null, error: unknown = null)
 
 beforeEach(() => {
   h.staff = { id: "staff-1", role: "staff" };
-  h.customer = null;
-  h.selectError = null;
   h.rpc.mockReset();
   h.from.mockClear();
   rpcReturns(null);
@@ -67,8 +61,18 @@ describe("lookupPhone", () => {
   });
 
   it("returns only what the public screen shows (KA-02)", async () => {
-    h.customer = { id: CUSTOMER_ID, first_name: "Alice", phone: "+61491570101", points_balance: 7, visit_count: 7 };
+    rpcReturns({
+      first_name: "Alice",
+      phone: "+61491570101",
+      points_balance: 7,
+      visit_count: 7,
+      birthday: { eligible: false, in_window: false, used: false },
+      today: { checked_in_at: null, discount_used_today: false },
+    });
     const result = await lookupPhone("0491 570 101");
+    // One round trip: the customer, birthday and today's status together.
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc).toHaveBeenCalledWith("kiosk_lookup", { p_phone: "+61491570101" });
     expect(result).toEqual({
       status: "found",
       customer: {
@@ -88,7 +92,7 @@ describe("lookupPhone", () => {
   });
 
   it("says rewards can't be reached when the read fails", async () => {
-    h.selectError = { message: "boom" };
+    rpcReturns(null, { message: "boom" });
     expect(await lookupPhone("0491570101")).toEqual({ status: "error", message: "We couldn't reach rewards right now." });
   });
 });

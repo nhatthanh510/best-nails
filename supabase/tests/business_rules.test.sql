@@ -3,7 +3,7 @@
 -- docs/TEST_PLAN.md. Runs in one transaction and rolls back, like the other test files.
 begin;
 set search_path = public, extensions;
-select plan(54);
+select plan(59);
 
 -- Fixtures: an admin, a staff account and a removed staff account (fake auth users).
 insert into auth.users (id, email) values
@@ -29,6 +29,9 @@ select is((kiosk_check_in('+61491570101'))->>'status', 'already_checked_in', 'K-
 select is((select points_balance from customers where phone = '+61491570101'), 1, 'K-06 ...and earns no extra point');
 select is((select visit_count from customers where phone = '+61491570101'), 1, 'K-06 ...and adds no visit');
 select is((kiosk_check_in('+61491570101', 'Someone', 'Else'))->>'first_name', 'QA', 'K-07 signing up with an existing number keeps the original customer');
+select is(kiosk_lookup('+61499999999'), null, 'K-08 looking up an unknown number returns nothing');
+select is((kiosk_lookup('+61491570101'))->>'first_name', 'QA', 'K-08 looking up a number returns the customer');
+select ok((kiosk_lookup('+61491570101'))->'today'->>'checked_in_at' is not null, 'K-08 ...with today''s check-in, so the kiosk goes straight to redeeming');
 select is((kiosk_redeem('+61491570101', 'eeeeeeee-0000-4000-8000-000000000001'))->>'status', 'insufficient_points', 'R-01 redeeming without enough points is refused');
 select is((kiosk_redeem('+61499999999', 'eeeeeeee-0000-4000-8000-000000000001'))->>'status', 'not_found', 'R-02 redeeming for an unknown number is not_found');
 
@@ -118,6 +121,7 @@ select is((select count(*)::int from customers), 0, 'S-01 a staff account cannot
 select throws_ok(format($$ select adjust_points(%L, 5, 'staff') $$, (select '00000000-0000-0000-0000-000000000000'::uuid)), '42501', null, 'S-02 a staff account cannot adjust points');
 select ok((sell_gift_voucher(2000))->>'code' is not null, 'S-03 a staff account can create a gift voucher (kiosk header)');
 select throws_ok($$ select kiosk_check_in('+61491570101') $$, '42501', null, 'S-04 kiosk functions cannot be called directly by a signed-in account');
+select throws_ok($$ select kiosk_lookup('+61491570101') $$, '42501', null, 'S-04 ...including the number lookup');
 select is((select count(*)::int from staff), 1, 'S-05 a staff account only sees its own staff row');
 
 -- SECURITY: removed account and signed-out visitor -----------------------------------
@@ -126,6 +130,7 @@ select throws_ok($$ select sell_gift_voucher(2000) $$, '42501', null, 'S-06 a re
 reset role;
 set local role anon;
 select throws_ok($$ select kiosk_check_in('+61491570101') $$, '42501', null, 'S-07 a signed-out visitor cannot call kiosk functions through the API');
+select throws_ok($$ select kiosk_lookup('+61491570101') $$, '42501', null, 'S-07 ...including the number lookup');
 select is((select count(*)::int from customers), 0, 'S-08 a signed-out visitor cannot read customers');
 
 select * from finish();

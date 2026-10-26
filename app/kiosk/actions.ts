@@ -75,17 +75,25 @@ async function guard(): Promise<{ staffId: string } | { error: string }> {
   return { staffId: staff.id };
 }
 
-async function birthdayFor(customerId: string): Promise<KioskBirthday> {
-  const { data } = await createAdminClient().rpc("_birthday_status", { p_customer_id: customerId });
-  const status = (data ?? {}) as BirthdayStatus;
-  return { eligible: Boolean(status.eligible), used: Boolean(status.in_window && status.used) };
+type TodayStatus = { checked_in_at?: string | null; discount_used_today?: boolean };
+
+function kioskBirthday(status: BirthdayStatus | null): KioskBirthday {
+  return { eligible: Boolean(status?.eligible), used: Boolean(status?.in_window && status.used) };
 }
 
 /** Whether they've checked in today and had today's discount (one per visit). */
+function kioskToday(r: TodayStatus | null): { checkedInAt: string | null; discountUsedToday: boolean } {
+  return { checkedInAt: r?.checked_in_at ?? null, discountUsedToday: Boolean(r?.discount_used_today) };
+}
+
+async function birthdayFor(customerId: string): Promise<KioskBirthday> {
+  const { data } = await createAdminClient().rpc("_birthday_status", { p_customer_id: customerId });
+  return kioskBirthday(data as BirthdayStatus | null);
+}
+
 async function todayFor(customerId: string): Promise<{ checkedInAt: string | null; discountUsedToday: boolean }> {
   const { data } = await createAdminClient().rpc("kiosk_today", { p_customer_id: customerId });
-  const r = (data ?? {}) as { checked_in_at?: string | null; discount_used_today?: boolean };
-  return { checkedInAt: r.checked_in_at ?? null, discountUsedToday: Boolean(r.discount_used_today) };
+  return kioskToday(data as TodayStatus | null);
 }
 
 export async function lookupPhone(digits: string): Promise<LookupResult> {
@@ -95,24 +103,28 @@ export async function lookupPhone(digits: string): Promise<LookupResult> {
   const normalized = normalizePhone(digits);
   if (!normalized) return { status: "invalid_phone", message: BAD_PHONE };
 
-  const { data, error } = await createAdminClient()
-    .from("customers")
-    .select("id, first_name, phone, points_balance, visit_count")
-    .eq("phone", normalized.e164)
-    .maybeSingle();
+  // One round trip: the customer with their birthday status and today's check-in and discount.
+  const { data, error } = await createAdminClient().rpc("kiosk_lookup", { p_phone: normalized.e164 });
   if (error) return { status: "error", message: OFFLINE };
   if (!data) return { status: "not_found", formattedPhone: formatPhone(normalized.e164), nonStandard: !normalized.standard };
 
-  const [birthday, today] = await Promise.all([birthdayFor(data.id), todayFor(data.id)]);
+  const c = data as {
+    first_name: string;
+    phone: string;
+    points_balance: number;
+    visit_count: number;
+    birthday: BirthdayStatus | null;
+    today: TodayStatus | null;
+  };
   return {
     status: "found",
     customer: {
-      firstName: data.first_name,
-      maskedPhone: maskPhone(data.phone),
-      points: data.points_balance,
-      visits: data.visit_count,
-      birthday,
-      ...today,
+      firstName: c.first_name,
+      maskedPhone: maskPhone(c.phone),
+      points: c.points_balance,
+      visits: c.visit_count,
+      birthday: kioskBirthday(c.birthday),
+      ...kioskToday(c.today),
     },
   };
 }

@@ -23,7 +23,7 @@ import {
 } from "@/app/admin/gift-voucher-actions";
 import type { ActionState } from "@/app/admin/actions";
 import { formatMoney, GIFT_VOUCHER_PRESETS, parseDollars } from "@/lib/gift-vouchers";
-import { formatPhone } from "@/lib/phone";
+import { formatPhoneInput } from "@/lib/phone-mask";
 import { cn } from "@/lib/utils";
 import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
 import type { GiftVoucherStatus } from "@/lib/gift-vouchers";
@@ -577,7 +577,7 @@ export function GiftVoucherSettingsForm({
     <form {...formSubmit} className="flex flex-col gap-3.5">
       <div className="flex flex-col gap-2">
         <Label htmlFor="gv-owner-phone">Customer phone</Label>
-        <Input id="gv-owner-phone" name="phone" type="tel" {...numberInput("phone")} defaultValue={phone ? formatPhone(phone) : ""} placeholder="Not linked" />
+        <Input id="gv-owner-phone" name="phone" type="tel" {...numberInput("phone")} defaultValue={phone ? formatPhoneInput(phone) : ""} placeholder="Not linked" />
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="gv-owner-notes">Notes</Label>

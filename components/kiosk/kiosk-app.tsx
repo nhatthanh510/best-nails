@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   checkIn,
@@ -164,18 +164,20 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
 
   // A physical or Bluetooth keyboard works on the number screen too, except while typing into
   // a field or a dialog (e.g. a gift voucher code from the header).
+  // An Effect Event sees the latest digits (for Enter) without re-subscribing on every keypress.
+  const onKeyboard = useEffectEvent((e: KeyboardEvent) => {
+    if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable], [role=dialog], [role=alertdialog]")) return;
+    if (/^[0-9]$/.test(e.key)) setDigits((d) => (d.length < MAX_KIOSK_DIGITS ? d + e.key : d));
+    else if (e.key === "Backspace") setDigits((d) => d.slice(0, -1));
+    else if (e.key === "Escape") setDigits("");
+    else if (e.key === "Enter") submitPhone();
+  });
   useEffect(() => {
     if (screen.name !== "enter") return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable], [role=dialog], [role=alertdialog]")) return;
-      if (/^[0-9]$/.test(e.key)) setDigits((d) => (d.length < MAX_KIOSK_DIGITS ? d + e.key : d));
-      else if (e.key === "Backspace") setDigits((d) => d.slice(0, -1));
-      else if (e.key === "Escape") setDigits("");
-      else if (e.key === "Enter") submitPhone();
-    };
+    const onKey = (e: KeyboardEvent) => onKeyboard(e);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [screen.name]);
 
   const redeemProps = {
     rewards: content.rewards,

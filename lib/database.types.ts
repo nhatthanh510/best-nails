@@ -360,6 +360,9 @@ isOneToOne: false
 "kiosk_check_in":
 { Args: { "p_birthday_day"?: number,"p_birthday_month"?: number,"p_first_name"?: string,"p_last_name"?: string,"p_phone": string,"p_service_ids"?: (string)[],"p_technician_id"?: string }; Returns: Json
                            },
+"kiosk_lookup":
+{ Args: { "p_phone": string }; Returns: Json
+                           },
 "kiosk_redeem":
 { Args: { "p_phone": string,"p_promotion_id": string }; Returns: Json
                            },
