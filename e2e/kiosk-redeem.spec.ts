@@ -15,7 +15,7 @@ test.describe("Kiosk: points reward", () => {
     await kiosk.enter(testPhone(10));
     // 9 points: not ready until today's visit is added.
     await expect(page.getByText(`1 more visit to ${REWARD}`)).toBeVisible();
-    await page.getByRole("button", { name: "Check in", exact: true }).click();
+    await kiosk.checkIn();
 
     await expect(page.getByText("You're checked in, Gina!")).toBeVisible();
     // Someone about to redeem isn't rushed by a countdown.
@@ -87,7 +87,7 @@ test.describe("Kiosk: birthday discount", () => {
     await kiosk.goto();
     await kiosk.enter(testPhone(14));
     await expect(page.getByText("Happy birthday! 10% off is waiting.")).toBeVisible();
-    await page.getByRole("button", { name: "Check in", exact: true }).click();
+    await kiosk.checkIn();
 
     await expect(redeemList(page).getByText("Our gift to you. No points needed")).toBeVisible();
     await kiosk.redeem("Birthday 10% off");

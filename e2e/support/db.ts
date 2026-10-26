@@ -73,6 +73,7 @@ export async function resetTestData() {
     check(await sb.from("customers").delete().in("id", ids), "delete test customers");
   }
   check(await sb.from("promotions").delete().like("title", "E2E%"), "delete test rewards");
+  check(await sb.from("technicians").delete().like("name", "E2E%"), "delete test technicians");
   // The shop's own rewards would change what the kiosk shows, so they're paused during the run;
   // the teardown turns back on the ones that were active (see activeShopRewards).
   check(await sb.from("promotions").update({ is_active: false }).eq("is_active", true).not("title", "like", "E2E%"), "pause shop rewards");
@@ -168,6 +169,33 @@ export async function findCustomer(phone: string) {
 export async function createReward(title: string, pointsCost = 10, isActive = true) {
   if (!title.startsWith("E2E")) throw new Error("Test rewards must be named E2E … so they get cleaned up.");
   return must(await db().from("promotions").insert({ title, points_cost: pointsCost, is_active: isActive, type: "reward" }).select("id").single(), "create reward").id;
+}
+
+// ---------------------------------------------------------------------------
+// Services & staff (the menu itself comes from the migration)
+// ---------------------------------------------------------------------------
+
+export async function createTechnician(name: string) {
+  if (!name.startsWith("E2E")) throw new Error("Test technicians must be named E2E … so they get cleaned up.");
+  return must(await db().from("technicians").insert({ name }).select("id").single(), "create technician").id;
+}
+
+/** The customer's latest check-in: who looked after them and the services, in menu order. */
+export async function lastVisit(phone: string) {
+  const row = must(
+    await db()
+      .from("check_ins")
+      .select("technician_name, services:check_in_services(position, name, category_name), customer:customers!inner(phone)")
+      .eq("customer.phone", e164(phone))
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single(),
+    "last visit",
+  );
+  return {
+    technician: row.technician_name,
+    services: [...row.services].sort((a, b) => a.position - b.position).map((s) => `${s.name} (${s.category_name})`),
+  };
 }
 
 // ---------------------------------------------------------------------------

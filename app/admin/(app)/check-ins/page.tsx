@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SearchBox } from "@/components/admin/search-box";
 import { tierFor } from "@/lib/tiers";
 import { CHECK_IN_RANGES, CHECK_INS_PAGE_SIZE, getSettings, listCheckIns, type CheckInRange, type VisitUse } from "@/lib/admin-data";
+import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import { formatMoney } from "@/lib/gift-vouchers";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatTime, fullName } from "@/lib/format";
@@ -100,13 +101,15 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
             <tr>
               <th className={cn(th, range === "today" ? "w-28" : "w-32 sm:w-52")}>Time</th>
               <th className={th}>Customer</th>
+              <th className={`${th} hidden lg:table-cell`}>Services</th>
+              <th className={`${th} hidden lg:table-cell`}>Staff</th>
               <th className={`${th} hidden md:table-cell`}>Used</th>
               <th className={`${th} w-20 text-right sm:w-24`}>Points</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <EmptyRow colSpan={4}>{q ? `No check-ins in this period match “${q}”.` : "No check-ins in this period."}</EmptyRow>
+              <EmptyRow colSpan={6}>{q ? `No check-ins in this period match “${q}”.` : "No check-ins in this period."}</EmptyRow>
             )}
             {rows.map((r) => (
               <tr key={r.id}>
@@ -133,11 +136,20 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
                       <p className="text-[13px] whitespace-nowrap text-muted-foreground tabular-nums">{formatPhone(r.customer.phone)}</p>
                     </>
                   )}
+                  <div className="mt-1 lg:hidden">
+                    <VisitSummary services={r.services} staff={r.technician_name} />
+                  </div>
                   {r.used.length > 0 && (
                     <div className="mt-1.5 md:hidden">
                       <UsedPills used={r.used} />
                     </div>
                   )}
+                </td>
+                <td className={`${td} hidden lg:table-cell`}>
+                  <VisitServices services={r.services} />
+                </td>
+                <td className={`${td} hidden whitespace-nowrap lg:table-cell`}>
+                  <VisitStaff name={r.technician_name} />
                 </td>
                 <td className={`${td} hidden md:table-cell`}>
                   <UsedPills used={r.used} />

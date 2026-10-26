@@ -129,6 +129,20 @@ describe("checkIn sign-up validation (KA-03, KA-04)", () => {
     });
   });
 
+  it("passes the picked services and technician to the database", async () => {
+    rpcReturns({ status: "checked_in", customer_id: CUSTOMER_ID, first_name: "Alice", points_awarded: 1, points_balance: 1 });
+    await checkIn("0491570101", undefined, { serviceIds: [REWARD_ID], technicianId: CUSTOMER_ID });
+    expect(h.rpc).toHaveBeenCalledWith("kiosk_check_in", expect.objectContaining({ p_service_ids: [REWARD_ID], p_technician_id: CUSTOMER_ID }));
+  });
+
+  it("refuses malformed picks without calling the database", async () => {
+    expect(await checkIn("0491570101", undefined, { serviceIds: ["not-a-uuid"], technicianId: null })).toEqual({
+      status: "error",
+      message: "Please ask the front desk.",
+    });
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
   it("reports an existing check-in today rather than awarding another point", async () => {
     rpcReturns({ status: "already_checked_in", customer_id: CUSTOMER_ID, first_name: "Alice", last_check_in_at: "2026-10-26T01:00:00Z", points_balance: 4 });
     expect(await checkIn("0491570101")).toMatchObject({ status: "already_checked_in", lastCheckInAt: "2026-10-26T01:00:00Z", points: 4 });

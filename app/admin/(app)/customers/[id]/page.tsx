@@ -7,6 +7,7 @@ import { DetailSkeleton } from "@/components/admin/skeletons";
 import { TIER_LABELS, nextTier, tierFor } from "@/lib/tiers";
 import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
 import { customerGiftVouchers, customerTitle, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
+import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import { UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
 import { requireAdmin } from "@/lib/auth";
 import { deleteCustomer, redeemBirthday, redeemReward } from "@/app/admin/actions";
@@ -85,8 +86,10 @@ async function CustomerDetail({
   const historyHref = (p: number) => `/admin/customers/${c.id}${p > 1 ? `?page=${p}` : ""}`;
   if (page > 1 && (page - 1) * HISTORY_PAGE_SIZE >= history.length) redirect(historyHref(1));
   const historyPage = history.slice((page - 1) * HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE);
-  // "Admin · Thu", as on Check-ins: a name on its own can read like a day ("Thu").
-  const by = (staffId: string | null) => (staffId ? `Admin · ${names.get(staffId) ?? "staff"}` : "Kiosk");
+  // Only what an admin did in the admin says who ("by Admin · Thu": a name on its own can read
+  // like a day); check-ins and kiosk redemptions are always the kiosk.
+  const by = (staffId: string | null) =>
+    staffId && <p className="text-[13px] text-muted-foreground">by Admin · {names.get(staffId) ?? "staff"}</p>;
   // Date over time on phones, side by side from sm.
   const when = (iso: string) => (
     <span className="flex flex-col sm:flex-row sm:gap-1">
@@ -181,29 +184,37 @@ async function CustomerDetail({
       <div className="flex flex-wrap items-start gap-5">
         <Card id="history" className="min-w-0 flex-[999_1_480px] scroll-mt-4 pt-5 pb-2">
           <h2 className="px-5 pb-3 text-lg font-extrabold">Points history</h2>
-          {/* On phones "by" moves under the activity and the running balance is left out. */}
+          {/* A check-in's services and staff get their own columns from md; on phones they sit under
+              the activity, and the running balance is left out. */}
           <DataTable minWidth={0}>
             <thead>
               <tr>
                 <th className={th}>Date</th>
                 <th className={th}>Activity</th>
-                <th className={`${th} hidden sm:table-cell`}>By</th>
+                <th className={`${th} hidden md:table-cell`}>Services</th>
+                <th className={`${th} hidden md:table-cell`}>Staff</th>
                 <th className={`${th} text-right`}>Points</th>
                 <th className={`${th} hidden text-right sm:table-cell`}>Balance</th>
               </tr>
             </thead>
             <tbody>
-              {history.length === 0 && <EmptyRow colSpan={5}>No activity yet.</EmptyRow>}
+              {history.length === 0 && <EmptyRow colSpan={6}>No activity yet.</EmptyRow>}
               {historyPage.map((h) =>
                 h.kind === "points" ? (
                   <tr key={h.row.id}>
                     <td className={`${td} whitespace-nowrap text-muted-foreground tabular-nums`}>{when(h.row.created_at)}</td>
                     <td className={td}>
-                      <p className="font-bold">{REASON_LABELS[h.row.reason]}</p>
+                      <p className="font-bold whitespace-nowrap">{REASON_LABELS[h.row.reason]}</p>
                       {h.row.note && <p className="text-[13px] text-muted-foreground">{h.row.note}</p>}
-                      <p className="text-[13px] text-muted-foreground sm:hidden">{by(h.row.created_by)}</p>
+                      {by(h.row.created_by)}
+                      {h.row.visit && (
+                        <div className="md:hidden">
+                          <VisitSummary services={h.row.visit.services} staff={h.row.visit.technician_name} />
+                        </div>
+                      )}
                     </td>
-                    <td className={`${td} hidden text-muted-foreground sm:table-cell`}>{by(h.row.created_by)}</td>
+                    <td className={`${td} hidden md:table-cell`}>{h.row.visit && <VisitServices services={h.row.visit.services} />}</td>
+                    <td className={`${td} hidden whitespace-nowrap md:table-cell`}>{h.row.visit && <VisitStaff name={h.row.visit.technician_name} />}</td>
                     <td className={`${td} text-right font-extrabold tabular-nums ${h.row.delta > 0 ? "text-success" : "text-destructive"}`}>
                       {signed(h.row.delta)}
                     </td>
@@ -215,9 +226,10 @@ async function CustomerDetail({
                     <td className={td}>
                       <p className="font-bold">Birthday discount</p>
                       <p className="text-[13px] text-muted-foreground">{h.row.percent}% off · {h.row.birthday_year}</p>
-                      <p className="text-[13px] text-muted-foreground sm:hidden">{by(h.row.created_by)}</p>
+                      {by(h.row.created_by)}
                     </td>
-                    <td className={`${td} hidden text-muted-foreground sm:table-cell`}>{by(h.row.created_by)}</td>
+                    <td className={`${td} hidden md:table-cell`} />
+                    <td className={`${td} hidden md:table-cell`} />
                     <td className={`${td} text-right text-muted-foreground`}>—</td>
                     <td className={`${td} hidden sm:table-cell`} />
                   </tr>

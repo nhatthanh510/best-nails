@@ -17,10 +17,15 @@ export type Customer = Tables["customers"]["Row"];
 export type Settings = Tables["settings"]["Row"];
 export type CheckInRow = Tables["check_ins"]["Row"] & {
   customer: Pick<Customer, "id" | "first_name" | "last_name" | "phone" | "lifetime_points"> | null;
+  /** What they picked on the kiosk, in menu order (names as they were at the time). */
+  services: Pick<Tables["check_in_services"]["Row"], "position" | "name" | "category_name">[];
 };
 /** Something a customer used on the day of a check-in: a discount or part of a gift voucher. */
 export type VisitUse = { kind: "points"; label: string } | { kind: "birthday"; percent: number } | { kind: "gift"; cents: number };
-export type LedgerRow = Tables["point_transactions"]["Row"];
+/** A points history row; a check-in also brings what was done on that visit (picked on the kiosk). */
+export type LedgerRow = Tables["point_transactions"]["Row"] & {
+  visit: (Pick<Tables["check_ins"]["Row"], "technician_name"> & { services: CheckInRow["services"] }) | null;
+};
 export type BirthdayRedemption = Tables["birthday_redemptions"]["Row"];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -264,7 +269,12 @@ export async function getCustomer(id: string) {
   const { supabase } = await staffClient();
   const [customer, ledger, rewards, birthday, birthdayHistory] = await Promise.all([
     supabase.from("customers").select("*").eq("id", id).maybeSingle(),
-    supabase.from("point_transactions").select("*").eq("customer_id", id).order("seq", { ascending: false }).limit(HISTORY_LIMIT),
+    supabase
+      .from("point_transactions")
+      .select("*, visit:check_ins(technician_name, services:check_in_services(position, name, category_name))")
+      .eq("customer_id", id)
+      .order("seq", { ascending: false })
+      .limit(HISTORY_LIMIT),
     supabase.from("promotions").select("*").eq("is_active", true).order("points_cost"),
     supabase.rpc("birthday_status", { p_customer_id: id }),
     supabase.from("birthday_redemptions").select("*").eq("customer_id", id).order("created_at", { ascending: false }),
@@ -272,7 +282,9 @@ export async function getCustomer(id: string) {
   if (!customer.data) return null;
   return {
     customer: customer.data,
-    ledger: ledger.data ?? [],
+    ledger: (ledger.data ?? []).map(
+      (t): LedgerRow => ({ ...t, visit: t.visit && { ...t.visit, services: [...t.visit.services].sort((a, b) => a.position - b.position) } }),
+    ),
     rewards: (rewards.data ?? []) as Reward[],
     birthday: (birthday.data ?? { enabled: false, has_birthday: false, eligible: false }) as BirthdayStatus,
     birthdayHistory: birthdayHistory.data ?? [],
@@ -306,7 +318,9 @@ export async function listCheckIns({
   // customer, so without a search it returns the same rows.
   let query = supabase
     .from("check_ins")
-    .select("*, customer:customers!inner(id, first_name, last_name, phone, lifetime_points)", { count: "exact" })
+    .select("*, customer:customers!inner(id, first_name, last_name, phone, lifetime_points), services:check_in_services(position, name, category_name)", {
+      count: "exact",
+    })
     .gte("created_at", since)
     .is("voided_at", null)
     .order("created_at", { ascending: false })
@@ -343,7 +357,11 @@ export async function listCheckIns({
   // A spend names the customer only when staff gave one; otherwise it's the voucher's owner.
   for (const g of spends.data ?? []) add(dayKey(g.customer_id ?? g.voucher?.customer_id, g.created_at), { kind: "gift", cents: -g.delta_cents });
 
-  const rows = ((data ?? []) as CheckInRow[]).map((r) => ({ ...r, used: uses.get(dayKey(r.customer_id, r.created_at) ?? "") ?? [] }));
+  const rows = ((data ?? []) as CheckInRow[]).map((r) => ({
+    ...r,
+    services: [...r.services].sort((a, b) => a.position - b.position),
+    used: uses.get(dayKey(r.customer_id, r.created_at) ?? "") ?? [],
+  }));
   return {
     pastEnd: error?.code === PAST_END,
     rows,
@@ -383,6 +401,34 @@ export async function rewardUsage(rewardIds: string[]) {
   ]);
   const counts = new Map(rewardIds.map((id, i) => [id, perReward[i].count ?? 0]));
   return { counts, birthdaysThisYear: birthdays.count ?? 0 };
+}
+
+// ---------------------------------------------------------------------------
+// Services & staff (what customers pick on the kiosk after Check in)
+// ---------------------------------------------------------------------------
+
+export type ServiceCategory = Tables["service_categories"]["Row"] & { services: Tables["services"]["Row"][] };
+export type Technician = Tables["technicians"]["Row"];
+
+/** The whole menu, hidden items included, in kiosk order. */
+export async function listServiceMenu(): Promise<ServiceCategory[]> {
+  const { supabase } = await staffClient();
+  const { data, error } = await supabase
+    .from("service_categories")
+    .select("*, services(*)")
+    .order("sort_order")
+    .order("name")
+    .order("sort_order", { referencedTable: "services" })
+    .order("name", { referencedTable: "services" });
+  if (error) throw error;
+  return data;
+}
+
+export async function listTechnicians(): Promise<Technician[]> {
+  const { supabase } = await staffClient();
+  const { data, error } = await supabase.from("technicians").select("*").order("sort_order").order("name");
+  if (error) throw error;
+  return data;
 }
 
 export type Account = {

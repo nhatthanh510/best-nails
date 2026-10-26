@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CheckSquare, Gift, LayoutGrid, Settings, Users, WalletCards } from "lucide-react";
+import { CheckSquare, Gift, LayoutGrid, Settings, Sparkles, Users, WalletCards } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/admin/check-ins", label: "Check-ins", icon: CheckSquare },
   { href: "/admin/rewards", label: "Rewards", icon: Gift },
   { href: "/admin/gift-vouchers", label: "Gift vouchers", icon: WalletCards },
+  { href: "/admin/services", label: "Services & staff", icon: Sparkles },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
