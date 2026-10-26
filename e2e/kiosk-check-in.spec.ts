@@ -1,4 +1,4 @@
-import { createReward, findCustomer, seedCustomer, testPhone, updateSettings } from "./support/db";
+import { createReward, createTechnician, findCustomer, lastVisit, seedCustomer, testPhone, updateSettings } from "./support/db";
 import { alert, expect, test } from "./support/fixtures";
 
 test.describe("Kiosk: entering a number", () => {
@@ -118,6 +118,7 @@ test.describe("Kiosk: joining and checking in", () => {
     await month.selectOption({ label: "February" });
     await day.selectOption("29");
     await page.getByRole("button", { name: "Join & check in" }).click();
+    await kiosk.skipVisitSteps();
     await expect(page.getByText("You're checked in, Bea!")).toBeVisible();
   });
 
@@ -133,9 +134,43 @@ test.describe("Kiosk: joining and checking in", () => {
     await expect(page.getByRole("img", { name: "6 of 10 stamps" })).toBeVisible();
     await expect(page.getByText("4 more visits to E2E 10% off")).toBeVisible();
 
-    await page.getByRole("button", { name: "Check in", exact: true }).click();
+    await kiosk.checkIn();
     await expect(page.getByText("You're checked in, Cara!")).toBeVisible();
     await expect(page.locator("p").filter({ hasText: "you now have" })).toHaveText("+1 point · you now have 7");
+  });
+
+  test("K-10 after Check in the customer picks services and their technician", async ({ kiosk, page }) => {
+    await createTechnician("E2E Linh");
+    await seedCustomer({ phone: testPhone(8), firstName: "Fay" });
+    await kiosk.goto();
+    await kiosk.enter(testPhone(8));
+    await page.getByRole("button", { name: "Check in", exact: true }).click();
+
+    await expect(page.getByRole("heading", { name: "What are you in for today?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Waxing" })).toBeVisible();
+    const next = page.getByRole("button", { name: /^Next/ });
+    await expect(next).toBeDisabled();
+    const pedicure = page.getByRole("region", { name: "Pedicure" });
+    await pedicure.getByRole("checkbox", { name: "Deluxe pedicure" }).click();
+    await page.getByRole("region", { name: "Acrylic / Gel" }).getByRole("checkbox", { name: "Full set" }).click();
+    await expect(pedicure.getByRole("checkbox", { name: "Deluxe pedicure" })).toBeChecked();
+    await expect(next).toHaveAccessibleName("Next (2 selected)");
+    await next.click();
+
+    await expect(page.getByRole("heading", { name: "Who's looking after you?" })).toBeVisible();
+    // Back keeps what was picked.
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(pedicure.getByRole("checkbox", { name: "Deluxe pedicure" })).toBeChecked();
+    await next.click();
+    await page.getByRole("radio", { name: /E2E Linh/ }).click();
+    await page.getByRole("button", { name: "Check in", exact: true }).click();
+
+    await expect(page.getByText("You're checked in, Fay!")).toBeVisible();
+    await expect(page.getByText("Have a seat. E2E Linh will be with you shortly.")).toBeVisible();
+    expect(await lastVisit(testPhone(8))).toEqual({
+      technician: "E2E Linh",
+      services: ["Full set (Acrylic / Gel)", "Deluxe pedicure (Pedicure)"],
+    });
   });
 
   test("K-06 a second visit the same day doesn't add a point", async ({ kiosk, page }) => {
@@ -159,7 +194,7 @@ test.describe("Kiosk: joining and checking in", () => {
     await seedCustomer({ phone: testPhone(6), firstName: "Eve" });
     await kiosk.goto();
     await kiosk.enter(testPhone(6));
-    await page.getByRole("button", { name: "Check in", exact: true }).click();
+    await kiosk.checkIn();
     await expect(page.getByText("You're checked in, Eve!")).toBeVisible();
     await expect(page.getByText(/closing in \d+s/)).toBeVisible();
     for (let i = 0; i < 9; i++) await page.clock.runFor(1_000);

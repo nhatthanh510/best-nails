@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Cake, Check, ChevronLeft, Gift, LayoutGrid, LogOut, RotateCw, TriangleAlert, WifiOff } from "lucide-react";
 import { Spinner as SharedSpinner } from "@/components/ui/spinner";
 import type { CheckInResult, KioskBirthday, KioskCustomer, RedeemResult, RedeemTarget, SignupInput } from "@/app/kiosk/actions";
-import type { KioskContent, KioskReward } from "@/lib/kiosk-content";
+import type { KioskContent, KioskReward, KioskServiceCategory, KioskTechnician } from "@/lib/kiosk-content";
 import { birthdayWindowLabel } from "@/lib/rewards";
 import { daysInMonth } from "@/lib/birthday";
 import { fillPhoneMask, isCompleteNumber, looksStandard } from "@/lib/phone-mask";
@@ -13,9 +13,9 @@ import { KioskBrand } from "./brand";
 import { Numpad } from "./numpad";
 
 const primaryButton =
-  "flex items-center justify-center gap-3 rounded-3xl bg-kiosk-accent bg-gold-sheen font-extrabold text-kiosk-bg transition-transform active:scale-[0.98] disabled:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-kiosk-ink";
+  "flex items-center justify-center gap-3 rounded-3xl bg-kiosk-accent bg-gold-sheen font-extrabold text-kiosk-bg transition active:scale-[0.98] enabled:hover:brightness-110 enabled:hover:shadow-[0_6px_24px_-6px_rgb(216_180_92/0.45)] disabled:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-kiosk-ink";
 const outlineButton =
-  "flex min-h-14 items-center gap-2.5 rounded-2xl border-2 border-kiosk-line px-6 text-lg font-bold text-kiosk-muted active:bg-kiosk-surface focus-visible:outline-3 focus-visible:outline-kiosk-accent";
+  "flex min-h-14 items-center gap-2.5 rounded-2xl border-2 border-kiosk-line px-6 text-lg font-bold text-kiosk-muted transition-colors hover:border-kiosk-faint hover:bg-kiosk-surface hover:text-kiosk-ink active:bg-kiosk-surface focus-visible:outline-3 focus-visible:outline-kiosk-accent";
 
 function Shell({ children, centered = false }: { children: React.ReactNode; centered?: boolean }) {
   return (
@@ -466,6 +466,7 @@ export function SignupScreen({
   nonStandard,
   content,
   pending,
+  initial,
   onSubmit,
   onBack,
 }: {
@@ -473,6 +474,8 @@ export function SignupScreen({
   nonStandard: boolean;
   content: KioskContent;
   pending: boolean;
+  /** What they typed before going on to the services step and coming back. */
+  initial?: SignupInput;
   onSubmit: (input: SignupInput) => void;
   onBack: () => void;
 }) {
@@ -480,8 +483,8 @@ export function SignupScreen({
   const [error, setError] = useState<{ field: "firstName" | "birthday"; message: string } | null>(null);
   // The day list only offers days the chosen month has (29 Feb included), so an impossible date
   // like 31 February can't be picked; changing to a shorter month clears a day it doesn't have.
-  const [bdayDay, setBdayDay] = useState("");
-  const [bdayMonth, setBdayMonth] = useState("");
+  const [bdayDay, setBdayDay] = useState(initial?.birthdayDay ? String(initial.birthdayDay) : "");
+  const [bdayMonth, setBdayMonth] = useState(initial?.birthdayMonth ? String(initial.birthdayMonth) : "");
   const maxDay = bdayMonth ? daysInMonth(Number(bdayMonth)) : 31;
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -534,6 +537,7 @@ export function SignupScreen({
                 autoComplete="given-name"
                 autoFocus
                 maxLength={50}
+                defaultValue={initial?.firstName}
                 aria-invalid={error?.field === "firstName" || undefined}
                 aria-describedby={error?.field === "firstName" ? "firstName-error" : undefined}
                 onChange={() => error?.field === "firstName" && setError(null)}
@@ -549,7 +553,7 @@ export function SignupScreen({
               <label htmlFor="lastName" className="text-base font-bold">
                 Last name <span className="font-medium text-kiosk-muted">(optional)</span>
               </label>
-              <input id="lastName" name="lastName" autoComplete="family-name" maxLength={50} className={fieldClass} />
+              <input id="lastName" name="lastName" autoComplete="family-name" maxLength={50} defaultValue={initial?.lastName} className={fieldClass} />
             </div>
           </div>
 
@@ -616,6 +620,223 @@ export function SignupScreen({
         </div>
       </form>
     </Shell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The frame both visit steps share: back pill and heading at the top, the choices in the middle
+ * (the page scrolls), and Skip / the main button pinned to the bottom so they're always in reach.
+ */
+function PickStep({
+  title,
+  subtitle,
+  onBack,
+  children,
+  skipLabel,
+  nextLabel,
+  canNext,
+  pending,
+  onSkip,
+  onNext,
+}: {
+  title: string;
+  subtitle: string;
+  onBack: () => void;
+  children: React.ReactNode;
+  skipLabel: string;
+  nextLabel: React.ReactNode;
+  canNext: boolean;
+  pending: boolean;
+  onSkip: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <main className="flex w-full flex-1 flex-col text-kiosk-ink">
+      <div className="flex flex-1 flex-col gap-7 px-5 pt-6 pb-8 sm:px-10 sm:pt-8 lg:px-16 lg:pt-10 short:gap-5 lg:short:pt-6">
+        <div className="flex flex-col gap-3">
+          <StepBack label="Back" onClick={onBack} />
+          <h1 className="text-[34px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[44px] lg:text-[52px] lg:short:text-[44px]">{title}</h1>
+          <p className="text-lg text-kiosk-muted sm:text-xl">{subtitle}</p>
+        </div>
+        <div className="mt-5 short:mt-2">{children}</div>
+      </div>
+      <div className="sticky bottom-0 bg-linear-to-t from-kiosk-bg from-70% to-transparent px-5 pt-8 pb-6 sm:px-10 lg:px-16 lg:short:pb-4">
+        <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-4">
+          <button
+            type="button"
+            onClick={onSkip}
+            disabled={pending}
+            className={`${outlineButton} h-18 justify-center bg-kiosk-bg text-xl disabled:opacity-60 lg:short:h-16`}
+          >
+            {skipLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={!canNext || pending}
+            className={`${primaryButton} h-18 text-2xl disabled:bg-kiosk-line disabled:bg-none disabled:text-kiosk-faint disabled:opacity-100 lg:short:h-16`}
+          >
+            {pending && <Spinner />}
+            {nextLabel}
+            {!pending && <ArrowRight className="size-6.5" strokeWidth={2.5} aria-hidden="true" />}
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * A tappable choice as wide as its text, so a row of them reads like a menu. A picked one gets a
+ * gold edge on a soft gold wash; nothing is added inside it, so picking never changes its width or
+ * moves the chips around it.
+ */
+function ChoiceChip({
+  selected,
+  onClick,
+  children,
+  role = "checkbox",
+  className = "",
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  role?: "checkbox" | "radio";
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role={role}
+      aria-checked={selected}
+      onClick={onClick}
+      className={`group flex min-h-16 max-w-full items-center gap-3 rounded-2xl border-2 px-6 text-left text-xl font-semibold transition-colors active:scale-[0.98] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-kiosk-ink ${
+        selected
+          ? "border-kiosk-accent bg-kiosk-accent/12 text-kiosk-ink"
+          : "border-transparent bg-kiosk-surface text-kiosk-ink hover:border-kiosk-line"
+      } ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function ServicesScreen({
+  categories,
+  selected,
+  isLast,
+  pending,
+  onToggle,
+  onBack,
+  onSkip,
+  onNext,
+}: {
+  categories: KioskServiceCategory[];
+  selected: string[];
+  /** No staff step follows, so the main button checks in. */
+  isLast: boolean;
+  pending: boolean;
+  onToggle: (id: string) => void;
+  onBack: () => void;
+  onSkip: () => void;
+  onNext: () => void;
+}) {
+  const count = selected.length;
+  return (
+    <PickStep
+      title="What are you in for today?"
+      subtitle="Pick as many as you like."
+      onBack={onBack}
+      skipLabel={isLast ? "Skip & check in" : "Skip"}
+      nextLabel={
+        <>
+          {isLast ? "Check in" : "Next"}
+          {count > 0 && (
+            <>
+              <span aria-hidden="true" className="font-bold opacity-75">
+                · {count}
+              </span>
+              <span className="sr-only">({count} selected)</span>
+            </>
+          )}
+        </>
+      }
+      canNext={count > 0}
+      pending={pending}
+      onSkip={onSkip}
+      onNext={onNext}
+    >
+      <div className="flex flex-col gap-10 short:gap-8">
+        {categories.map((c) => (
+          <section key={c.id} aria-labelledby={`cat-${c.id}`} className="flex flex-col gap-4">
+            <h2 id={`cat-${c.id}`} className="font-heading text-[32px] leading-none font-bold text-kiosk-accent">
+              {c.name}
+            </h2>
+            <div className="flex flex-wrap gap-3.5">
+              {c.services.map((s) => (
+                <ChoiceChip key={s.id} selected={selected.includes(s.id)} onClick={() => onToggle(s.id)}>
+                  {s.name}
+                </ChoiceChip>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </PickStep>
+  );
+}
+
+export function StaffScreen({
+  technicians,
+  selected,
+  pending,
+  onSelect,
+  onBack,
+  onSkip,
+  onNext,
+}: {
+  technicians: KioskTechnician[];
+  selected: string | null;
+  pending: boolean;
+  onSelect: (id: string | null) => void;
+  onBack: () => void;
+  onSkip: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <PickStep
+      title="Who's looking after you?"
+      subtitle="Pick your nail technician, or skip if you don't mind."
+      onBack={onBack}
+      skipLabel="Skip & check in"
+      nextLabel="Check in"
+      canNext={selected !== null}
+      pending={pending}
+      onSkip={onSkip}
+      onNext={onNext}
+    >
+      <div role="radiogroup" aria-label="Nail technician" className="flex flex-wrap gap-3.5">
+        {technicians.map((t) => (
+          <ChoiceChip
+            key={t.id}
+            role="radio"
+            selected={selected === t.id}
+            onClick={() => onSelect(selected === t.id ? null : t.id)}
+            className="min-h-20 gap-4 pr-8 pl-4"
+          >
+            <span
+              aria-hidden="true"
+              className="flex size-12 flex-none items-center justify-center rounded-full bg-kiosk-line font-heading text-2xl font-bold text-kiosk-accent group-aria-checked:bg-kiosk-accent/25"
+            >
+              {t.name.trim().charAt(0).toUpperCase()}
+            </span>
+            {t.name}
+          </ChoiceChip>
+        ))}
+      </div>
+    </PickStep>
   );
 }
 
@@ -736,12 +957,15 @@ export function SuccessScreen({
   result,
   seconds,
   onDone,
+  technician,
   paused = false,
   ...redeem
 }: RedeemProps & {
   result: Extract<CheckInResult, { status: "checked_in" }>;
   seconds: number;
   onDone: () => void;
+  /** The technician they picked, if any. */
+  technician?: string;
   /** Hold the countdown, e.g. while staff use the Gift voucher dialog. */
   paused?: boolean;
 }) {
@@ -764,7 +988,11 @@ export function SuccessScreen({
         >
           You&apos;re checked in, {result.firstName}!
         </h1>
-        {!canRedeem && <p className="text-xl text-kiosk-muted sm:text-2xl">Have a seat. We&apos;ll be with you shortly.</p>}
+        {!canRedeem && (
+          <p className="text-xl text-kiosk-muted sm:text-2xl">
+            Have a seat. {technician ? `${technician} will` : "We'll"} be with you shortly.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col items-center gap-4 rounded-3xl bg-kiosk-surface px-6 py-6 sm:px-10">

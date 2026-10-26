@@ -48,6 +48,26 @@ export class Kiosk {
       await this.page.getByLabel("Birthday day").selectOption(String(birthday.day));
     }
     await this.page.getByRole("button", { name: "Join & check in" }).click();
+    await this.skipVisitSteps();
+  }
+
+  /** Check in on the Found screen, skipping the services and staff steps. */
+  async checkIn() {
+    await this.page.getByRole("button", { name: "Check in", exact: true }).click();
+    await this.skipVisitSteps();
+  }
+
+  /** Skips the services and staff steps after Check in, whichever the shop has turned on. */
+  async skipVisitSteps() {
+    const step = this.page.getByRole("heading", { level: 1, name: /What are you in for today\?|Who's looking after you\?/ });
+    const done = this.page.getByText(/You.re checked in|all checked in for today|Something went wrong/).first();
+    for (let i = 0; i < 3; i++) {
+      await expect(step.or(done).first()).toBeVisible();
+      if (await done.isVisible()) return;
+      const name = (await step.textContent()) ?? "";
+      await this.page.getByRole("button", { name: /^Skip/ }).click();
+      await expect(this.page.getByRole("heading", { level: 1, name, exact: true })).toHaveCount(0);
+    }
   }
 
   /** Redeem → Yes, redeem on the row with this title. */

@@ -43,16 +43,42 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"check_ins": {
+                },"check_in_services": {
                   Row: {
-                    "created_at": string,"created_by": string | null,"customer_id": string,"id": string,"points_awarded": number,"source": Database["public"]['Enums']["check_in_source"],"voided_at": string | null,"voided_by": string | null
+                    "category_name": string,"check_in_id": string,"name": string,"position": number,"service_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"created_by"?: string | null,"customer_id": string,"id"?: string,"points_awarded": number,"source": Database["public"]['Enums']["check_in_source"],"voided_at"?: string | null,"voided_by"?: string | null
+                    "category_name": string,"check_in_id": string,"name": string,"position": number,"service_id"?: string | null
                   }
                   Update: {
-                    "created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"id"?: string,"points_awarded"?: number,"source"?: Database["public"]['Enums']["check_in_source"],"voided_at"?: string | null,"voided_by"?: string | null
+                    "category_name"?: string,"check_in_id"?: string,"name"?: string,"position"?: number,"service_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "check_in_services_check_in_id_fkey"
+      columns: ["check_in_id"]
+isOneToOne: false
+      referencedRelation: "check_ins"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "check_in_services_service_id_fkey"
+      columns: ["service_id"]
+isOneToOne: false
+      referencedRelation: "services"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"check_ins": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"customer_id": string,"id": string,"points_awarded": number,"source": Database["public"]['Enums']["check_in_source"],"technician_id": string | null,"technician_name": string | null,"voided_at": string | null,"voided_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"customer_id": string,"id"?: string,"points_awarded": number,"source": Database["public"]['Enums']["check_in_source"],"technician_id"?: string | null,"technician_name"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"id"?: string,"points_awarded"?: number,"source"?: Database["public"]['Enums']["check_in_source"],"technician_id"?: string | null,"technician_name"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -60,6 +86,12 @@ isOneToOne: false
       columns: ["customer_id"]
 isOneToOne: false
       referencedRelation: "customers"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "check_ins_technician_id_fkey"
+      columns: ["technician_id"]
+isOneToOne: false
+      referencedRelation: "technicians"
       referencedColumns: ["id"]
     }
                   ]
@@ -175,6 +207,40 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"service_categories": {
+                  Row: {
+                    "created_at": string,"id": string,"is_active": boolean,"name": string,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"services": {
+                  Row: {
+                    "category_id": string,"created_at": string,"id": string,"is_active": boolean,"name": string,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "category_id": string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "category_id"?: string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "services_category_id_fkey"
+      columns: ["category_id"]
+isOneToOne: false
+      referencedRelation: "service_categories"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"settings": {
                   Row: {
                     "birthday_discount_enabled": boolean,"birthday_discount_percent": number,"birthday_window_days": number,"code_prefix": string,"id": boolean,"kiosk_idle_seconds": number,"tier_regular_points": number,"tier_vip_points": number,"timezone": string,"updated_at": string
@@ -199,6 +265,20 @@ isOneToOne: false
                   }
                   Update: {
                     "created_at"?: string,"display_name"?: string,"removed_at"?: string | null,"role"?: Database["public"]['Enums']["staff_role"],"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"technicians": {
+                  Row: {
+                    "created_at": string,"id": string,"is_active": boolean,"name": string,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"sort_order"?: number,"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -278,7 +358,7 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
 "kiosk_check_in":
-{ Args: { "p_birthday_day"?: number,"p_birthday_month"?: number,"p_first_name"?: string,"p_last_name"?: string,"p_phone": string }; Returns: Json
+{ Args: { "p_birthday_day"?: number,"p_birthday_month"?: number,"p_first_name"?: string,"p_last_name"?: string,"p_phone": string,"p_service_ids"?: (string)[],"p_technician_id"?: string }; Returns: Json
                            },
 "kiosk_redeem":
 { Args: { "p_phone": string,"p_promotion_id": string }; Returns: Json

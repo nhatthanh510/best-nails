@@ -126,7 +126,15 @@ const signupSchema = z.object({
 
 export type SignupInput = z.input<typeof signupSchema>;
 
-export async function checkIn(digits: string, signup?: SignupInput): Promise<CheckInResult> {
+/** What the customer picked on the services and staff steps. Both can be skipped. */
+export type VisitPicks = { serviceIds: string[]; technicianId: string | null };
+
+const picksSchema = z.object({
+  serviceIds: z.array(z.string().uuid()).max(50),
+  technicianId: z.string().uuid().nullable(),
+});
+
+export async function checkIn(digits: string, signup?: SignupInput, picks?: VisitPicks): Promise<CheckInResult> {
   const g = await guard();
   if ("error" in g) return { status: "error", message: g.error };
 
@@ -149,6 +157,9 @@ export async function checkIn(digits: string, signup?: SignupInput): Promise<Che
     }
   }
 
+  const parsedPicks = picks ? picksSchema.safeParse(picks) : null;
+  if (parsedPicks && !parsedPicks.success) return { status: "error", message: "Please ask the front desk." };
+
   const supabase = createAdminClient();
   const { data, error } = await supabase.rpc("kiosk_check_in", {
     p_phone: phone,
@@ -156,6 +167,8 @@ export async function checkIn(digits: string, signup?: SignupInput): Promise<Che
     p_last_name: profile?.lastName || undefined,
     p_birthday_month: profile?.birthdayMonth,
     p_birthday_day: profile?.birthdayDay,
+    p_service_ids: parsedPicks?.data.serviceIds.length ? parsedPicks.data.serviceIds : undefined,
+    p_technician_id: parsedPicks?.data.technicianId ?? undefined,
   });
   if (error || !data) return { status: "error", message: OFFLINE };
 
