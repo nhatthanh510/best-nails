@@ -21,16 +21,18 @@ export default function DashboardPage() {
 }
 
 async function Dashboard() {
-  const settings = await getSettings();
-  const tz = settings.timezone;
-  const [stats, rewards, birthdays, tiers, gifts] = await Promise.all([
+  // Started together: only the birthdays and tier counts need the settings first.
+  const settingsPromise = getSettings();
+  const [settings, stats, rewards, birthdays, tiers, gifts] = await Promise.all([
+    settingsPromise,
     getDashboard(),
     listRewards(),
     // The list is for offering the birthday discount, so it's skipped while that's switched off.
-    settings.birthday_discount_enabled ? getUpcomingBirthdays(tz) : [],
-    getTierCounts(settings),
+    settingsPromise.then((s) => (s.birthday_discount_enabled ? getUpcomingBirthdays(s.timezone) : [])),
+    settingsPromise.then(getTierCounts),
     giftVoucherSummary(),
   ]);
+  const tz = settings.timezone;
   const activeRewards = rewards.filter((r) => r.is_active);
 
   return (

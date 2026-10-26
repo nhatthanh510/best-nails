@@ -18,12 +18,16 @@ export default function KioskPage() {
 
 // The kiosk runs on the shop's one iPad while any account (admin or staff) is signed in on it.
 async function KioskGate() {
+  // Both start at once, so the screen doesn't wait for one round trip after the other. The
+  // content is only shown once the sign-in check has passed.
+  const contentPromise = loadKioskContent();
+  contentPromise.catch(() => {}); // Not awaited when signed out: don't report it as unhandled.
   const staff = await getStaff();
   if (!staff) return <SignedOut />;
   if (staff.mustChangePassword) redirect("/account");
   return (
     <>
-      <KioskApp content={await loadKioskContent()} isAdmin={staff.role === "admin"} />
+      <KioskApp content={await contentPromise} isAdmin={staff.role === "admin"} />
       {/* Messages from the header's gift voucher forms ("Created BN… take payment at the till"). */}
       <Toaster theme="dark" position="top-center" richColors />
     </>

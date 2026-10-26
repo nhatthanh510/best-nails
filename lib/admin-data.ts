@@ -55,11 +55,13 @@ async function shopTimezone() {
   return (await getSettings()).timezone;
 }
 
-async function dayStart(supabase: Awaited<ReturnType<typeof createClient>>, daysAgo = 0) {
+/** Midnight `daysAgo` days back in the shop's timezone. Cached for the request: pages ask for the same days. */
+const dayStart = cache(async (daysAgo: number) => {
+  const { supabase } = await staffClient();
   const { data, error } = await supabase.rpc("shop_day_start", { p_days_ago: daysAgo });
   if (error) throw error;
   return data as string;
-}
+});
 
 /** user id → display name, for "by" columns. */
 export async function staffNames(): Promise<Map<string, string>> {
@@ -85,7 +87,7 @@ const DASHBOARD_CHECK_INS = 10;
 export async function getDashboard() {
   const { supabase } = await staffClient();
   const { day: dayOfMonth } = shopDate(await shopTimezone());
-  const [today, weekAgo, monthStart] = await Promise.all([dayStart(supabase), dayStart(supabase, 6), dayStart(supabase, dayOfMonth - 1)]);
+  const [today, weekAgo, monthStart] = await Promise.all([dayStart(0), dayStart(6), dayStart(dayOfMonth - 1)]);
   const thirtyDaysAgo = new Date(Date.now() - 30 * DAY_MS).toISOString();
 
   const [checkIns, todayCount, newCustomers, total, active, redeemed, birthdays] = await Promise.all([
@@ -208,8 +210,9 @@ export async function listCustomers({
   if (search?.name) query = query.or(search.name);
 
   if (byVisit) {
-    query = query.is("visit.voided_at", null).gte("visit.created_at", await dayStart(supabase, filter === "week" ? 6 : filter === "yesterday" ? 1 : 0));
-    if (filter === "yesterday") query = query.lt("visit.created_at", await dayStart(supabase, 0));
+    const [from, until] = await Promise.all([dayStart(filter === "week" ? 6 : filter === "yesterday" ? 1 : 0), filter === "yesterday" ? dayStart(0) : null]);
+    query = query.is("visit.voided_at", null).gte("visit.created_at", from);
+    if (until) query = query.lt("visit.created_at", until);
   }
   if (filter === "birthday") query = query.eq("birthday_month", shopDate(await shopTimezone()).month);
 
@@ -311,7 +314,7 @@ export async function listCheckIns({
   page: number;
 }) {
   const { supabase } = await staffClient();
-  const since = await dayStart(supabase, CHECK_IN_RANGES[range]);
+  const since = await dayStart(CHECK_IN_RANGES[range]);
   const from = (page - 1) * CHECK_INS_PAGE_SIZE;
   const search = customerSearch(q);
   // An inner join, so a customer search drops the other check-ins. Every check-in has a
@@ -391,10 +394,12 @@ export async function listRewards(): Promise<Reward[]> {
 /** Times each reward has been redeemed, and birthday discounts used since 1 January (shop time). */
 export async function rewardUsage(rewardIds: string[]) {
   const { supabase } = await staffClient();
-  const yearStart = await dayStart(supabase, shopDate(await shopTimezone()).dayOfYear - 1);
   // Counted in the database: a shop has a handful of rewards, but each can have thousands of redemptions.
+  // Only the birthday count needs the year start, so the reward counts don't wait for it.
   const [birthdays, ...perReward] = await Promise.all([
-    supabase.from("birthday_redemptions").select("id", { count: "exact", head: true }).gte("created_at", yearStart),
+    shopTimezone()
+      .then((tz) => dayStart(shopDate(tz).dayOfYear - 1))
+      .then((yearStart) => supabase.from("birthday_redemptions").select("id", { count: "exact", head: true }).gte("created_at", yearStart)),
     ...rewardIds.map((id) =>
       supabase.from("point_transactions").select("id", { count: "exact", head: true }).eq("reason", "redeem").eq("promotion_id", id),
     ),
@@ -558,7 +563,10 @@ export async function listGiftVoucherActivity({
     .select("*, voucher:gift_vouchers!inner(id, code), customer:customers(id, first_name, last_name, phone)", { count: "exact" });
   if (kind !== "all") query = query.eq("kind", kind);
   const days = GIFT_ACTIVITY_RANGES[range];
-  if (days !== null) query = query.gte("created_at", await dayStart(supabase, days));
+  // Started now, awaited after the search below, so the two lookups overlap. (A search with no
+  // matches returns before awaiting it, hence the catch.)
+  const since = days !== null ? dayStart(days) : null;
+  since?.catch(() => {});
 
   // A search can be a code or a customer: find both, then show either's entries.
   const term = q.trim();
@@ -587,6 +595,8 @@ export async function listGiftVoucherActivity({
     ].filter(Boolean);
     query = query.or(either.join(","));
   }
+
+  if (since) query = query.gte("created_at", await since);
 
   const from = (page - 1) * GIFT_ACTIVITY_PAGE_SIZE;
   // By time, then by ledger order for entries written in the same transaction.
@@ -631,13 +641,13 @@ export async function getGiftVoucher(id: string) {
 /** Unspent credit the shop owes, and this month's sales. */
 export async function giftVoucherSummary() {
   const { supabase } = await staffClient();
-  const { year, month } = shopDate(await shopTimezone());
+  // Only this month's sales need the timezone, so the totals don't wait for it.
   const [totals, sold] = await Promise.all([
     supabase.from("gift_voucher_totals").select("*").single(),
-    supabase
-      .from("gift_vouchers")
-      .select("amount_cents")
-      .gte("sold_on", isoDate({ year, month, day: 1 })),
+    shopTimezone().then((tz) => {
+      const { year, month } = shopDate(tz);
+      return supabase.from("gift_vouchers").select("amount_cents").gte("sold_on", isoDate({ year, month, day: 1 }));
+    }),
   ]);
   return {
     outstandingCents: Number(totals.data?.outstanding_cents ?? 0),

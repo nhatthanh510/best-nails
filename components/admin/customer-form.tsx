@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useActionToast } from "@/components/admin/action-button";
 import { findCustomerByPhone, type ActionState } from "@/app/admin/actions";
 import type { Customer } from "@/lib/admin-data";
-import { formatPhone } from "@/lib/phone";
+import { formatPhoneInput } from "@/lib/phone-mask";
 import { MONTHS } from "@/lib/format";
 import { daysInMonth } from "@/lib/birthday";
 import { useFormSubmit } from "@/lib/use-form-submit";
@@ -60,7 +60,7 @@ export function CustomerForm({
           required
           autoFocus={!customer}
           placeholder="0412 345 678"
-          defaultValue={customer ? formatPhone(customer.phone) : ""}
+          defaultValue={customer ? formatPhoneInput(customer.phone) : ""}
           onBlur={(e) => lookUp(e.target.value)}
           onChange={() => existing && setExisting(null)}
           aria-invalid={existing ? true : undefined}
