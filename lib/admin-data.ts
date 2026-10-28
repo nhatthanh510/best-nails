@@ -667,3 +667,46 @@ export async function customerGiftVouchers(customerId: string) {
   const today = isoDate(shopDate(tz));
   return (data ?? []).map((v) => ({ ...v, status: giftVoucherStatus(v, today) }));
 }
+
+// ---------------------------------------------------------------------------
+// Ask the shop (read-only questions the assistant can look up)
+// ---------------------------------------------------------------------------
+
+/** Customers who have visited before but not in the last `days` days, the longest away first. */
+export async function listLapsedCustomers(days: number, limit = 25) {
+  const { supabase } = await staffClient();
+  const cutoff = new Date(Date.now() - days * DAY_MS).toISOString();
+  const { data, count, error } = await supabase
+    .from("customers")
+    .select("id, first_name, last_name, last_visit_at, visit_count, lifetime_points, points_balance", { count: "exact" })
+    .lt("last_visit_at", cutoff)
+    .order("last_visit_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return { customers: data, total: count ?? 0 };
+}
+
+/** How often each service and nail technician was picked on the kiosk in a range. */
+export async function serviceStats(range: CheckInRange) {
+  const { supabase } = await staffClient();
+  const since = await dayStart(CHECK_IN_RANGES[range]);
+  const [services, technicians] = await Promise.all([
+    supabase
+      .from("check_in_services")
+      .select("name, category_name, check_in:check_ins!inner(created_at, voided_at)")
+      .gte("check_in.created_at", since)
+      .is("check_in.voided_at", null)
+      .limit(5000),
+    supabase.from("check_ins").select("technician_name").gte("created_at", since).is("voided_at", null).not("technician_name", "is", null).limit(5000),
+  ]);
+  if (services.error) throw services.error;
+  if (technicians.error) throw technicians.error;
+  const tally = (names: string[]) =>
+    [...names.reduce((m, n) => m.set(n, (m.get(n) ?? 0) + 1), new Map<string, number>())]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  return {
+    services: tally(services.data.map((s) => `${s.category_name}: ${s.name}`)),
+    technicians: tally(technicians.data.map((t) => t.technician_name!)),
+  };
+}

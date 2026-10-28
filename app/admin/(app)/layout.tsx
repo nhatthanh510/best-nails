@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/admin/sidebar";
+import { AskChat } from "@/components/admin/ask-chat";
 import { getStaff } from "@/lib/auth";
 import { signOut } from "../actions";
 
@@ -23,8 +24,10 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
           </Suspense>
         }
       />
-      <main className="flex min-w-0 flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-10 md:has-[[data-list-panel]]:gap-4 md:has-[[data-list-panel]]:py-6 md:has-[[data-list-panel]]:overflow-y-auto md:has-[[data-list-panel]]:[scrollbar-gutter:stable]">{children}</main>
+      <main className="flex min-w-0 flex-1 flex-col gap-6 px-4 pt-8 pb-24 sm:px-6 lg:px-10 md:has-[[data-list-panel]]:gap-4 md:has-[[data-list-panel]]:pt-6 md:has-[[data-list-panel]]:pb-24 md:has-[[data-list-panel]]:overflow-y-auto md:has-[[data-list-panel]]:[scrollbar-gutter:stable]">{children}</main>
       <Toaster theme="light" position="top-center" richColors />
+      {/* Room is left under <main> (pb-24) so the button never covers a page's last row or pager. */}
+      <AskChat />
     </div>
   );
 }
