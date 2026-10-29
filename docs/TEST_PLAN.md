@@ -88,7 +88,7 @@ Run on 26 Oct 2026 against the local stack (Next.js dev server, Supabase in Dock
 | G-15 | Create from the kiosk header with a customer on screen | Phone pre-filled; toast with code | E2E | Pass (code vanishes too fast: UX-1) |
 | G-16 | Mistyped code (two digits swapped) | "This code looks mistyped" | E2E | Pass |
 | G-17 | Delete a used voucher | Not offered; only unspent vouchers can be deleted | E2E + DB policy | Pass |
-| G-18 | Vouchers and Activity views, Created/Used filters | Rows, colours and summary correct | E2E | Pass |
+| G-18 | Voucher search by code, name or phone; Used today filter | Matching vouchers listed | E2E | Pass |
 
 ### Customers, check-ins, rewards, settings, dashboard
 | ID | Scenario | Expected | How | Result |

@@ -3,7 +3,7 @@ import { GIFT_VOUCHER_STATUS_LABELS, type GiftVoucherStatus } from "@/lib/gift-v
 
 const STYLES: Record<GiftVoucherStatus, string> = {
   active: "bg-success-soft text-success",
-  used_up: "bg-secondary text-muted-foreground",
+  used_up: "bg-destructive/10 text-destructive",
   expired: "bg-warning-soft text-warning",
 };
 

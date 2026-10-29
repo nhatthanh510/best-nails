@@ -546,12 +546,12 @@ type CustomerRef = Pick<Customer, "id" | "first_name" | "last_name" | "phone">;
 export type GiftVoucherRow = Tables["gift_vouchers"]["Row"] & {
   customer: CustomerRef | null;
   status: GiftVoucherStatus;
-  /** The most recent spend still standing (not undone): when, and by which customer. */
-  lastUse: { created_at: string; customer: Pick<Customer, "first_name" | "last_name"> | null } | null;
+  /** The most recent spend still standing (not undone): when, how much (negative cents) and by which customer. */
+  lastUse: { created_at: string; delta_cents: number; customer: Pick<Customer, "first_name" | "last_name"> | null } | null;
 };
 export type GiftVoucherTransaction = Tables["gift_voucher_transactions"]["Row"] & { customer: CustomerRef | null };
 
-export const GIFT_VOUCHER_FILTERS = ["all", "active", "used_up", "expired"] as const;
+export const GIFT_VOUCHER_FILTERS = ["all", "used_today", "active", "used_up", "expired"] as const;
 export type GiftVoucherFilter = (typeof GIFT_VOUCHER_FILTERS)[number];
 export const GIFT_VOUCHERS_PAGE_SIZE = 25;
 
@@ -562,7 +562,7 @@ export async function listGiftVouchers({ q, filter, page }: { q: string; filter:
   const today = isoDate(shopDate(await shopTimezone()));
   let query = supabase
     .from("gift_vouchers")
-    .select("*, customer:customers(id, first_name, last_name, phone), last_use:gift_voucher_transactions(created_at, customer:customers(first_name, last_name))", {
+    .select("*, customer:customers(id, first_name, last_name, phone), last_use:gift_voucher_transactions(created_at, delta_cents, customer:customers(first_name, last_name))", {
       count: "exact",
     })
     // Only the latest spend that wasn't undone, for the list's "Last used" column.
@@ -571,9 +571,45 @@ export async function listGiftVouchers({ q, filter, page }: { q: string; filter:
     .order("seq", { referencedTable: "last_use", ascending: false })
     .limit(1, { referencedTable: "last_use" });
 
-  // Codes are stored without dashes or spaces, so search the same way.
-  const code = q.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (code) query = query.like("code", `%${code}%`);
+  // A search can be a code or a customer: a customer finds the vouchers they hold and the ones they used.
+  const term = q.trim();
+  if (term) {
+    // Codes are stored without dashes or spaces, so search the same way.
+    const code = term.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const search = customerSearch(term);
+    const people = search
+      ? await (search.phone
+          ? supabase.from("customers").select("id").like("phone", search.phone)
+          : supabase.from("customers").select("id").or(search.name!)
+        ).limit(200)
+      : { data: [] };
+    const customerIds = (people.data ?? []).map((r) => r.id);
+    const used = customerIds.length
+      ? await supabase.from("gift_voucher_transactions").select("gift_voucher_id").in("customer_id", customerIds).limit(500)
+      : { data: [] };
+    const usedIds = [...new Set((used.data ?? []).map((r) => r.gift_voucher_id))];
+    const either = [
+      code ? `code.like.%${code}%` : null,
+      customerIds.length ? `customer_id.in.(${customerIds.join(",")})` : null,
+      usedIds.length ? `id.in.(${usedIds.join(",")})` : null,
+    ].filter(Boolean);
+    if (!either.length) return { vouchers: [] as GiftVoucherRow[], total: 0, pastEnd: false };
+    query = query.or(either.join(","));
+  }
+  // For checking against the till at the end of the day.
+  if (filter === "used_today") {
+    const { data: spends, error } = await supabase
+      .from("gift_voucher_transactions")
+      .select("gift_voucher_id")
+      .eq("kind", "spend")
+      .is("voided_at", null)
+      .gte("created_at", await dayStart(0))
+      .limit(1000);
+    if (error) throw error;
+    const ids = [...new Set((spends ?? []).map((r) => r.gift_voucher_id))];
+    if (!ids.length) return { vouchers: [] as GiftVoucherRow[], total: 0, pastEnd: false };
+    query = query.in("id", ids);
+  }
   if (filter === "active") query = query.gt("balance_cents", 0).gte("expires_on", today);
   if (filter === "used_up") query = query.eq("balance_cents", 0).gte("expires_on", today);
   if (filter === "expired") query = query.lt("expires_on", today);
@@ -592,89 +628,6 @@ export async function listGiftVouchers({ q, filter, page }: { q: string; filter:
     total: count ?? 0,
     pastEnd: false,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Gift voucher activity: every sale, spend, undo and adjustment, across all vouchers
-// ---------------------------------------------------------------------------
-
-export const GIFT_ACTIVITY_KINDS = ["all", "sale", "spend"] as const;
-export type GiftActivityKind = (typeof GIFT_ACTIVITY_KINDS)[number];
-export const GIFT_ACTIVITY_RANGES = { "7d": 6, "30d": 29, all: null } as const;
-export type GiftActivityRange = keyof typeof GIFT_ACTIVITY_RANGES;
-export const GIFT_ACTIVITY_PAGE_SIZE = 50;
-
-export type GiftActivityRow = Tables["gift_voucher_transactions"]["Row"] & {
-  voucher: { id: string; code: string };
-  customer: CustomerRef | null;
-};
-
-/**
- * The voucher ledger newest first, so staff can see who bought, who used and when without
- * opening each voucher. `q` matches a voucher code, or a customer's name or phone (what they
- * used, plus everything on the vouchers they hold).
- */
-export async function listGiftVoucherActivity({
-  q,
-  kind,
-  range,
-  page,
-}: {
-  q: string;
-  kind: GiftActivityKind;
-  range: GiftActivityRange;
-  page: number;
-}) {
-  const { supabase } = await staffClient();
-  let query = supabase
-    .from("gift_voucher_transactions")
-    .select("*, voucher:gift_vouchers!inner(id, code), customer:customers(id, first_name, last_name, phone)", { count: "exact" });
-  if (kind !== "all") query = query.eq("kind", kind);
-  const days = GIFT_ACTIVITY_RANGES[range];
-  // Started now, awaited after the search below, so the two lookups overlap. (A search with no
-  // matches returns before awaiting it, hence the catch.)
-  const since = days !== null ? dayStart(days) : null;
-  since?.catch(() => {});
-
-  // A search can be a code or a customer: find both, then show either's entries.
-  const term = q.trim();
-  if (term) {
-    const code = term.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const search = customerSearch(term);
-    const [codes, people] = await Promise.all([
-      code ? supabase.from("gift_vouchers").select("id").like("code", `%${code}%`).limit(200) : { data: [] },
-      search
-        ? (search.phone
-            ? supabase.from("customers").select("id").like("phone", search.phone)
-            : supabase.from("customers").select("id").or(search.name!)
-          ).limit(200)
-        : { data: [] },
-    ]);
-    const customerIds = (people.data ?? []).map((r) => r.id);
-    // A customer's activity is what they used and everything on vouchers they hold.
-    const held = customerIds.length
-      ? await supabase.from("gift_vouchers").select("id").in("customer_id", customerIds).limit(200)
-      : { data: [] };
-    const voucherIds = [...new Set([...(codes.data ?? []), ...(held.data ?? [])].map((r) => r.id))];
-    if (!voucherIds.length && !customerIds.length) return { rows: [] as GiftActivityRow[], total: 0, pastEnd: false };
-    const either = [
-      voucherIds.length ? `gift_voucher_id.in.(${voucherIds.join(",")})` : null,
-      customerIds.length ? `customer_id.in.(${customerIds.join(",")})` : null,
-    ].filter(Boolean);
-    query = query.or(either.join(","));
-  }
-
-  if (since) query = query.gte("created_at", await since);
-
-  const from = (page - 1) * GIFT_ACTIVITY_PAGE_SIZE;
-  // By time, then by ledger order for entries written in the same transaction.
-  const { data, count, error } = await query
-    .order("created_at", { ascending: false })
-    .order("seq", { ascending: false })
-    .range(from, from + GIFT_ACTIVITY_PAGE_SIZE - 1);
-  if (error?.code === PAST_END) return { rows: [] as GiftActivityRow[], total: 0, pastEnd: true };
-  if (error) throw error;
-  return { rows: (data ?? []) as unknown as GiftActivityRow[], total: count ?? 0, pastEnd: false };
 }
 
 /** Just the code, for the browser tab title. */

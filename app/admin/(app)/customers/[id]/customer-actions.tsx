@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { AddRemoveToggle, type Direction } from "@/components/admin/add-remove-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +11,6 @@ import { CustomerForm } from "@/components/admin/customer-form";
 import { useActionToast } from "@/components/admin/action-button";
 import { adjustPoints, updateCustomer } from "@/app/admin/actions";
 import type { Customer } from "@/lib/admin-data";
-import { cn } from "@/lib/utils";
 import { useFormSubmit } from "@/lib/use-form-submit";
 import { cleanNumber, numberInput } from "@/lib/number-input";
 
@@ -23,7 +23,7 @@ export function EditCustomerButton({ customer }: { customer: Customer }) {
 }
 
 export function AdjustPointsForm({ customerId, balance }: { customerId: string; balance: number }) {
-  const [direction, setDirection] = useState<"add" | "remove">("add");
+  const [direction, setDirection] = useState<Direction>("add");
   const [amount, setAmount] = useState("");
   const [state, formAction, pending] = useActionState(async (prev: Parameters<typeof adjustPoints>[1], fd: FormData) => {
     const result = await adjustPoints(customerId, prev, fd);
@@ -39,22 +39,7 @@ export function AdjustPointsForm({ customerId, balance }: { customerId: string; 
   return (
     <form {...formSubmit} className="flex flex-col gap-3.5">
       <input type="hidden" name="direction" value={direction} />
-      <div role="group" aria-label="Add or remove points" className="grid grid-cols-2 gap-2">
-        {(["add", "remove"] as const).map((d) => (
-          <button
-            key={d}
-            type="button"
-            aria-pressed={direction === d}
-            onClick={() => setDirection(d)}
-            className={cn(
-              "min-h-11 rounded-[10px] border text-sm font-bold capitalize",
-              direction === d ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card hover:bg-muted",
-            )}
-          >
-            {d}
-          </button>
-        ))}
-      </div>
+      <AddRemoveToggle value={direction} onChange={setDirection} label="Add or remove points" />
       <div className="flex flex-col gap-2">
         <Label htmlFor="amount">Points</Label>
         <Input id="amount" name="amount" {...numberInput("digits")} maxLength={6} required value={amount} onChange={(e) => setAmount(cleanNumber("digits", e.target.value))} />

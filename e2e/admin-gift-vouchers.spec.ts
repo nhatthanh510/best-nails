@@ -166,11 +166,11 @@ test.describe("Admin: managing a voucher", () => {
     await expect(page.getByRole("button", { name: "Delete voucher" })).toHaveCount(0);
   });
 
-  test("G-18 the Activity view lists who created and used a voucher", async ({ page }) => {
+  test("G-18 the voucher search finds a customer's vouchers by name", async ({ page }) => {
     const id = await seedCustomer({ phone: testPhone(42), firstName: "Cleo", lastName: "Spender" });
     await seedVoucher({ code: "QA42000004", amountCents: 5000, customerId: id });
-    await page.goto("/admin/gift-vouchers?view=activity&q=QA42000004");
-    await expect(page.getByRole("cell", { name: /Created/ }).first()).toBeVisible();
+    await page.goto("/admin/gift-vouchers?q=Spender");
+    await expect(page.getByRole("link", { name: "QA42000004" })).toBeVisible();
     await expect(page.getByText("Cleo Spender").filter({ visible: true }).first()).toBeVisible();
   });
 });

@@ -182,19 +182,20 @@ async function CustomerDetail({
       </div>
 
       <div className="flex flex-wrap items-start gap-5">
-        <Card id="history" className="min-w-0 flex-[999_1_480px] scroll-mt-4 pt-5 pb-2">
+        <Card id="history" className="@container min-w-0 flex-[999_1_480px] scroll-mt-4 pt-5 pb-2">
           <h2 className="px-5 pb-3 text-lg font-extrabold">Points history</h2>
-          {/* A check-in's services and staff get their own columns from md; on phones they sit under
-              the activity, and the running balance is left out. */}
+          {/* Sized by the card, not the screen (it shares the row with the side cards on an iPad):
+              a check-in's services and staff get their own columns once the card is wide enough,
+              and otherwise sit under the activity. A narrow card leaves out the running balance. */}
           <DataTable minWidth={0}>
             <thead>
               <tr>
                 <th className={th}>Date</th>
                 <th className={th}>Activity</th>
-                <th className={`${th} hidden md:table-cell`}>Services</th>
-                <th className={`${th} hidden md:table-cell`}>Staff</th>
+                <th className={`${th} hidden @2xl:table-cell`}>Services</th>
+                <th className={`${th} hidden @2xl:table-cell`}>Staff</th>
                 <th className={`${th} text-right`}>Points</th>
-                <th className={`${th} hidden text-right sm:table-cell`}>Balance</th>
+                <th className={`${th} hidden text-right @md:table-cell`}>Balance</th>
               </tr>
             </thead>
             <tbody>
@@ -208,17 +209,17 @@ async function CustomerDetail({
                       {h.row.note && <p className="text-[13px] text-muted-foreground">{h.row.note}</p>}
                       {by(h.row.created_by)}
                       {h.row.visit && (
-                        <div className="md:hidden">
+                        <div className="@2xl:hidden">
                           <VisitSummary services={h.row.visit.services} staff={h.row.visit.technician_name} />
                         </div>
                       )}
                     </td>
-                    <td className={`${td} hidden md:table-cell`}>{h.row.visit && <VisitServices services={h.row.visit.services} />}</td>
-                    <td className={`${td} hidden whitespace-nowrap md:table-cell`}>{h.row.visit && <VisitStaff name={h.row.visit.technician_name} />}</td>
+                    <td className={`${td} hidden @2xl:table-cell`}>{h.row.visit && <VisitServices services={h.row.visit.services} />}</td>
+                    <td className={`${td} hidden whitespace-nowrap @2xl:table-cell`}>{h.row.visit && <VisitStaff name={h.row.visit.technician_name} />}</td>
                     <td className={`${td} text-right font-extrabold tabular-nums ${h.row.delta > 0 ? "text-success" : "text-destructive"}`}>
                       {signed(h.row.delta)}
                     </td>
-                    <td className={`${td} hidden text-right tabular-nums sm:table-cell`}>{h.row.balance_after}</td>
+                    <td className={`${td} hidden text-right tabular-nums @md:table-cell`}>{h.row.balance_after}</td>
                   </tr>
                 ) : (
                   <tr key={h.row.id}>
@@ -228,10 +229,10 @@ async function CustomerDetail({
                       <p className="text-[13px] text-muted-foreground">{h.row.percent}% off · {h.row.birthday_year}</p>
                       {by(h.row.created_by)}
                     </td>
-                    <td className={`${td} hidden md:table-cell`} />
-                    <td className={`${td} hidden md:table-cell`} />
+                    <td className={`${td} hidden @2xl:table-cell`} />
+                    <td className={`${td} hidden @2xl:table-cell`} />
                     <td className={`${td} text-right text-muted-foreground`}>—</td>
-                    <td className={`${td} hidden sm:table-cell`} />
+                    <td className={`${td} hidden @md:table-cell`} />
                   </tr>
                 ),
               )}
@@ -323,8 +324,8 @@ async function CustomerDetail({
 
           {staff.role === "admin" && (
             <ConfirmButton
-              variant="ghost"
-              className="w-fit text-destructive hover:text-destructive"
+              variant="danger"
+              className="w-full"
               title={`Delete ${fullName(c)}?`}
               description="This removes the customer, their visits and their points history. It can't be undone."
               notice={unlinkedVoucherNotice(giftVouchers)}

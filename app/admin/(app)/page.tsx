@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { ChevronRight, Gift } from "lucide-react";
 import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, dashboardTileGrid, td, th } from "@/components/admin/ui";
-import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/admin/skeletons";
+import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import {
   DASHBOARD_PERIODS,
@@ -31,6 +32,9 @@ export default function DashboardPage({ searchParams }: PageProps<"/admin">) {
     </Suspense>
   );
 }
+
+/** A side card with nothing to list shrinks to its heading and one line. */
+const sideCard = (empty: boolean) => (empty ? "flex flex-col gap-1 px-5 py-4" : "flex flex-col gap-3 p-5");
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = { today: "Today", week: "7 days", month: "This month" };
 
@@ -82,23 +86,13 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
       <div className="-mb-2 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-extrabold">{range}</h2>
         {/* Links, so the period is in the URL (back button, bookmarks) and the page stays a server render. */}
-        <div role="group" aria-label="Period" className="flex gap-1 rounded-full border border-input bg-card p-1">
-          {DASHBOARD_PERIODS.map((p) => (
-            <Link
-              key={p}
-              href={p === "today" ? "/admin" : `/admin?period=${p}`}
-              scroll={false}
-              replace
-              aria-current={p === period ? "true" : undefined}
-              className={cn(
-                "flex min-h-9 items-center rounded-full px-3.5 text-sm font-bold whitespace-nowrap",
-                p === period ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {PERIOD_LABELS[p]}
-            </Link>
-          ))}
-        </div>
+        <SegmentedLinks
+          label="Period"
+          value={period}
+          options={DASHBOARD_PERIODS.map((p) => ({ value: p, label: PERIOD_LABELS[p], href: p === "today" ? "/admin" : `/admin?period=${p}` }))}
+          replace
+          scroll={false}
+        />
       </div>
       <div className={dashboardTileGrid}>
         <StatTile
@@ -117,12 +111,19 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
           }
         />
         <StatTile
-          label="Gift vouchers sold"
+          // The app says "created" (payment happens at the till). New credit and credit spent are
+          // different money, so each gets its own line.
+          label="Gift vouchers created"
           value={formatMoney(vouchers.soldCents)}
           hint={
-            vouchers.used > 0
-              ? `${vouchers.sold} sold · ${formatMoney(vouchers.usedCents)} used on ${vouchers.used}`
-              : `${vouchers.sold} sold · none used${period === "today" ? " yet" : ""}`
+            <>
+              <span className="block">{vouchers.sold} new voucher{vouchers.sold === 1 ? "" : "s"}</span>
+              <span className="block">
+                {vouchers.used > 0
+                  ? `${formatMoney(vouchers.usedCents)} spent from ${vouchers.used} voucher${vouchers.used === 1 ? "" : "s"}`
+                  : `None spent${period === "today" ? " yet" : ""}`}
+              </span>
+            </>
           }
         />
       </div>
@@ -181,33 +182,46 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
         </Card>
 
         <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-5">
-          <Card className="flex flex-col gap-3 p-5">
-            <h2 className="text-lg font-extrabold">Top services · {PERIOD_LABELS[period].toLowerCase()}</h2>
-            {stats.topServices.length === 0 && <p className="text-sm text-muted-foreground">No services picked yet.</p>}
-            <ul className="flex flex-col gap-2.5 text-sm">
-              {stats.topServices.map((sv) => (
-                <li key={`${sv.category_name}/${sv.name}`} className="flex flex-col gap-1">
-                  <span className="flex justify-between gap-3">
-                    <span className="min-w-0">
-                      <span className="font-bold">{sv.name}</span> <span className="text-[13px] text-muted-foreground">· {sv.category_name}</span>
+          {/* Left out until there's something to rank, so a quiet morning doesn't push the useful cards down. */}
+          {stats.topServices.length > 0 && (
+            <Card className="flex flex-col gap-3 p-5">
+              <h2 className="text-lg font-extrabold">Top services · {PERIOD_LABELS[period].toLowerCase()}</h2>
+              <ul className="flex flex-col gap-2.5 text-sm">
+                {stats.topServices.map((sv) => (
+                  <li key={`${sv.category_name}/${sv.name}`} className="flex flex-col gap-1">
+                    <span className="flex justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="font-bold">{sv.name}</span> <span className="text-[13px] text-muted-foreground">· {sv.category_name}</span>
+                      </span>
+                      <span className="font-extrabold tabular-nums">{sv.uses}</span>
                     </span>
-                    <span className="font-extrabold tabular-nums">{sv.uses}</span>
-                  </span>
-                  {/* Share of the most picked, so the bars compare services at a glance. */}
-                  <span aria-hidden="true" className="h-1.5 rounded-full bg-muted">
-                    <span className="block h-full rounded-full bg-primary" style={{ width: `${(sv.uses / stats.topServices[0].uses) * 100}%` }} />
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                    {/* Share of the most picked, so the bars compare services at a glance. */}
+                    <span aria-hidden="true" className="h-1.5 rounded-full bg-muted">
+                      <span className="block h-full rounded-full bg-primary" style={{ width: `${(sv.uses / stats.topServices[0].uses) * 100}%` }} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
-          <Card className="flex flex-col gap-3 p-5">
+          <Card className={sideCard(closeToReward?.total === 0)}>
             {reward && closeToReward ? (
               <>
-                <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="text-lg font-extrabold">1 visit from {reward.title}</h2>
-                  {closeToReward.total > 0 && <span className="text-sm text-muted-foreground">{closeToReward.total}</span>}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h2 className="text-lg font-extrabold">1 visit from a reward</h2>
+                    {closeToReward.total > 0 && <span className="text-sm text-muted-foreground">{closeToReward.total}</span>}
+                  </div>
+                  {/* The reward's own name can be long and read like part of the heading, so it gets its own chip. */}
+                  <Link
+                    href="/admin/rewards"
+                    className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-full bg-accent px-2.5 py-0.5 text-[13px] font-semibold text-accent-foreground hover:bg-[color-mix(in_oklch,var(--accent),var(--foreground)_6%)] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  >
+                    <Gift className="size-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">{reward.title}</span>
+                    <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+                  </Link>
                 </div>
                 {closeToReward.total === 0 && <p className="text-sm text-muted-foreground">Nobody right now.</p>}
                 <NudgeList
@@ -227,7 +241,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
             )}
           </Card>
 
-          <Card className="flex flex-col gap-3 p-5">
+          <Card className={sideCard(notBack.total === 0)}>
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="text-lg font-extrabold">Regulars not back in {NOT_BACK_DAYS / 7} weeks</h2>
               {notBack.total > 0 && <span className="text-sm text-muted-foreground">{notBack.total}</span>}
@@ -241,7 +255,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
           </Card>
 
           {settings.birthday_discount_enabled && (
-            <Card className="flex flex-col gap-3 p-5">
+            <Card className={sideCard(birthdays.length === 0)}>
               <div className="flex items-baseline justify-between gap-2">
                 <h2 className="text-lg font-extrabold">Birthdays this week</h2>
                 {birthdays.length > 0 && <span className="text-sm text-muted-foreground">{birthdays.length}</span>}

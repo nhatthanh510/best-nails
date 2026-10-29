@@ -13,15 +13,16 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="flex flex-col gap-1">
+    // From tablet width the buttons always stay top-right, and a long subtitle wraps beside them.
+    <div className="flex flex-wrap items-end justify-between gap-4 sm:flex-nowrap sm:items-start">
+      <div className="flex min-w-0 flex-col gap-1">
         <h1 className="text-[2.375rem] leading-tight font-bold">{title}</h1>
         {subtitle && <div className="text-sm text-muted-foreground">{subtitle}</div>}
       </div>
       {/* On phones the buttons share one full-width row instead of stacking; without their icons
           and with less padding, two labels fit side by side down to 375px. */}
       {actions && (
-        <div className="flex gap-2.5 max-sm:w-full max-sm:gap-2 max-sm:*:flex-1 max-sm:*:px-3 max-sm:[&_svg]:hidden sm:flex-wrap">{actions}</div>
+        <div className="flex gap-2.5 max-sm:w-full max-sm:gap-2 max-sm:*:flex-1 max-sm:*:px-3 max-sm:[&_svg]:hidden sm:mt-1 sm:flex-none sm:flex-wrap sm:justify-end">{actions}</div>
       )}
     </div>
   );
@@ -38,8 +39,16 @@ export function StatTile({ label, value, hint }: { label: string; value: React.R
   return (
     <Card className="flex flex-col gap-1.5 p-4 sm:p-5">
       <p className="text-sm font-semibold text-muted-foreground">{label}</p>
-      {/* Smaller on phones, where tiles sit two to a row. */}
-      <p className="text-2xl font-extrabold tracking-tight tabular-nums sm:text-4xl">{value}</p>
+      {/* Smaller on phones, where tiles sit two to a row. A word ("Yesterday", "Ready") is a size
+          down from a number, so it fits a quarter-width tile. */}
+      <p
+        className={cn(
+          "font-extrabold tracking-tight tabular-nums",
+          typeof value === "string" && /[a-z]/i.test(value) ? "text-xl sm:text-[28px] sm:leading-10" : "text-2xl sm:text-4xl",
+        )}
+      >
+        {value}
+      </p>
       {hint && <p className="text-[13px] text-muted-foreground">{hint}</p>}
     </Card>
   );
@@ -197,6 +206,9 @@ export function Pager({
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const link = (p: number) => `${href(p)}${anchor ? `#${anchor}` : ""}`;
+  // In a toolbar, a single page needs no pager: the rows are all there, and hiding it keeps the
+  // toolbar on one row on an iPad.
+  if (compact && pages <= 1) return null;
   if (compact)
     return (
       <nav aria-label="Pages" className={cn("flex items-center gap-1.5 text-sm text-muted-foreground tabular-nums", className)}>

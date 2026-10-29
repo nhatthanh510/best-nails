@@ -147,6 +147,8 @@ export function BirthdayDiscountForm({
   const [state, formAction, pending] = useActionState(saveBirthdayDiscount, null);
   useActionToast(state, { errors: false });
 
+  const [enabled, setEnabled] = useState(s.birthday_discount_enabled);
+
   const formSubmit = useFormSubmit(state, formAction, { resetOnSuccess: false });
   return (
     <Card className="flex min-w-0 flex-[1_1_340px] flex-col gap-4 p-5">
@@ -165,42 +167,47 @@ export function BirthdayDiscountForm({
               type="checkbox"
               name="birthday_discount_enabled"
               defaultChecked={s.birthday_discount_enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
               className="size-5 accent-primary"
             />
             Offer a birthday discount
           </label>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="birthday_discount_percent">Discount</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="birthday_discount_percent"
-                name="birthday_discount_percent"
-                {...numberInput("digits")}
-                maxLength={3}
-                required
-                defaultValue={s.birthday_discount_percent}
-                className="w-28"
-              />
-              <span className="text-sm font-bold">% off</span>
+          {/* Dimmed while the discount is off. `inert` rather than `disabled`, so the values are
+              still sent and kept for when it's turned back on. */}
+          <div inert={!enabled} className={cn("flex flex-col gap-4 transition-opacity", !enabled && "opacity-50")}>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="birthday_discount_percent">Discount</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="birthday_discount_percent"
+                  name="birthday_discount_percent"
+                  {...numberInput("digits")}
+                  maxLength={3}
+                  required
+                  defaultValue={s.birthday_discount_percent}
+                  className="w-28"
+                />
+                <span className="text-sm font-bold">% off</span>
+              </div>
             </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="birthday_window_days">When it can be used</Label>
-            <select
-              id="birthday_window_days"
-              name="birthday_window_days"
-              defaultValue={s.birthday_window_days}
-              className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px] disabled:opacity-60"
-            >
-              {!WINDOWS.some((w) => w.days === s.birthday_window_days) && (
-                <option value={s.birthday_window_days}>{s.birthday_window_days} days either side</option>
-              )}
-              {WINDOWS.map((w) => (
-                <option key={w.days} value={w.days}>
-                  {w.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="birthday_window_days">When it can be used</Label>
+              <select
+                id="birthday_window_days"
+                name="birthday_window_days"
+                defaultValue={s.birthday_window_days}
+                className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px] disabled:opacity-60"
+              >
+                {!WINDOWS.some((w) => w.days === s.birthday_window_days) && (
+                  <option value={s.birthday_window_days}>{s.birthday_window_days} days either side</option>
+                )}
+                {WINDOWS.map((w) => (
+                  <option key={w.days} value={w.days}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           {!canEdit && <p className="text-sm font-semibold text-muted-foreground">Only an admin can change this.</p>}
           {state && !state.ok && (

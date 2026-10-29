@@ -29,6 +29,7 @@ import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
 import type { GiftVoucherStatus } from "@/lib/gift-vouchers";
 import { useFormSubmit } from "@/lib/use-form-submit";
 import { cleanNumber, numberInput } from "@/lib/number-input";
+import { AddRemoveToggle, type Direction } from "@/components/admin/add-remove-toggle";
 
 const segment = (active: boolean) =>
   cn(
@@ -607,7 +608,7 @@ export function GiftVoucherSettingsForm({
 }
 
 export function AdjustGiftVoucherForm({ id, balanceCents }: { id: string; balanceCents: number }) {
-  const [direction, setDirection] = useState<"add" | "remove">("add");
+  const [direction, setDirection] = useState<Direction>("add");
   const [amount, setAmount] = useState("");
   const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
     const result = await adjustGiftVoucher(id, prev, fd);
@@ -623,13 +624,7 @@ export function AdjustGiftVoucherForm({ id, balanceCents }: { id: string; balanc
   return (
     <form {...formSubmit} className="flex flex-col gap-3.5">
       <input type="hidden" name="direction" value={direction} />
-      <div role="group" aria-label="Add or remove credit" className="grid grid-cols-2 gap-2">
-        {(["add", "remove"] as const).map((d) => (
-          <button key={d} type="button" aria-pressed={direction === d} onClick={() => setDirection(d)} className={cn(segment(direction === d), "capitalize")}>
-            {d}
-          </button>
-        ))}
-      </div>
+      <AddRemoveToggle value={direction} onChange={setDirection} label="Add or remove credit" />
       <div className="relative">
         <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground">$</span>
         <Input name="amount" aria-label="Amount in dollars" {...numberInput("money")} maxLength={7} autoComplete="off" value={amount} onChange={(e) => setAmount(cleanNumber("money", e.target.value))} className="pl-7 tabular-nums" />

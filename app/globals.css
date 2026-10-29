@@ -149,6 +149,11 @@
   html:has([data-admin]) {
     scrollbar-gutter: stable;
   }
+  /* An open dialog locks scrolling and Radix adds the scrollbar's width as body margin. The
+     gutter above already keeps that space, so the extra margin would push the page sideways. */
+  html:has([data-admin]) body[data-scroll-locked] {
+    margin-right: 0 !important;
+  }
   /* A page with a list panel fits the screen and <main> keeps the gutter instead (admin layout). */
   @media (width >= 48rem) {
     html:has([data-list-panel]) {

@@ -51,12 +51,14 @@ export default function CustomersPage({ searchParams }: PageProps<"/admin/custom
 async function Customers({ searchParams }: { searchParams: PageProps<"/admin/customers">["searchParams"] }) {
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q.slice(0, 60) : "";
-  const filter = CUSTOMER_FILTERS.includes(params.filter as CustomerFilter) ? (params.filter as CustomerFilter) : "all";
+  const settings = await getSettings();
+  // "Birthday this month" only helps while the shop offers a birthday discount.
+  const filters = CUSTOMER_FILTERS.filter((f) => f !== "birthday" || settings.birthday_discount_enabled);
+  const filter = filters.includes(params.filter as CustomerFilter) ? (params.filter as CustomerFilter) : "all";
   const sort = CUSTOMER_SORTS.includes(params.sort as CustomerSort) ? (params.sort as CustomerSort) : "last_visit";
   const dir: SortDir = params.dir === "asc" || params.dir === "desc" ? params.dir : DEFAULT_SORT_DIR[sort];
   const page = Math.max(1, Number(params.page) || 1);
 
-  const settings = await getSettings();
   const { customers, total, pastEnd } = await listCustomers({ q, filter, sort, dir, page });
   const tz = settings.timezone;
 
@@ -113,11 +115,11 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
           <FilterSelect
             label="Filter customers"
             value={filter}
-            options={CUSTOMER_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], href: href({ filter: f }) }))}
+            options={filters.map((f) => ({ value: f, label: FILTER_LABELS[f], href: href({ filter: f }) }))}
             className="w-full md:hidden"
           />
           <div role="group" aria-label="Filter" className="hidden flex-wrap gap-2 md:flex">
-            {CUSTOMER_FILTERS.map((f) => (
+            {filters.map((f) => (
               <Link
                 key={f}
                 href={href({ filter: f })}

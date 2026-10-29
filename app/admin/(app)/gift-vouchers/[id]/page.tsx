@@ -185,8 +185,8 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
           )}
           {isAdmin && !everSpent && (
             <ConfirmButton
-              variant="ghost"
-              className="w-fit text-destructive hover:text-destructive"
+              variant="danger"
+              className="w-full"
               title={`Delete ${v.code}?`}
               description="Only for a voucher created by mistake. Refund the customer at the till. This can't be undone."
               confirmLabel="Delete voucher"

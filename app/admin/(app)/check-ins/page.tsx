@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SegmentedLinks } from "@/components/admin/segmented-links";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DataTable, EmptyRow, ListPanel, PageHeader, Pager, Pill, TierBadge, td, th } from "@/components/admin/ui";
@@ -53,12 +54,6 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
   };
   // A stale or hand-typed page number past the end starts again from the first page.
   if (pastEnd || (page > 1 && rows.length === 0)) redirect(href({ page: 1 }));
-  const segment = (active: boolean) =>
-    cn(
-      "flex min-h-10 items-center px-3.5 text-sm font-bold whitespace-nowrap border-l border-input first:border-l-0",
-      active ? "bg-primary text-primary-foreground" : "bg-card hover:bg-muted",
-    );
-
   return (
     <>
       <PageHeader
@@ -83,13 +78,11 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
           >
             {range !== "today" && <input type="hidden" name="range" value={range} />}
           </SearchBox>
-          <nav aria-label="Date range" className="flex flex-none overflow-hidden rounded-xl border border-input">
-            {(Object.keys(CHECK_IN_RANGES) as CheckInRange[]).map((r) => (
-              <Link key={r} href={href({ range: r })} aria-current={r === range ? "true" : undefined} className={segment(r === range)}>
-                {RANGE_LABELS[r]}
-              </Link>
-            ))}
-          </nav>
+          <SegmentedLinks
+            label="Date range"
+            value={range}
+            options={(Object.keys(CHECK_IN_RANGES) as CheckInRange[]).map((r) => ({ value: r, label: RANGE_LABELS[r], href: href({ range: r }) }))}
+          />
           {/* From tablet width up the pager sits in this toolbar; phones keep it under the list. */}
           <Pager compact page={page} pageSize={CHECK_INS_PAGE_SIZE} total={total} href={(p) => href({ page: p })} className="ml-auto hidden md:flex" />
         </div>
@@ -103,7 +96,7 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
               <th className={th}>Customer</th>
               <th className={`${th} hidden lg:table-cell`}>Services</th>
               <th className={`${th} hidden lg:table-cell`}>Staff</th>
-              <th className={`${th} hidden md:table-cell`}>Used</th>
+              <th className={`${th} hidden md:table-cell`}>Redeemed</th>
               <th className={`${th} w-20 text-right sm:w-24`}>Points</th>
             </tr>
           </thead>
