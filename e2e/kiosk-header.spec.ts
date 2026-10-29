@@ -51,6 +51,22 @@ test.describe("Kiosk header: gift vouchers", () => {
   });
 });
 
+test.describe("Kiosk header: Admin", () => {
+  test("going to the admin and back starts the kiosk again at an empty keypad", async ({ kiosk, page }) => {
+    await seedCustomer({ phone: testPhone(21), firstName: "Ola" });
+    await kiosk.goto();
+    await kiosk.enter(testPhone(21));
+    await expect(page.getByRole("heading", { name: "Welcome back, Ola!" })).toBeVisible();
+
+    await page.getByRole("link", { name: "Admin" }).click();
+    await expect(page).toHaveURL(/\/admin$/);
+    await page.getByRole("link", { name: "Open kiosk" }).click();
+
+    await expect(page.getByText("Enter your phone number")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome back, Ola!" })).toHaveCount(0);
+  });
+});
+
 test.describe("Kiosk header: as a staff account", () => {
   test.use({ storageState: "e2e/.auth/staff.json" });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { ArrowLeft, Gift, Plus, WalletCards } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SellGiftVoucherForm, UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
@@ -39,6 +39,8 @@ export function GiftVoucherMenu({
     onOpenChange?.(next);
   };
   const close = () => setOpen(false);
+  // Closed when the kiosk is hidden (a trip to the admin), so it doesn't reopen on the way back.
+  useLayoutEffect(() => () => setOpenState(false), []);
   const formatted = phone ? fillPhoneMask(phone).typed.trim() : "";
 
   return (

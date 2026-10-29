@@ -210,10 +210,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
               <>
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-baseline justify-between gap-2">
-                    <h2 className="text-lg font-extrabold">1 visit from a reward</h2>
+                    <h2 className="text-lg font-extrabold">Next visit earns a reward</h2>
                     {closeToReward.total > 0 && <span className="text-sm text-muted-foreground">{closeToReward.total}</span>}
                   </div>
-                  {/* The reward's own name can be long and read like part of the heading, so it gets its own chip. */}
+                  {/* Customers exactly one point short of the cheapest reward. Its name can be long and
+                      read like part of the heading, so it gets its own chip. */}
                   <Link
                     href="/admin/rewards"
                     className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-full bg-accent px-2.5 py-0.5 text-[13px] font-semibold text-accent-foreground hover:bg-[color-mix(in_oklch,var(--accent),var(--foreground)_6%)] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
@@ -223,7 +224,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
                     <ChevronRight className="size-3.5 shrink-0" aria-hidden />
                   </Link>
                 </div>
-                {closeToReward.total === 0 && <p className="text-sm text-muted-foreground">Nobody right now.</p>}
+                {closeToReward.total === 0 && <p className="text-sm text-muted-foreground">No customers are one visit away right now.</p>}
                 <NudgeList
                   customers={closeToReward.customers}
                   more={closeToReward.total - closeToReward.customers.length}

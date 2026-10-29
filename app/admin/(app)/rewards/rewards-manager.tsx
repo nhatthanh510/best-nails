@@ -102,8 +102,7 @@ function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => vo
         {r ? (
           <ConfirmButton
             type="button"
-            variant="ghost"
-            className="text-destructive hover:text-destructive"
+            variant="danger"
             title={`Delete “${r.title}”?`}
             description="Past redemptions stay in customers' history. To stop it temporarily, untick Active instead."
             confirmLabel="Delete"

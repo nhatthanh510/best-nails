@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   checkIn,
@@ -74,6 +74,24 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     // Pick up promotions or settings changed in the admin since the last visit.
     router.refresh();
   }, [router, setDigits]);
+
+  // Next keeps a page it leaves hidden (React <Activity>) with its state, so going to the admin and
+  // back would reopen the last customer's step. Clear everything as the kiosk is hidden, so it
+  // always comes back to an empty keypad (the cleanup runs before it's hidden: no flash of the old
+  // step), and fetch fresh content as it's shown again, to pick up what was changed in the admin.
+  const shownBefore = useRef(false);
+  useLayoutEffect(() => {
+    if (shownBefore.current) router.refresh();
+    shownBefore.current = true;
+    return () => {
+      setDigitsRaw("");
+      setPhoneError(null);
+      setRedeemError(null);
+      setVoucherOpen(false);
+      setSigningOut(false);
+      setScreen({ name: "enter" });
+    };
+  }, [router]);
 
   // Idle timeout: any screen returns to the start and the number is cleared.
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
