@@ -51,10 +51,28 @@ export function looksStandard(digits: string): boolean {
 }
 
 /**
- * A stored +61… number as a local "0412 345 678" / "03 6234 5678", for pre-filling a phone
- * field in a client form; anything else stays as stored. formatPhone in lib/phone.ts is the
- * full version, but it brings libphonenumber into the browser bundle.
+ * Whether a phone field should show the "not a standard Australian number" warning, mirroring
+ * normalizePhone(): "61…" and a missing leading 0 are read as Australian. While typing
+ * (`finished` false) it only judges once there are 10 digits, so a number half-way through
+ * doesn't warn; once the field is left, a short number warns too. Saving is never blocked.
+ */
+export function phoneNeedsCheck(value: string, finished: boolean): boolean {
+  let digits = value.replace(/\D/g, "");
+  if (digits.startsWith("61") && digits.length >= 11) digits = `0${digits.slice(2)}`;
+  else if (/^[2-9]/.test(digits)) digits = `0${digits}`;
+  if (!digits || (!finished && digits.length < 10)) return false;
+  return !looksStandard(digits);
+}
+
+/**
+ * A stored +61… number in local form for pre-filling a phone field in a client form: "0412 345
+ * 678" / "03 6234 5678", and any other +61 number as 0 + its digits in groups of 4-3-rest, like
+ * formatPhone in lib/phone.ts (the full version, which brings libphonenumber into the browser
+ * bundle). Overseas numbers stay as stored.
  */
 export function formatPhoneInput(e164: string): string {
-  return e164.startsWith("+61") ? fillPhoneMask(`0${e164.slice(3)}`).typed : e164;
+  if (!e164.startsWith("+61")) return e164;
+  const local = `0${e164.slice(3)}`;
+  if (looksStandard(local)) return fillPhoneMask(local).typed;
+  return [local.slice(0, 4), local.slice(4, 7), local.slice(7)].filter(Boolean).join(" ");
 }

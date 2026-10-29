@@ -72,7 +72,9 @@
   --color-kiosk-ink: #f8f2e7;
   --color-kiosk-muted: #cbbfa9;
   --color-kiosk-faint: #a3957e;
-  --color-kiosk-placeholder: #8a7b64;
+  --color-kiosk-placeholder: #90816a;
+  /* Edge of a field you type into: 3:1 against the page and the field (WCAG 1.4.11). */
+  --color-kiosk-field: #726655;
   --color-kiosk-ready: #8fc8a7;
   --color-kiosk-notice: #e8a87c;
 }
@@ -107,7 +109,8 @@
   --accent-foreground: #6b500d;
   --destructive: #a3242f;
   --border: #e9e1d1;
-  --input: #d6c9b1;
+  /* Field edges, outline buttons and the switch's off track: 3:1 against white and ivory (WCAG 1.4.11). */
+  --input: #988e7b;
   --ring: #8a6914;
   --chart-1: #8a6914;
   --chart-2: #1f4e79;
@@ -179,7 +182,7 @@
   --accent-foreground: #ecd48a;
   --destructive: #f08a8a;
   --border: #3b2f21;
-  --input: #4a3c2b;
+  --input: #726655;
   --ring: #d8b45c;
   --success: #8fc8a7;
   --success-soft: #1d3328;

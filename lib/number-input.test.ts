@@ -15,6 +15,13 @@ describe("cleanNumber (F-02)", () => {
   });
 
   it("keeps what people type in phone numbers", () => {
-    expect(cleanNumber("phone", "+61 (0) 412-345 abc")).toBe("+61 (0) 412-345 ");
+    expect(cleanNumber("phone", "0412-345 (678) abc")).toBe("0412-345 (678) ");
+  });
+
+  it("turns a pasted +61 number into a local 0 number", () => {
+    expect(cleanNumber("phone", "+61 412 345 678")).toBe("0412 345 678");
+    expect(cleanNumber("phone", "+61 (0) 412-345 678")).toBe("0412-345 678");
+    expect(cleanNumber("phone", "+61412345678")).toBe("0412345678");
+    expect(cleanNumber("phone", "04+12")).toBe("0412");
   });
 });

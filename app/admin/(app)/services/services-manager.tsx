@@ -37,7 +37,7 @@ export function ServicesManager({ categories }: { categories: ServiceCategory[] 
       <CardHeading
         icon={<Sparkles className="size-5 text-primary" aria-hidden="true" />}
         title="Services"
-        description={`${total} service${total === 1 ? "" : "s"} in ${categories.length} categor${categories.length === 1 ? "y" : "ies"}. Customers can pick more than one, or skip.`}
+        description={`${total} service${total === 1 ? "" : "s"} in ${categories.length} categor${categories.length === 1 ? "y" : "ies"}. Customers pick at least one (staff can pick for them).`}
         action={
           <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
             <Plus aria-hidden="true" />

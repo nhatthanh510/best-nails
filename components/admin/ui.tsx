@@ -31,12 +31,8 @@ export function Card({ className, ...props }: React.ComponentProps<"section">) {
   return <section className={cn("rounded-2xl border border-border bg-card", className)} {...props} />;
 }
 
-/**
- * The dashboard's five tiles without an empty slot: 2 + 2 + 1 (full width) on phones, 3 + 2 on
- * iPads and laptops (a 6-column grid, the last two wider), one row of five on large screens.
- */
-export const fiveTileGrid =
-  "grid grid-cols-2 gap-3 sm:gap-4 [&>*:last-child]:max-md:col-span-2 md:grid-cols-6 md:[&>*]:col-span-2 md:[&>*:nth-child(n+4)]:col-span-3 2xl:grid-cols-5 2xl:[&>*]:col-span-1 2xl:[&>*:nth-child(n+4)]:col-span-1";
+/** The dashboard's four "today" tiles: two by two on phones and iPads in portrait, one row from lg. */
+export const dashboardTileGrid = "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4";
 
 export function StatTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: React.ReactNode }) {
   return (

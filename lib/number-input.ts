@@ -10,13 +10,15 @@ const VALID: Record<NumberKind, RegExp> = {
   digits: /^[0-9]*$/,
   // Dollars and cents: one decimal point, at most two decimals.
   money: /^[0-9]*(\.[0-9]{0,2})?$/,
-  phone: /^[0-9+()\s-]*$/,
+  // Local Australian numbers only (0412 345 678): no "+", the shop has no overseas customers.
+  phone: /^[0-9()\s-]*$/,
 };
 
 /** `value` with everything that doesn't fit `kind` removed. */
 export function cleanNumber(kind: NumberKind, value: string): string {
   if (kind === "digits") return value.replace(/[^0-9]/g, "");
-  if (kind === "phone") return value.replace(/[^0-9+()\s-]/g, "");
+  // A pasted or autofilled "+61 412…" (or "+61 (0) 412…") becomes the local "0412…".
+  if (kind === "phone") return value.replace(/^\s*\+\s*61\s*(\(0\))?\s*/, "0").replace(/[^0-9()\s-]/g, "");
   const [whole, ...rest] = value.replace(/[^0-9.]/g, "").split(".");
   return rest.length ? `${whole}.${rest.join("").slice(0, 2)}` : whole;
 }

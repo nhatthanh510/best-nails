@@ -116,12 +116,9 @@ describe("createCustomer (AA-02)", () => {
     });
   });
 
-  it("saves a non-standard number with a warning", async () => {
+  it("saves a non-standard number (the form warned while it was typed)", async () => {
     h.db.next.query = { data: { id: "c1" }, error: null };
-    expect(await create({ phone: "0500 000 000" })).toMatchObject({
-      ok: true,
-      message: "Customer added. The phone number isn't a standard Australian format, so double-check it.",
-    });
+    expect(await create({ phone: "0500 000 000" })).toMatchObject({ ok: true, message: "Customer added." });
   });
 
   it("explains a duplicate number", async () => {

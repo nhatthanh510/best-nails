@@ -389,6 +389,11 @@ isOneToOne: false
                            },
 "spend_gift_voucher":
 { Args: { "p_amount_cents": number,"p_code": string,"p_customer_id"?: string,"p_note"?: string }; Returns: Json
+                           },
+"top_services":
+{ Args: { "p_limit"?: number,"p_since": string }; Returns: {
+              "category_name": string,"name": string,"uses": number
+            }[]
                            }
           }
           Enums: {
