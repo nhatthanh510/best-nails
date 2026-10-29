@@ -435,7 +435,7 @@ export function FoundScreen({
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 const fieldClass =
-  "h-18 rounded-[18px] border-2 border-kiosk-line bg-kiosk-surface px-5.5 text-[26px] font-semibold text-kiosk-ink outline-none placeholder:text-kiosk-placeholder focus:border-kiosk-accent";
+  "h-18 rounded-[18px] border-2 border-kiosk-field bg-kiosk-surface px-5.5 text-[26px] font-semibold text-kiosk-ink outline-none placeholder:text-kiosk-placeholder focus:border-kiosk-accent";
 
 /** What joining gets you: the reward and the birthday discount. Hidden when the shop offers neither. */
 function ProgramLines({ content }: { content: KioskContent }) {
@@ -922,13 +922,14 @@ function RedeemList({ options, pending, error, onRedeem }: { options: Option[] }
                 <button type="button" onClick={() => setConfirming(null)} className={`${outlineButton} min-h-14 px-5`}>
                   Cancel
                 </button>
+                {/* Green with a tick, not gold like Redeem, so it reads as the confirmation. */}
                 <button
                   type="button"
                   disabled={pending}
                   onClick={() => onRedeem(o.target)}
-                  className={`${primaryButton} min-h-14 rounded-2xl px-6 text-lg`}
+                  className="flex min-h-14 items-center justify-center gap-2.5 rounded-2xl bg-kiosk-ready px-6 text-lg font-extrabold text-kiosk-bg transition active:scale-[0.98] enabled:hover:brightness-110 disabled:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-kiosk-ink"
                 >
-                  {pending && <Spinner />}
+                  {pending ? <Spinner /> : <Check className="size-5" strokeWidth={3} aria-hidden="true" />}
                   Yes, redeem
                 </button>
               </div>

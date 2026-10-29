@@ -100,9 +100,8 @@ const customerSchema = z
     message: "That birthday isn't a real date.",
   });
 
-const NON_STANDARD_WARNING = "The phone number isn't a standard Australian format, so double-check it.";
-
-// Non-standard numbers are saved anyway; callers add NON_STANDARD_WARNING to their message.
+// Non-standard numbers are saved anyway. The form warns about them while the number is typed
+// (phoneNeedsCheck in lib/phone-mask.ts), so the saved message doesn't repeat it.
 function readCustomer(formData: FormData) {
   return customerSchema.safeParse({
     phone: formData.get("phone") ?? "",
@@ -140,7 +139,7 @@ export async function createCustomer(_: ActionState, formData: FormData): Promis
   if (error) return dbError(error);
   return {
     ok: true,
-    message: phone.standard ? "Customer added." : `Customer added. ${NON_STANDARD_WARNING}`,
+    message: "Customer added.",
     href: `/admin/customers/${data.id}`,
   };
 }
@@ -157,7 +156,7 @@ export async function updateCustomer(id: string, _: ActionState, formData: FormD
   refresh();
   return {
     ok: true,
-    message: phone.standard ? "Customer saved." : `Customer saved. ${NON_STANDARD_WARNING}`,
+    message: "Customer saved.",
   };
 }
 

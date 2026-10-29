@@ -1,5 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, ListPanel, PageHeader, fiveTileGrid } from "@/components/admin/ui";
+import { Card, ListPanel, PageHeader, dashboardTileGrid } from "@/components/admin/ui";
 import { cn } from "@/lib/utils";
 
 // Loading states shaped like the pages they stand in for (same grid, cards and row heights), so
@@ -94,13 +94,14 @@ export function DashboardSkeleton() {
     <>
       <PageHeader title="Today at Best Nails" subtitle={<Skeleton className="mt-1 h-4 w-36" />} />
       <Loading label="Loading today's numbers" />
-      <StatTilesSkeleton count={5} grid={fiveTileGrid} />
+      <StatTilesSkeleton count={4} grid={dashboardTileGrid} />
       <div className="flex flex-wrap items-start gap-5">
         <Card className="min-w-0 flex-[999_1_520px] pt-5 pb-2">
           <Skeleton className="mx-5 mb-4 h-5 w-40" />
           <RowsSkeleton rows={6} />
         </Card>
         <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-5">
+          <CardSkeleton lines={3} />
           <CardSkeleton lines={3} />
           <CardSkeleton lines={3} />
         </div>

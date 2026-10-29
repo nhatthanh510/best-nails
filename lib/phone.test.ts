@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatPhone, isStandardPhone, maskPhone, MAX_PHONE_DIGITS, normalizePhone } from "./phone";
-import { fillPhoneMask, formatPhoneInput, isCompleteNumber, looksStandard, MAX_KIOSK_DIGITS } from "./phone-mask";
+import { fillPhoneMask, formatPhoneInput, isCompleteNumber, looksStandard, MAX_KIOSK_DIGITS, phoneNeedsCheck } from "./phone-mask";
 
 describe("normalizePhone", () => {
   it("accepts Australian numbers in any common format", () => {
@@ -154,6 +154,26 @@ describe("client and server agree (P-07, P-08)", () => {
   });
 });
 
+describe("phoneNeedsCheck (admin warning while typing)", () => {
+  it("doesn't warn about standard numbers, typed any usual way", () => {
+    for (const v of ["0412 345 678", "412345678", "61412345678", "03 6234 5678"]) expect(phoneNeedsCheck(v, true)).toBe(false);
+  });
+
+  it("agrees with normalizePhone().standard", () => {
+    for (const v of ["0412 345 678", "0512 345 678", "0412 345 6789", "1234 5678", "03 6234 5678"]) {
+      expect(phoneNeedsCheck(v, true)).toBe(!normalizePhone(v)!.standard);
+    }
+  });
+
+  it("waits for 10 digits while typing, but judges a short number once the field is left", () => {
+    expect(phoneNeedsCheck("0512", false)).toBe(false);
+    expect(phoneNeedsCheck("1234 5678", false)).toBe(false);
+    expect(phoneNeedsCheck("1234 5678", true)).toBe(true);
+    expect(phoneNeedsCheck("0512 345 678", false)).toBe(true);
+    expect(phoneNeedsCheck("", true)).toBe(false);
+  });
+});
+
 describe("formatPhoneInput (client forms)", () => {
   it("shows Australian numbers in local groups, like formatPhone for mobiles", () => {
     expect(formatPhoneInput("+61412345678")).toBe("0412 345 678");
@@ -163,5 +183,10 @@ describe("formatPhoneInput (client forms)", () => {
 
   it("leaves overseas numbers as stored", () => {
     expect(formatPhoneInput("+6421234567")).toBe("+6421234567");
+  });
+
+  it("shows unusual +61 numbers locally with a 0, like formatPhone", () => {
+    expect(formatPhoneInput("+614123456789")).toBe("0412 345 6789");
+    expect(formatPhoneInput("+614123456789")).toBe(formatPhone("+614123456789"));
   });
 });

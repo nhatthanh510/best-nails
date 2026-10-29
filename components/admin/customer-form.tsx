@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useActionToast } from "@/components/admin/action-button";
 import { findCustomerByPhone, type ActionState } from "@/app/admin/actions";
 import type { Customer } from "@/lib/admin-data";
-import { formatPhoneInput } from "@/lib/phone-mask";
+import { formatPhoneInput, phoneNeedsCheck } from "@/lib/phone-mask";
 import { MONTHS } from "@/lib/format";
 import { daysInMonth } from "@/lib/birthday";
 import { useFormSubmit } from "@/lib/use-form-submit";
@@ -41,6 +41,12 @@ export function CustomerForm({
   const [existing, setExisting] = useState<{ id: string; name: string } | null>(null);
   const [, startLookup] = useTransition();
   const lookUp = (phone: string) => startLookup(async () => setExisting(phone.trim() ? await findCustomerByPhone(phone, customer?.id) : null));
+  // A number that isn't a standard Australian one is warned about as it's typed, before Save.
+  // It can still be saved (unusual numbers are never blocked).
+  const [phone, setPhone] = useState(customer ? formatPhoneInput(customer.phone) : "");
+  const [phoneLeft, setPhoneLeft] = useState(Boolean(customer));
+  const nonStandard = phoneNeedsCheck(phone, phoneLeft);
+  const phoneNotes = [existing && "phone-taken", nonStandard && "phone-check"].filter(Boolean).join(" ") || undefined;
   // Only real dates: the day list follows the month (29 Feb allowed), as on the kiosk.
   const [day, setDay] = useState(customer?.birthday_day ? String(customer.birthday_day) : "");
   const [month, setMonth] = useState(customer?.birthday_month ? String(customer.birthday_month) : "");
@@ -48,7 +54,15 @@ export function CustomerForm({
 
   const formSubmit = useFormSubmit(state, formAction);
   return (
-    <form {...formSubmit} className="flex flex-col gap-4">
+    <form
+      {...formSubmit}
+      // Cleared after a save: the warning follows the field back to its starting value.
+      onReset={() => {
+        setPhone(customer ? formatPhoneInput(customer.phone) : "");
+        setPhoneLeft(Boolean(customer));
+      }}
+      className="flex flex-col gap-4"
+    >
       {/* The phone first: it's who the customer is everywhere else (the kiosk starts with it). */}
       <div className="flex flex-col gap-2">
         <Label htmlFor="phone">Mobile number</Label>
@@ -60,12 +74,24 @@ export function CustomerForm({
           required
           autoFocus={!customer}
           placeholder="0412 345 678"
-          defaultValue={customer ? formatPhoneInput(customer.phone) : ""}
-          onBlur={(e) => lookUp(e.target.value)}
-          onChange={() => existing && setExisting(null)}
+          defaultValue={phone}
+          onBlur={(e) => {
+            setPhoneLeft(true);
+            lookUp(e.target.value);
+          }}
+          onChange={(e) => {
+            setPhone(e.target.value);
+            setPhoneLeft(false);
+            if (existing) setExisting(null);
+          }}
           aria-invalid={existing ? true : undefined}
-          aria-describedby={existing ? "phone-taken" : undefined}
+          aria-describedby={phoneNotes}
         />
+        {nonStandard && (
+          <p id="phone-check" role="status" className="rounded-[10px] bg-warning-soft px-3 py-2.5 text-sm font-semibold text-warning">
+            This isn&apos;t a standard Australian number (e.g. 0412 345 678). Double-check it; it can still be saved.
+          </p>
+        )}
         {existing && (
           <p id="phone-taken" role="status" className="rounded-[10px] bg-warning-soft px-3 py-2.5 text-sm font-semibold text-warning">
             Already a customer: {existing.name}.{" "}

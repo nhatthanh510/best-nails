@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/database.types";
 import type { BirthdayStatus, Reward } from "@/lib/rewards";
 import { isBirthdayOn } from "@/lib/birthday";
-import { tierRange, type Tier, type TierThresholds } from "@/lib/tiers";
+import { tierRange, type TierThresholds } from "@/lib/tiers";
 import { giftVoucherStatus, type GiftVoucherStatus } from "@/lib/gift-vouchers";
 
 // Every read starts with requireAdmin(): RLS would return nothing to a non-staff user anyway,
@@ -83,52 +83,120 @@ export const getSettings = cache(async (): Promise<Settings> => {
 // ---------------------------------------------------------------------------
 
 const DASHBOARD_CHECK_INS = 10;
+const TOP_SERVICES = 5;
 
-export async function getDashboard() {
+/** How many vouchers were sold and used, and for how much (spends are stored as negative deltas). */
+function voucherTotals(rows: { kind: string; delta_cents: number }[]) {
+  const sales = rows.filter((r) => r.kind === "sale");
+  const uses = rows.filter((r) => r.kind === "spend");
+  return {
+    sold: sales.length,
+    soldCents: sales.reduce((sum, r) => sum + r.delta_cents, 0),
+    used: uses.length,
+    usedCents: uses.reduce((sum, r) => sum - r.delta_cents, 0),
+  };
+}
+
+export const DASHBOARD_PERIODS = ["today", "week", "month"] as const;
+export type DashboardPeriod = (typeof DASHBOARD_PERIODS)[number];
+
+/**
+ * Where a period starts, and the stretch it's compared with: the same length just before it, up to
+ * the same point, so a Tuesday morning isn't compared with a whole day or a whole month.
+ * today: since midnight vs last week's same weekday so far; week: the last 7 days vs the 7 before;
+ * month: since the 1st vs last month from its 1st to the same date and time.
+ */
+async function periodWindow(period: DashboardPeriod) {
+  const now = Date.now();
+  if (period === "today") {
+    const [from, prevFrom] = await Promise.all([dayStart(0), dayStart(7)]);
+    return { from, prevFrom, prevUntil: new Date(now - 7 * DAY_MS).toISOString() };
+  }
+  if (period === "week") {
+    const [from, prevFrom] = await Promise.all([dayStart(6), dayStart(13)]);
+    return { from, prevFrom, prevUntil: new Date(now - 7 * DAY_MS).toISOString() };
+  }
+  const { year, month, day } = shopDate(await shopTimezone());
+  const lastMonthDays = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
+  const [from, prevFrom] = await Promise.all([dayStart(day - 1), dayStart(day - 1 + lastMonthDays)]);
+  return { from, prevFrom, prevUntil: new Date(now - lastMonthDays * DAY_MS).toISOString() };
+}
+
+/** Today's check-in list, and the tiles and top services for the chosen period. */
+export async function getDashboard(period: DashboardPeriod = "today") {
   const { supabase } = await staffClient();
-  const { day: dayOfMonth } = shopDate(await shopTimezone());
-  const [today, weekAgo, monthStart] = await Promise.all([dayStart(0), dayStart(6), dayStart(dayOfMonth - 1)]);
-  const thirtyDaysAgo = new Date(Date.now() - 30 * DAY_MS).toISOString();
+  const [today, { from, prevFrom, prevUntil }] = await Promise.all([dayStart(0), periodWindow(period)]);
 
-  const [checkIns, todayCount, newCustomers, total, active, redeemed, birthdays] = await Promise.all([
+  const [checkIns, todayCount, count, prevCount, topServices, newMembers, redeemed, birthdays, vouchers] = await Promise.all([
     supabase
       .from("check_ins")
-      .select("*, customer:customers(id, first_name, last_name, phone, lifetime_points)")
+      .select("*, customer:customers(id, first_name, last_name, phone, lifetime_points), services:check_in_services(position, name, category_name)")
       .gte("created_at", today)
       .is("voided_at", null)
       .order("created_at", { ascending: false })
       .limit(DASHBOARD_CHECK_INS),
+    // Today's total for the list's "View all", whatever the period (the list shows only the latest few).
     supabase.from("check_ins").select("id", { count: "exact", head: true }).gte("created_at", today).is("voided_at", null),
-    supabase.from("customers").select("id", { count: "exact", head: true }).gte("created_at", weekAgo),
-    supabase.from("customers").select("id", { count: "exact", head: true }),
-    supabase.from("customers").select("id", { count: "exact", head: true }).gte("last_visit_at", thirtyDaysAgo),
-    supabase.from("point_transactions").select("id", { count: "exact", head: true }).eq("reason", "redeem").gte("created_at", monthStart),
-    supabase.from("birthday_redemptions").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
+    supabase.from("check_ins").select("id", { count: "exact", head: true }).gte("created_at", from).is("voided_at", null),
+    supabase.from("check_ins").select("id", { count: "exact", head: true }).gte("created_at", prevFrom).lt("created_at", prevUntil).is("voided_at", null),
+    // Counted in the database, so a busy month isn't cut short by the API's row limit.
+    supabase.rpc("top_services", { p_since: from, p_limit: TOP_SERVICES }),
+    supabase.from("customers").select("id", { count: "exact", head: true }).gte("created_at", from),
+    supabase.from("point_transactions").select("id", { count: "exact", head: true }).eq("reason", "redeem").gte("created_at", from),
+    supabase.from("birthday_redemptions").select("id", { count: "exact", head: true }).gte("created_at", from),
+    // Voucher sales and uses, from the ledger (older undone uses keep voided_at).
+    supabase.from("gift_voucher_transactions").select("kind, delta_cents").in("kind", ["sale", "spend"]).gte("created_at", from).is("voided_at", null),
   ]);
 
   return {
-    checkIns: (checkIns.data ?? []) as CheckInRow[],
-    // Counted separately: the list above is only the latest few.
+    checkIns: (checkIns.data ?? []).map((c) => ({ ...c, services: [...c.services].sort((a, b) => a.position - b.position) })) as CheckInRow[],
     checkInsToday: todayCount.count ?? 0,
-    newCustomersThisWeek: newCustomers.count ?? 0,
-    totalCustomers: total.count ?? 0,
-    activeLast30Days: active.count ?? 0,
-    redeemedThisMonth: redeemed.count ?? 0,
-    birthdayDiscountsThisMonth: birthdays.count ?? 0,
+    checkInsInPeriod: count.count ?? 0,
+    /** The comparison stretch before the period (see periodWindow). */
+    checkInsBefore: prevCount.count ?? 0,
+    /** Most picked first, by name and category (the same name can be in two categories). */
+    topServices: topServices.data ?? [],
+    newMembers: newMembers.count ?? 0,
+    redeemed: redeemed.count ?? 0,
+    birthdayDiscounts: birthdays.count ?? 0,
+    vouchers: voucherTotals(vouchers.data ?? []),
   };
 }
 
-/** How many customers are in each tier. */
-export async function getTierCounts(tiers: TierThresholds): Promise<Record<Tier, number>> {
+const NUDGE_LIST = 5;
+/** How long a regular can go without a visit before the dashboard suggests a word. */
+export const NOT_BACK_DAYS = 42;
+
+export type NudgeCustomer = Pick<Customer, "id" | "first_name" | "last_name" | "phone" | "last_visit_at">;
+
+/**
+ * Customers one visit (one point) short of the cheapest reward, so staff can mention it. null when
+ * the shop has no reward yet.
+ */
+export async function getCloseToReward(rewardCost: number | null) {
+  if (rewardCost === null) return null;
   const { supabase } = await staffClient();
-  const count = async (tier: Tier) => {
-    const { min, max } = tierRange(tier, tiers);
-    let q = supabase.from("customers").select("id", { count: "exact", head: true }).gte("lifetime_points", min);
-    if (max !== null) q = q.lt("lifetime_points", max);
-    return (await q).count ?? 0;
-  };
-  const [vip, regular, fresh] = await Promise.all([count("vip"), count("regular"), count("new")]);
-  return { vip, regular, new: fresh };
+  const { data, count } = await supabase
+    .from("customers")
+    .select("id, first_name, last_name, phone, last_visit_at", { count: "exact" })
+    .eq("points_balance", rewardCost - 1)
+    .order("last_visit_at", { ascending: false, nullsFirst: false })
+    .limit(NUDGE_LIST);
+  return { customers: (data ?? []) as NudgeCustomer[], total: count ?? 0 };
+}
+
+/** Regulars and VIPs (by tier) whose last visit was NOT_BACK_DAYS or more ago, most recent first. */
+export async function getNotBackLately(tiers: TierThresholds) {
+  const { supabase } = await staffClient();
+  const since = new Date(Date.now() - NOT_BACK_DAYS * DAY_MS).toISOString();
+  const { data, count } = await supabase
+    .from("customers")
+    .select("id, first_name, last_name, phone, last_visit_at", { count: "exact" })
+    .gte("lifetime_points", tierRange("regular", tiers).min)
+    .lt("last_visit_at", since)
+    .order("last_visit_at", { ascending: false })
+    .limit(NUDGE_LIST);
+  return { customers: (data ?? []) as NudgeCustomer[], total: count ?? 0 };
 }
 
 /** Customers whose birthday falls in the next 7 days (shop calendar). */

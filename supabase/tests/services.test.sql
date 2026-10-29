@@ -2,7 +2,7 @@
 -- read and change the menu. Runs in one transaction and rolls back, like the other test files.
 begin;
 set search_path = public, extensions;
-select plan(14);
+select plan(16);
 
 insert into auth.users (id, email) values
   ('cccccccc-0000-4000-8000-000000000001', 'qa-svc-admin@example.test'),
@@ -62,6 +62,12 @@ select set_config('request.jwt.claims', '{"sub":"cccccccc-0000-4000-8000-0000000
 select is((select count(*)::int from technicians where is_active), 1, '...nor change technicians');
 update services set is_active = false where name = 'Bikini';
 select is((select is_active from services where name = 'Bikini'), false, 'an admin can hide a service from the kiosk');
+-- top_services counts the history copies, so the deleted Deluxe pedicure above still counts.
+select ok(
+  (select uses from top_services(now() - interval '1 hour', 50) where name = 'Deluxe pedicure' and category_name = 'Pedicure') >= 1,
+  'top_services counts what was picked, by name and category, for an admin');
+select set_config('request.jwt.claims', '{"sub":"cccccccc-0000-4000-8000-000000000002","role":"authenticated"}', true);
+select is((select count(*)::int from top_services(now() - interval '1 hour', 50)), 0, '...and gives a staff account nothing');
 reset role;
 
 select * from finish();
