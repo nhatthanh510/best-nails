@@ -1,9 +1,7 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Cake, Check, ChevronLeft, NotebookPen } from "lucide-react";
 import { Avatar, Card, DataTable, EmptyRow, Pager, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
-import { DetailSkeleton } from "@/components/admin/skeletons";
 import { TIER_LABELS, nextTier, tierFor } from "@/lib/tiers";
 import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
 import { customerGiftVouchers, customerTitle, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
@@ -25,6 +23,10 @@ const REASON_LABELS = {
   void: "Check-in undone",
 } as const;
 
+// The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
+// the current page still up (and the sidebar's loading line) rather than showing a skeleton.
+export const instant = false;
+
 export async function generateMetadata({ params }: PageProps<"/admin/customers/[id]">) {
   const { id } = await params;
   const name = /^[0-9a-f-]{36}$/i.test(id) ? await customerTitle(id) : null;
@@ -40,9 +42,7 @@ export default function CustomerPage({ params, searchParams }: PageProps<"/admin
         <ChevronLeft className="size-4" strokeWidth={2.4} aria-hidden="true" />
         All customers
       </Link>
-      <Suspense fallback={<DetailSkeleton tiles={4} label="Loading customer" />}>
-        <CustomerDetail params={params} searchParams={searchParams} />
-      </Suspense>
+      <CustomerDetail params={params} searchParams={searchParams} />
     </>
   );
 }

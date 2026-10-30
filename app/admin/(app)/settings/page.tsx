@@ -1,3 +1,4 @@
+import { cacheLife } from "next/cache";
 import { Suspense } from "react";
 import { PageHeader } from "@/components/admin/ui";
 import { AccountsCard } from "@/components/admin/accounts-card";
@@ -21,6 +22,11 @@ export default function SettingsPage() {
 }
 
 async function Settings() {
+  // Only admins change this page, and refresh() in their Server Actions clears the browser's
+  // copy. A stale time of 5 minutes or more lets the link prefetch carry the data, so even the
+  // first visit opens without a skeleton.
+  "use cache: private";
+  cacheLife({ stale: 300 });
   const [staff, settings, accounts] = await Promise.all([requireAdmin(), getSettings(), listAccounts()]);
 
   return (

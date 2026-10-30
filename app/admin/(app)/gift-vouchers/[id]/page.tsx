@@ -1,9 +1,7 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Card, DataTable, EmptyRow, StatTile, td, th } from "@/components/admin/ui";
-import { DetailSkeleton } from "@/components/admin/skeletons";
 import { ConfirmButton } from "@/components/admin/action-button";
 import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
 import { AdjustGiftVoucherForm, GiftVoucherSettingsForm, UseThisVoucherButton } from "@/components/admin/gift-voucher-forms";
@@ -12,6 +10,10 @@ import { requireAdmin } from "@/lib/auth";
 import { getGiftVoucher, getSettings, giftVoucherCode, staffNames, type GiftVoucherTransaction } from "@/lib/admin-data";
 import { formatMoney } from "@/lib/gift-vouchers";
 import { formatDate, formatTime, fullName } from "@/lib/format";
+
+// The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
+// the current page still up (and the sidebar's loading line) rather than showing a skeleton.
+export const instant = false;
 
 export async function generateMetadata({ params }: PageProps<"/admin/gift-vouchers/[id]">) {
   const { id } = await params;
@@ -42,9 +44,7 @@ export default function GiftVoucherPage({ params }: PageProps<"/admin/gift-vouch
         <ChevronLeft className="size-4" strokeWidth={2.4} aria-hidden="true" />
         All gift vouchers
       </Link>
-      <Suspense fallback={<DetailSkeleton tiles={3} label="Loading gift voucher" />}>
-        <GiftVoucherDetail params={params} />
-      </Suspense>
+      <GiftVoucherDetail params={params} />
     </>
   );
 }

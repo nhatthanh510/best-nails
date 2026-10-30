@@ -1,7 +1,5 @@
-import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Plus_Jakarta_Sans } from "next/font/google";
-import { NavigationProgress } from "@/components/navigation-progress";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -41,10 +39,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${jakarta.variable} ${cormorant.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        {/* Reads the URL, so it sits in its own Suspense boundary. */}
-        <Suspense>
-          <NavigationProgress />
-        </Suspense>
         {children}
       </body>
     </html>

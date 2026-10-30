@@ -81,6 +81,23 @@
 
 /* The logo's brushed-gold look, for the kiosk's main buttons and the brand medallion ring.
    Dark text stays above 4.5:1 across the whole gradient. */
+/* The admin's page-loading line (components/admin/nav-progress.tsx): shows after a short delay,
+   then creeps towards the end without reaching it, since the wait isn't known. */
+@utility animate-nav-progress {
+  animation: nav-progress 8s cubic-bezier(0.1, 0.7, 0.2, 1) 120ms forwards;
+}
+
+@keyframes nav-progress {
+  from {
+    opacity: 1;
+    transform: scaleX(0.05);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(0.95);
+  }
+}
+
 @utility bg-gold-sheen {
   background-image: linear-gradient(135deg, #ecd48a 0%, #d8b45c 40%, #b98f2c 100%);
 }

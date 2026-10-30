@@ -1,11 +1,8 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SearchBox } from "@/components/admin/search-box";
 import { FilterSelect } from "@/components/admin/filter-select";
 import { DataTable, ListPanel, EmptyRow, PageHeader, Pager, td, th } from "@/components/admin/ui";
-import { ListPanelSkeleton } from "@/components/admin/skeletons";
-import { Skeleton } from "@/components/ui/skeleton";
 import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
 import { SellGiftVoucherButton, UseGiftVoucherButton } from "@/components/admin/gift-voucher-forms";
 import { GIFT_VOUCHER_FILTERS, GIFT_VOUCHERS_PAGE_SIZE, getSettings, giftVoucherSummary, listGiftVouchers, type GiftVoucherFilter } from "@/lib/admin-data";
@@ -13,6 +10,10 @@ import { formatMoney } from "@/lib/gift-vouchers";
 import { formatDate, fullName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "@/components/admin/copy-button";
+
+// The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
+// the current page still up (and the sidebar's loading line) rather than showing a skeleton.
+export const instant = false;
 
 export const metadata = { title: "Gift vouchers" };
 
@@ -38,9 +39,7 @@ export default function GiftVouchersPage({ searchParams }: PageProps<"/admin/gif
         title="Gift vouchers"
         subtitle={
           // One line rather than stat tiles, so the list below has room to fit the screen.
-          <Suspense fallback={<Skeleton className="mt-1 h-4 w-80 max-w-full" />}>
-            <Summary />
-          </Suspense>
+          <Summary />
         }
         actions={
           <>
@@ -50,9 +49,7 @@ export default function GiftVouchersPage({ searchParams }: PageProps<"/admin/gif
         }
       />
 
-      <Suspense fallback={<ListPanelSkeleton label="Loading gift vouchers" />}>
-        <GiftVoucherLists searchParams={searchParams} />
-      </Suspense>
+      <GiftVoucherLists searchParams={searchParams} />
     </>
   );
 }

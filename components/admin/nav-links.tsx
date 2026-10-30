@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CheckSquare, Gift, LayoutGrid, Settings, Sparkles, Users, WalletCards } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NavProgress } from "./nav-progress";
 
 type NavItem = { href: string; label: string; icon: typeof LayoutGrid; exact?: boolean };
 
@@ -61,6 +62,7 @@ export function NavLinks({ pathname }: { pathname: string | null }) {
                   >
                     <Icon className="size-5 flex-none" aria-hidden="true" />
                     <span className="md:max-lg:sr-only">{label}</span>
+                    <NavProgress />
                   </Link>
                 </li>
               );

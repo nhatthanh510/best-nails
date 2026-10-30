@@ -1,9 +1,6 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DataTable, ListPanel, EmptyRow, PageHeader, Pager, SortableTh, Avatar, TierBadge, td, th } from "@/components/admin/ui";
-import { ListPanelSkeleton } from "@/components/admin/skeletons";
-import { Skeleton } from "@/components/ui/skeleton";
 import { tierFor } from "@/lib/tiers";
 import { SearchBox } from "@/components/admin/search-box";
 import { FilterSelect } from "@/components/admin/filter-select";
@@ -23,6 +20,10 @@ import { formatPhone } from "@/lib/phone";
 import { formatDate, formatLastVisit, fullName, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+// The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
+// the current page still up (and the sidebar's loading line) rather than showing a skeleton.
+export const instant = false;
+
 export const metadata = { title: "Customers" };
 
 const FILTER_LABELS: Record<CustomerFilter, string> = {
@@ -34,18 +35,7 @@ const FILTER_LABELS: Record<CustomerFilter, string> = {
 };
 
 export default function CustomersPage({ searchParams }: PageProps<"/admin/customers">) {
-  return (
-    <Suspense
-      fallback={
-        <>
-          <PageHeader title="Customers" subtitle={<Skeleton className="mt-1 h-4 w-24" />} />
-          <ListPanelSkeleton avatar label="Loading customers" />
-        </>
-      }
-    >
-      <Customers searchParams={searchParams} />
-    </Suspense>
-  );
+  return <Customers searchParams={searchParams} />;
 }
 
 async function Customers({ searchParams }: { searchParams: PageProps<"/admin/customers">["searchParams"] }) {
