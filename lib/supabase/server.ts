@@ -1,13 +1,13 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { connection } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/lib/database.types";
 
 /** Supabase client acting as the signed-in staff member (RLS applies). Create one per request. */
 export async function createClient() {
-  // Auth checks read the clock (token expiry), so this must only run at request time.
-  await connection();
+  // Auth checks read the clock (token expiry), so this must only run at request time: reading
+  // the cookies first ensures that. (Not connection(): admin pages call this inside
+  // "use cache: private", where connection() isn't allowed.)
   const cookieStore = await cookies();
 
   return createServerClient<Database>(

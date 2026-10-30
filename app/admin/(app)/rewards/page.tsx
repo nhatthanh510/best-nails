@@ -1,3 +1,4 @@
+import { cacheLife } from "next/cache";
 import { Suspense } from "react";
 import { PageHeader } from "@/components/admin/ui";
 import { CardSkeleton } from "@/components/admin/skeletons";
@@ -29,6 +30,11 @@ export default function RewardsPage() {
 }
 
 async function Rewards() {
+  // Only admins change this page, and refresh() in their Server Actions clears the browser's
+  // copy. A stale time of 5 minutes or more lets the link prefetch carry the data, so even the
+  // first visit opens without a skeleton.
+  "use cache: private";
+  cacheLife({ stale: 300 });
   const [staff, rewards, settings] = await Promise.all([requireAdmin(), listRewards(), getSettings()]);
   const usage = await rewardUsage(rewards.map((r) => r.id));
   return (

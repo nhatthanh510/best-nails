@@ -1,8 +1,6 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { ChevronRight, Gift } from "lucide-react";
 import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, dashboardTileGrid, td, th } from "@/components/admin/ui";
-import { DashboardSkeleton } from "@/components/admin/skeletons";
 import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import {
@@ -23,13 +21,15 @@ import { tierFor } from "@/lib/tiers";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatTime, fullName } from "@/lib/format";
 
+// The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
+// the current page still up (and the sidebar's loading line) rather than showing a skeleton.
+export const instant = false;
+
 export const metadata = { title: "Dashboard" };
 
 export default function DashboardPage({ searchParams }: PageProps<"/admin">) {
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
-      <Dashboard searchParams={searchParams} />
-    </Suspense>
+<Dashboard searchParams={searchParams} />
   );
 }
 
