@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DataTable, EmptyRow, ListPanel, PageHeader, Pager, Pill, TierBadge, td, th } from "@/components/admin/ui";
 import { SearchBox } from "@/components/admin/search-box";
+import { FilterSelect } from "@/components/admin/filter-select";
 import { tierFor } from "@/lib/tiers";
 import { CHECK_IN_RANGES, CHECK_INS_PAGE_SIZE, getSettings, listCheckIns, type CheckInRange, type VisitUse } from "@/lib/admin-data";
 import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
@@ -44,6 +45,7 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
   };
   // A stale or hand-typed page number past the end starts again from the first page.
   if (pastEnd || (page > 1 && rows.length === 0)) redirect(href({ page: 1 }));
+  const ranges = (Object.keys(CHECK_IN_RANGES) as CheckInRange[]).map((r) => ({ value: r, label: RANGE_LABELS[r], href: href({ range: r }) }));
   return (
     <>
       <PageHeader
@@ -57,22 +59,20 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
 
       <ListPanel id="list" className="scroll-mt-4">
         {/* The toolbar and rows are one panel, as on Customers and Gift vouchers. */}
-        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border p-4">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border p-3 md:flex-wrap md:gap-3 md:p-4">
           <SearchBox
             action="/admin/check-ins"
             id="q"
             label="Search check-ins by customer"
             placeholder="Search by name or phone"
             defaultValue={q}
-            className="flex-[1_1_200px]"
+            className="flex-1 md:flex-[1_1_200px]"
           >
             {range !== "today" && <input type="hidden" name="range" value={range} />}
           </SearchBox>
-          <SegmentedLinks
-            label="Date range"
-            value={range}
-            options={(Object.keys(CHECK_IN_RANGES) as CheckInRange[]).map((r) => ({ value: r, label: RANGE_LABELS[r], href: href({ range: r }) }))}
-          />
+          {/* Phones: one dropdown beside the search. From tablet width up: the joined bar. */}
+          <FilterSelect label="Date range" value={range} options={ranges} className="w-28 md:hidden" />
+          <SegmentedLinks label="Date range" value={range} options={ranges} className="hidden md:flex" />
           {/* From tablet width up the pager sits in this toolbar; phones keep it under the list. */}
           <Pager compact page={page} pageSize={CHECK_INS_PAGE_SIZE} total={total} href={(p) => href({ page: p })} className="ml-auto hidden md:flex" />
         </div>

@@ -96,14 +96,14 @@ async function VoucherList({ params }: { params: Params }) {
     <ListPanel id="list" className="scroll-mt-4">
       {/* The toolbar and rows are one panel, Gmail-style, so spare space under a short list reads as
           part of the list rather than an empty table. */}
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border p-4">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border p-3 md:flex-wrap md:gap-3 md:p-4">
         <SearchBox
           action="/admin/gift-vouchers"
           id="gv-q"
           label="Search by code, name or phone"
           placeholder="Code, name or phone"
           defaultValue={q}
-          className="w-full max-md:order-first md:w-auto md:flex-[1_1_200px]"
+          className="flex-1 md:flex-[1_1_200px]"
         >
           {filter !== "all" && <input type="hidden" name="filter" value={filter} />}
         </SearchBox>
@@ -112,7 +112,7 @@ async function VoucherList({ params }: { params: Params }) {
           label="Filter gift vouchers"
           value={filter}
           options={GIFT_VOUCHER_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], href: href({ filter: f }) }))}
-          className="min-w-0 flex-1 md:hidden"
+          className="w-28 md:hidden"
         />
         <div role="group" aria-label="Filter" className="hidden flex-wrap gap-2 md:flex">
           {GIFT_VOUCHER_FILTERS.map((f) => (

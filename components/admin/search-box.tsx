@@ -4,6 +4,7 @@ import { useEffect, useRef, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { LoaderCircle, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { startNavProgress } from "./nav-progress";
 
 const DEBOUNCE_MS = 300;
 
@@ -53,6 +54,7 @@ export function SearchBox({
     if (q === last.current) return;
     last.current = q;
     const s = sp.toString();
+    startNavProgress();
     startTransition(() => router.replace(`${action}${s ? `?${s}` : ""}`, { scroll: false }));
   }
 

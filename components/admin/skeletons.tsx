@@ -68,9 +68,10 @@ export function ListPanelSkeleton({ rows = 10, avatar = false, label }: { rows?:
   return (
     <ListPanel id="list" className="scroll-mt-4">
       <Loading label={label} />
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border p-4">
-        <Skeleton className="h-11 min-w-0 flex-[1_1_200px] rounded-xl" />
-        <div className="flex gap-2">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border p-3 md:flex-wrap md:gap-3 md:p-4">
+        <Skeleton className="h-11 min-w-0 flex-1 rounded-xl md:flex-[1_1_200px]" />
+        <Skeleton className="h-11 w-28 rounded-xl md:hidden" />
+        <div className="hidden gap-2 md:flex">
           {[12, 14, 18, 16].map((w, i) => (
             <Skeleton key={i} className="h-10 rounded-full" style={{ width: `${w * 4}px` }} />
           ))}

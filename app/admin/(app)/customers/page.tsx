@@ -88,14 +88,14 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
       <ListPanel id="list" className="scroll-mt-4">
         {/* The toolbar and rows are one panel, Gmail-style, so spare space under a short list reads as
             part of the list rather than an empty table. */}
-        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border p-4">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border p-3 md:flex-wrap md:gap-3 md:p-4">
           <SearchBox
             action="/admin/customers"
             id="q"
             label="Search customers"
             placeholder="Search by name or phone"
             defaultValue={q}
-            className="w-full md:w-auto md:flex-[1_1_200px]"
+            className="flex-1 md:flex-[1_1_200px]"
           >
             {filter !== "all" && <input type="hidden" name="filter" value={filter} />}
             {sort !== "last_visit" && <input type="hidden" name="sort" value={sort} />}
@@ -106,7 +106,7 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
             label="Filter customers"
             value={filter}
             options={filters.map((f) => ({ value: f, label: FILTER_LABELS[f], href: href({ filter: f }) }))}
-            className="w-full md:hidden"
+            className="w-28 md:hidden"
           />
           <div role="group" aria-label="Filter" className="hidden flex-wrap gap-2 md:flex">
             {filters.map((f) => (

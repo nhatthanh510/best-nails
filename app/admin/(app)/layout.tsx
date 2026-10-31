@@ -3,6 +3,8 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/admin/sidebar";
+import { Avatar } from "@/components/admin/ui";
+import { NavProgress } from "@/components/admin/nav-progress";
 import { getStaff } from "@/lib/auth";
 import { signOut } from "../actions";
 
@@ -17,13 +19,16 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
             <Account />
           </Suspense>
         }
-        phoneAccount={
-          <Suspense fallback={<div className="h-11" />}>
-            <Account />
+        phoneProfile={
+          <Suspense fallback={<div className="h-9" />}>
+            <Profile />
           </Suspense>
         }
       />
-      <main className="flex min-w-0 flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-10 md:has-[[data-list-panel]]:gap-4 md:has-[[data-list-panel]]:py-6 md:has-[[data-list-panel]]:overflow-y-auto md:has-[[data-list-panel]]:[scrollbar-gutter:stable]">{children}</main>
+      <main className="flex min-w-0 flex-1 flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:px-10 md:has-[[data-list-panel]]:gap-4 md:has-[[data-list-panel]]:py-6 md:has-[[data-list-panel]]:overflow-y-auto md:has-[[data-list-panel]]:[scrollbar-gutter:stable]">{children}</main>
+      <Suspense fallback={null}>
+        <NavProgress />
+      </Suspense>
       <Toaster theme="light" position="top-center" richColors />
     </div>
   );
@@ -50,5 +55,24 @@ async function Account() {
         <LogOut className="size-4.5" aria-hidden="true" />
       </button>
     </form>
+  );
+}
+
+/** The top of the phone menu: who's signed in. */
+async function Profile() {
+  const staff = await getStaff();
+  if (!staff) return null;
+  const letters = staff.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  return (
+    <div className="flex items-center gap-3">
+      <Avatar text={letters} />
+      <div className="min-w-0 leading-tight">
+        <p className="truncate text-[15px] font-bold">{staff.displayName}</p>
+        <p className="truncate text-[13px] text-muted-foreground">
+          {staff.role === "admin" ? "Admin" : "Staff"}
+          {staff.email && ` · ${staff.email}`}
+        </p>
+      </div>
+    </div>
   );
 }

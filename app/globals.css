@@ -177,6 +177,12 @@
       scrollbar-gutter: auto;
     }
   }
+  /* While a filter, page or search loads (components/admin/nav-progress.tsx), a list's rows dim
+     after the same short delay as the loading line, so a quick change doesn't flicker. */
+  html[data-navigating] [data-list-panel] tbody {
+    opacity: 0.55;
+    transition: opacity 150ms ease 120ms;
+  }
   h1 {
     font-family: var(--font-heading);
   }
