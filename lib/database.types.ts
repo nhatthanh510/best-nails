@@ -25,14 +25,14 @@ export type Database = {
           Tables: {
             "birthday_redemptions": {
                   Row: {
-                    "birthday_year": number,"created_at": string,"created_by": string | null,"customer_id": string,"id": string,"percent": number,"source": Database["public"]['Enums']["check_in_source"]
+                    "amount_cents": number | null,"birthday_year": number,"created_at": string,"created_by": string | null,"customer_id": string,"id": string,"percent": number | null,"source": Database["public"]['Enums']["check_in_source"]
                   }
                   ComputedFields: never
                   Insert: {
-                    "birthday_year": number,"created_at"?: string,"created_by"?: string | null,"customer_id": string,"id"?: string,"percent": number,"source": Database["public"]['Enums']["check_in_source"]
+                    "amount_cents"?: number | null,"birthday_year": number,"created_at"?: string,"created_by"?: string | null,"customer_id": string,"id"?: string,"percent"?: number | null,"source": Database["public"]['Enums']["check_in_source"]
                   }
                   Update: {
-                    "birthday_year"?: number,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"id"?: string,"percent"?: number,"source"?: Database["public"]['Enums']["check_in_source"]
+                    "amount_cents"?: number | null,"birthday_year"?: number,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"id"?: string,"percent"?: number | null,"source"?: Database["public"]['Enums']["check_in_source"]
                   }
                   Relationships: [
                     {
@@ -143,14 +143,14 @@ isOneToOne: false
                   ]
                 },"gift_vouchers": {
                   Row: {
-                    "amount_cents": number,"balance_cents": number,"code": string,"created_at": string,"customer_id": string | null,"expires_on": string,"id": string,"notes": string | null,"sold_by": string | null,"sold_on": string,"updated_at": string
+                    "amount_cents": number | null,"balance_cents": number,"blocked_at": string | null,"blocked_by": string | null,"blocked_reason": string | null,"code": string,"created_at": string,"customer_id": string | null,"expires_on": string | null,"id": string,"notes": string | null,"public_token": string,"sold_by": string | null,"sold_on": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount_cents": number,"balance_cents": number,"code": string,"created_at"?: string,"customer_id"?: string | null,"expires_on": string,"id"?: string,"notes"?: string | null,"sold_by"?: string | null,"sold_on": string,"updated_at"?: string
+                    "amount_cents"?: number | null,"balance_cents": number,"blocked_at"?: string | null,"blocked_by"?: string | null,"blocked_reason"?: string | null,"code": string,"created_at"?: string,"customer_id"?: string | null,"expires_on"?: string | null,"id"?: string,"notes"?: string | null,"public_token"?: string,"sold_by"?: string | null,"sold_on"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "amount_cents"?: number,"balance_cents"?: number,"code"?: string,"created_at"?: string,"customer_id"?: string | null,"expires_on"?: string,"id"?: string,"notes"?: string | null,"sold_by"?: string | null,"sold_on"?: string,"updated_at"?: string
+                    "amount_cents"?: number | null,"balance_cents"?: number,"blocked_at"?: string | null,"blocked_by"?: string | null,"blocked_reason"?: string | null,"code"?: string,"created_at"?: string,"customer_id"?: string | null,"expires_on"?: string | null,"id"?: string,"notes"?: string | null,"public_token"?: string,"sold_by"?: string | null,"sold_on"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -243,14 +243,14 @@ isOneToOne: false
                   ]
                 },"settings": {
                   Row: {
-                    "birthday_discount_enabled": boolean,"birthday_discount_percent": number,"birthday_window_days": number,"code_prefix": string,"id": boolean,"kiosk_idle_seconds": number,"tier_regular_points": number,"tier_vip_points": number,"timezone": string,"updated_at": string
+                    "birthday_discount_enabled": boolean,"birthday_kind_new": Database["public"]['Enums']["discount_kind"],"birthday_kind_regular": Database["public"]['Enums']["discount_kind"],"birthday_kind_vip": Database["public"]['Enums']["discount_kind"],"birthday_value_new": number,"birthday_value_regular": number,"birthday_value_vip": number,"birthday_window_days": number,"code_prefix": string,"id": boolean,"kiosk_idle_seconds": number,"tier_regular_points": number,"tier_vip_points": number,"timezone": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"code_prefix"?: string,"id"?: boolean,"kiosk_idle_seconds"?: number,"tier_regular_points"?: number,"tier_vip_points"?: number,"timezone"?: string,"updated_at"?: string
+                    "birthday_discount_enabled"?: boolean,"birthday_kind_new"?: Database["public"]['Enums']["discount_kind"],"birthday_kind_regular"?: Database["public"]['Enums']["discount_kind"],"birthday_kind_vip"?: Database["public"]['Enums']["discount_kind"],"birthday_value_new"?: number,"birthday_value_regular"?: number,"birthday_value_vip"?: number,"birthday_window_days"?: number,"code_prefix"?: string,"id"?: boolean,"kiosk_idle_seconds"?: number,"tier_regular_points"?: number,"tier_vip_points"?: number,"timezone"?: string,"updated_at"?: string
                   }
                   Update: {
-                    "birthday_discount_enabled"?: boolean,"birthday_discount_percent"?: number,"birthday_window_days"?: number,"code_prefix"?: string,"id"?: boolean,"kiosk_idle_seconds"?: number,"tier_regular_points"?: number,"tier_vip_points"?: number,"timezone"?: string,"updated_at"?: string
+                    "birthday_discount_enabled"?: boolean,"birthday_kind_new"?: Database["public"]['Enums']["discount_kind"],"birthday_kind_regular"?: Database["public"]['Enums']["discount_kind"],"birthday_kind_vip"?: Database["public"]['Enums']["discount_kind"],"birthday_value_new"?: number,"birthday_value_regular"?: number,"birthday_value_vip"?: number,"birthday_window_days"?: number,"code_prefix"?: string,"id"?: boolean,"kiosk_idle_seconds"?: number,"tier_regular_points"?: number,"tier_vip_points"?: number,"timezone"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -309,6 +309,9 @@ isOneToOne: false
 "_discount_used_today":
 { Args: { "p_customer_id": string }; Returns: boolean
                            },
+"_gift_voucher_loaded":
+{ Args: { "p_id": string }; Returns: number
+                           },
 "_luhn_check_digit":
 { Args: { "p_digits": string }; Returns: number
                            },
@@ -339,14 +342,23 @@ isOneToOne: false
 "assert_staff":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
+"birthday_badges":
+{ Args: { "p_customer_ids": (string)[] }; Returns: Json
+                           },
 "birthday_status":
 { Args: { "p_customer_id": string }; Returns: Json
+                           },
+"block_gift_voucher":
+{ Args: { "p_gift_voucher_id": string,"p_reason": string }; Returns: undefined
                            },
 "check_gift_voucher":
 { Args: { "p_code": string }; Returns: Json
                            },
 "check_in_totals":
 { Args: { "p_since": string,"p_source"?: Database["public"]['Enums']["check_in_source"] }; Returns: Json
+                           },
+"create_inactive_gift_vouchers":
+{ Args: { "p_codes": (string)[] }; Returns: Json
                            },
 "generate_gift_voucher_code":
 { Args: Record<PropertyKey, never>; Returns: string
@@ -375,6 +387,12 @@ isOneToOne: false
 "normalize_voucher_code":
 { Args: { "p_code": string }; Returns: string
                            },
+"preview_gift_voucher_codes":
+{ Args: { "p_count": number }; Returns: (string)[]
+                           },
+"public_gift_voucher":
+{ Args: { "p_token": string }; Returns: Json
+                           },
 "redeem_birthday":
 { Args: { "p_customer_id": string }; Returns: Json
                            },
@@ -394,10 +412,16 @@ isOneToOne: false
 { Args: { "p_limit"?: number,"p_since": string }; Returns: {
               "category_name": string,"name": string,"uses": number
             }[]
+                           },
+"top_up_gift_voucher":
+{ Args: { "p_amount_cents": number,"p_code": string,"p_customer_id"?: string }; Returns: Json
+                           },
+"unblock_gift_voucher":
+{ Args: { "p_gift_voucher_id": string }; Returns: undefined
                            }
           }
           Enums: {
-            "check_in_source": "kiosk"|"admin","gift_voucher_entry": "sale"|"spend"|"undo"|"adjust","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "admin"|"staff"
+            "check_in_source": "kiosk"|"admin","discount_kind": "percent"|"amount","gift_voucher_entry": "sale"|"spend"|"undo"|"adjust"|"top_up","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "admin"|"staff"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -517,7 +541,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "check_in_source": ["kiosk", "admin"],"gift_voucher_entry": ["sale", "spend", "undo", "adjust"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["admin", "staff"]
+            "check_in_source": ["kiosk", "admin"],"discount_kind": ["percent", "amount"],"gift_voucher_entry": ["sale", "spend", "undo", "adjust", "top_up"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["admin", "staff"]
           }
         }
 } as const

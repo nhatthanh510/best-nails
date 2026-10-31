@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { ChevronRight, Gift } from "lucide-react";
-import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, dashboardTileGrid, td, th } from "@/components/admin/ui";
+import { BirthdayBadge, Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, dashboardTileGrid, td, th } from "@/components/admin/ui";
 import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import {
   DASHBOARD_PERIODS,
+  birthdayBadges,
   getCloseToReward,
   getDashboard,
   getNotBackLately,
@@ -16,7 +18,7 @@ import {
   type NudgeCustomer,
 } from "@/lib/admin-data";
 import { formatMoney } from "@/lib/gift-vouchers";
-import { UseGiftVoucherButton } from "@/components/admin/gift-voucher-forms";
+import { FindVoucherButton } from "@/components/admin/find-voucher";
 import { tierFor } from "@/lib/tiers";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatTime, fullName } from "@/lib/format";
@@ -38,6 +40,14 @@ const sideCard = (empty: boolean) => (empty ? "flex flex-col gap-1 px-5 py-4" : 
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = { today: "Today", week: "7 days", month: "This month" };
 
+/** The dates the tiles cover, e.g. "23 – 29 Oct" (today is in the page subtitle already). */
+function periodRange(period: DashboardPeriod, tz: string) {
+  const now = Date.now();
+  const dayMonth = (daysAgo: number) => formatDate(new Date(now - daysAgo * 86_400_000).toISOString(), tz, { day: "numeric", month: "short" });
+  const dayOfMonth = Number(new Date(now).toLocaleDateString("en-AU", { day: "numeric", timeZone: tz }));
+  return { today: "Today so far", week: `${dayMonth(6)} – ${dayMonth(0)}`, month: `${dayMonth(dayOfMonth - 1)} – ${dayMonth(0)}` }[period];
+}
+
 /**
  * What the owner checks during or after a day: four tiles and the top services for today (or the
  * last 7 days / this month, ?period=), who came in today for what and with whom, and short lists
@@ -46,6 +56,8 @@ const PERIOD_LABELS: Record<DashboardPeriod, string> = { today: "Today", week: "
  * per-technician count: visit counts aren't a fair measure of anyone's work and read as a ranking.
  */
 async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["searchParams"] }) {
+  // Request time only: a link prefetch prerenders the page with the cookies, and it reads the clock.
+  await connection();
   const { period: periodParam } = await searchParams;
   const period = DASHBOARD_PERIODS.includes(periodParam as DashboardPeriod) ? (periodParam as DashboardPeriod) : "today";
   // Started together: the lists that need the settings or the cheapest reward wait only for those.
@@ -54,14 +66,16 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
     const costs = rewards.filter((r) => r.is_active).map((r) => r.points_cost);
     return costs.length ? { cost: Math.min(...costs), title: rewards.find((r) => r.is_active && r.points_cost === Math.min(...costs))!.title } : null;
   });
-  const [settings, stats, reward, birthdays, closeToReward, notBack] = await Promise.all([
+  const statsPromise = getDashboard(period);
+  const [settings, stats, reward, birthdays, closeToReward, notBack, birthdayBadgeFor] = await Promise.all([
     settingsPromise,
-    getDashboard(period),
+    statsPromise,
     rewardCostPromise,
     // The list is for offering the birthday discount, so it's skipped while that's switched off.
     settingsPromise.then((s) => (s.birthday_discount_enabled ? getUpcomingBirthdays(s.timezone) : [])),
     rewardCostPromise.then((r) => getCloseToReward(r?.cost ?? null)),
     settingsPromise.then(getNotBackLately),
+    statsPromise.then((s) => birthdayBadges(s.checkIns.map((c) => c.customer?.id))),
   ]);
   const tz = settings.timezone;
   const weekday = new Date().toLocaleDateString("en-AU", { weekday: "long", timeZone: tz });
@@ -70,17 +84,14 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
   const before = { today: `last ${weekday} so far`, week: "the 7 days before", month: "this time last month" }[period];
   const joined = { today: "Joined today", week: "Joined in the last 7 days", month: "Joined this month" }[period];
   const vouchers = stats.vouchers;
-  // The dates the tiles cover, e.g. "23 – 29 Oct" (today is in the page subtitle already).
-  const dayMonth = (daysAgo: number) => formatDate(new Date(Date.now() - daysAgo * 86_400_000).toISOString(), tz, { day: "numeric", month: "short" });
-  const dayOfMonth = Number(new Date().toLocaleDateString("en-AU", { day: "numeric", timeZone: tz }));
-  const range = { today: "Today so far", week: `${dayMonth(6)} – ${dayMonth(0)}`, month: `${dayMonth(dayOfMonth - 1)} – ${dayMonth(0)}` }[period];
+  const range = periodRange(period, tz);
 
   return (
     <>
       <PageHeader
         title="Today at Best Nails"
         subtitle={new Date().toLocaleDateString("en-AU", { weekday: "long", month: "long", day: "numeric", timeZone: tz })}
-        actions={<UseGiftVoucherButton variant="outline" />}
+        actions={<FindVoucherButton />}
       />
 
       <div className="-mb-2 flex flex-wrap items-center justify-between gap-3">
@@ -159,6 +170,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
                             {fullName(c.customer)}
                           </Link>
                           <TierBadge tier={tierFor(c.customer.lifetime_points, settings)} />
+                          {birthdayBadgeFor.has(c.customer.id) && <BirthdayBadge {...birthdayBadgeFor.get(c.customer.id)!} />}
                         </span>
                         <p className="text-[13px] whitespace-nowrap text-muted-foreground tabular-nums">{formatPhone(c.customer.phone)}</p>
                       </>

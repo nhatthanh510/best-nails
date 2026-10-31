@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/kiosk/brand";
 import { ActiveNavLinks, NavLinks } from "./nav-links";
 import { PhoneMenu } from "./phone-menu";
+import { SidebarToggle } from "./sidebar-toggle";
 import { signOut } from "@/app/admin/actions";
 
 const drawerItem = "flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 text-[15px] font-semibold hover:bg-muted";
@@ -14,7 +15,7 @@ function Brand({ className }: { className?: string }) {
   return (
     <Link href="/admin" aria-label="Best Nails dashboard" className={cn("flex min-h-11 items-center gap-2.5", className)}>
       <BrandMark className="size-10" sizes="40px" />
-      <span className="font-heading text-[24px] font-bold tracking-wide whitespace-nowrap md:max-lg:sr-only">Best Nails</span>
+      <span className="font-heading text-[24px] font-bold tracking-wide whitespace-nowrap rail:sr-only">Best Nails</span>
     </Link>
   );
 }
@@ -31,8 +32,9 @@ function Links() {
 /**
  * Three layouts: a sticky top bar on phones (the logo, then the kiosk and Menu buttons on the
  * right, Menu opening a drawer), an icon rail from md (portrait iPad), and the full sidebar from
- * lg. `account` is rendered at the bottom of the sidebar from md, and `phoneProfile` (who's signed
- * in) at the top of the drawer.
+ * lg, which the owner can collapse to the rail (SidebarToggle; `rail:` styles both). `account` is
+ * rendered at the bottom of the sidebar from md, and `phoneProfile` (who's signed in) at the top of
+ * the drawer.
  */
 export function Sidebar({ account, phoneProfile }: { account: React.ReactNode; phoneProfile: React.ReactNode }) {
   return (
@@ -69,14 +71,21 @@ export function Sidebar({ account, phoneProfile }: { account: React.ReactNode; p
 
       <nav
         aria-label="Main"
-        className="hidden border-r border-border bg-card md:sticky md:top-0 md:flex md:h-dvh md:w-19 md:flex-none md:flex-col md:gap-7 md:px-3.5 md:py-6 lg:w-60 lg:px-4"
+        // Collapsing and expanding animate the width; the labels are clipped as it narrows or
+        // widens, and the icons don't move (the rail centres them where they already sit).
+        className="hidden border-r border-border bg-card md:sticky md:top-0 md:flex md:h-dvh md:w-19 md:flex-none md:flex-col md:gap-7 md:overflow-x-hidden md:px-3.5 md:py-6 lg:w-60 lg:px-4 lg:transition-[width,padding] lg:duration-200 lg:ease-out motion-reduce:transition-none rail:w-19 rail:px-3.5"
       >
-        <Brand className="px-2 md:max-lg:justify-center md:max-lg:px-0" />
+        {/* The collapse button sits by the logo, as in Notion and Linear. Collapsed (`lg:rail:`), the
+            button is the small logo itself, in the same row, so nothing below moves. */}
+        <div className="flex min-h-11 items-center justify-between gap-2 rail:justify-center">
+          <Brand className="px-2 rail:justify-center rail:px-0 lg:rail:hidden" />
+          <SidebarToggle />
+        </div>
         <Links />
         <div className="mt-auto flex flex-col gap-2">
-          <Link href="/kiosk" title="Open kiosk" className={cn(kioskLink, "md:max-lg:justify-center md:max-lg:px-0")}>
+          <Link href="/kiosk" title="Open kiosk" className={cn(kioskLink, "rail:justify-center rail:px-0")}>
             <Tablet className="size-4.5 flex-none" aria-hidden="true" />
-            <span className="md:max-lg:sr-only">Open kiosk</span>
+            <span className="rail:sr-only">Open kiosk</span>
           </Link>
           {account}
         </div>

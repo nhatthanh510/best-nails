@@ -334,10 +334,11 @@ function ItemRow({
             aria-hidden="true"
           />
         )}
-        <span className={cn("min-w-0 break-words", heading ? "text-base font-extrabold" : "text-[15px] font-medium")}>
-          {item.name}
+        {/* Phones: the count goes under the name, so a name never breaks mid-word. */}
+        <span className="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-2.5">
+          <span className={cn("min-w-0 break-words", heading ? "text-base font-extrabold" : "text-[15px] font-medium")}>{item.name}</span>
+          {detail && <span className="flex-none text-[13px] text-muted-foreground">{detail}</span>}
         </span>
-        {detail && <span className="flex-none text-[13px] text-muted-foreground">{detail}</span>}
       </button>
       <Switch checked={shown} onCheckedChange={toggle} aria-label={`Show ${item.name} on the kiosk`} className="mx-2" />
       <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Edit ${item.name}`} className="flex-none text-muted-foreground">

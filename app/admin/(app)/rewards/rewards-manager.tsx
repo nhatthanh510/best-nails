@@ -5,14 +5,15 @@ import { Cake, Gift, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card } from "@/components/admin/ui";
+import { Card, TierBadge } from "@/components/admin/ui";
 import { ConfirmButton, useActionToast } from "@/components/admin/action-button";
 import { deleteReward, saveBirthdayDiscount, saveReward } from "@/app/admin/actions";
 import type { Settings } from "@/lib/admin-data";
-import type { Reward } from "@/lib/rewards";
+import type { DiscountKind, Reward } from "@/lib/rewards";
 import { cn } from "@/lib/utils";
 import { useFormSubmit } from "@/lib/use-form-submit";
-import { numberInput } from "@/lib/number-input";
+import { cleanNumber, numberInput } from "@/lib/number-input";
+import { TIER_LABELS, type Tier } from "@/lib/tiers";
 
 type Item = { reward: Reward; uses: number };
 
@@ -126,6 +127,63 @@ function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => vo
   );
 }
 
+const BIRTHDAY_TIERS = ["new", "regular", "vip"] as const satisfies readonly Tier[];
+
+/**
+ * One tier's birthday discount: the badge and who's in it, then the amount with its unit (% off or
+ * $ off) joined to it. A dollar amount is typed in dollars; the action stores cents.
+ */
+function BirthdayTierRow({ tier, settings: s }: { tier: Tier; settings: Settings }) {
+  const savedKind = s[`birthday_kind_${tier}`];
+  const saved = s[`birthday_value_${tier}`];
+  const [kind, setKind] = useState<DiscountKind>(savedKind);
+  const [value, setValue] = useState(savedKind === "amount" ? String(saved / 100) : String(saved));
+  const numberKind = kind === "amount" ? "money" : "digits";
+  const id = `birthday_value_${tier}`;
+  return (
+    <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+      <Label htmlFor={id} className="flex flex-col items-start gap-1">
+        <TierBadge tier={tier} showNew />
+        <span className="text-[13px] font-normal text-muted-foreground">{tierRangeLabel(tier, s)}</span>
+      </Label>
+      <div className="flex flex-none">
+        <Input
+          id={id}
+          name={id}
+          {...numberInput(numberKind)}
+          maxLength={kind === "amount" ? 7 : 3}
+          required
+          value={value}
+          onChange={(e) => setValue(cleanNumber(numberKind, e.target.value))}
+          className="w-16 rounded-r-none text-right tabular-nums"
+        />
+        <select
+          name={`birthday_kind_${tier}`}
+          aria-label={`${TIER_LABELS[tier]} discount type`}
+          value={kind}
+          onChange={(e) => {
+            const next = e.target.value as DiscountKind;
+            setKind(next);
+            // "7.50" isn't a percent: keep the whole number.
+            if (next === "percent") setValue((v) => v.split(".")[0]);
+          }}
+          className="h-11 rounded-r-[10px] border border-l-0 border-input bg-secondary px-2 text-sm font-semibold"
+        >
+          <option value="percent">% off</option>
+          <option value="amount">$ off</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+/** Who's in a tier, from the thresholds in Settings, e.g. "10–19 points". */
+function tierRangeLabel(tier: Tier, s: Settings) {
+  if (tier === "vip") return `${s.tier_vip_points}+ points`;
+  if (tier === "regular") return `${s.tier_regular_points}–${s.tier_vip_points - 1} points`;
+  return `Under ${s.tier_regular_points} points`;
+}
+
 const WINDOWS = [
   { days: 0, label: "On the birthday only" },
   { days: 3, label: "3 days either side" },
@@ -174,21 +232,16 @@ export function BirthdayDiscountForm({
           {/* Dimmed while the discount is off. `inert` rather than `disabled`, so the values are
               still sent and kept for when it's turned back on. */}
           <div inert={!enabled} className={cn("flex flex-col gap-4 transition-opacity", !enabled && "opacity-50")}>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="birthday_discount_percent">Discount</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="birthday_discount_percent"
-                  name="birthday_discount_percent"
-                  {...numberInput("digits")}
-                  maxLength={3}
-                  required
-                  defaultValue={s.birthday_discount_percent}
-                  className="w-28"
-                />
-                <span className="text-sm font-bold">% off</span>
+            {/* One row per tier: the badge and who's in it, then its discount. */}
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-2 text-sm leading-none font-semibold">Discount by tier</legend>
+              <div className="flex flex-col divide-y divide-border rounded-xl border border-border">
+                {BIRTHDAY_TIERS.map((tier) => (
+                  <BirthdayTierRow key={tier} tier={tier} settings={s} />
+                ))}
               </div>
-            </div>
+              <p className="text-[13px] text-muted-foreground">A percent or a dollar amount off. 0 means no birthday discount for that tier.</p>
+            </fieldset>
             <div className="flex flex-col gap-2">
               <Label htmlFor="birthday_window_days">When it can be used</Label>
               <select

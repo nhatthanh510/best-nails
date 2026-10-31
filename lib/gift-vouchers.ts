@@ -1,7 +1,11 @@
 // Gift vouchers hold money, stored in cents. These helpers are shared by the admin pages and
 // actions, and stay free of server-only imports.
 
-export type GiftVoucherStatus = "active" | "used_up" | "expired";
+/**
+ * `inactive`: a blank card printed ahead of time and not sold yet, so it has no amount or expiry.
+ * `blocked`: switched off by an admin (lost or stolen); its balance is kept until it's unblocked.
+ */
+export type GiftVoucherStatus = "inactive" | "active" | "used_up" | "expired" | "blocked";
 
 const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
 
@@ -45,13 +49,20 @@ export function looksMistyped(input: string) {
 export const CODE_PREFIX_PATTERN = /^[A-Z]{2,4}$/;
 
 /** `today` is YYYY-MM-DD in the shop's timezone. */
-export function giftVoucherStatus(v: { balance_cents: number; expires_on: string }, today: string): GiftVoucherStatus {
+export function giftVoucherStatus(
+  v: { balance_cents: number; expires_on: string | null; blocked_at?: string | null },
+  today: string,
+): GiftVoucherStatus {
+  if (v.expires_on === null) return "inactive";
+  if (v.blocked_at) return "blocked";
   if (v.expires_on < today) return "expired";
   if (v.balance_cents === 0) return "used_up";
   return "active";
 }
 
 export const GIFT_VOUCHER_STATUS_LABELS: Record<GiftVoucherStatus, string> = {
+  inactive: "Not sold",
+  blocked: "Blocked",
   active: "Active",
   used_up: "Used up",
   expired: "Expired",
@@ -63,6 +74,8 @@ export const GIFT_VOUCHER_PROBLEMS: Record<string, string> = {
   mistyped: "This code looks mistyped: one of the digits is probably wrong. Check it against the voucher.",
   used_up: "This gift voucher has no balance left.",
   expired: "This gift voucher has expired.",
+  blocked: "This voucher is blocked (reported lost or stolen). An admin can unblock it on its page.",
+  not_sold: "This voucher hasn't been sold yet. Create it with an amount first.",
 };
 
 /** Quick amounts on the sell form. */

@@ -66,7 +66,7 @@ describe("lookupPhone", () => {
       phone: "+61491570101",
       points_balance: 7,
       visit_count: 7,
-      birthday: { eligible: false, in_window: false, used: false },
+      birthday: { eligible: true, in_window: true, used: false, percent: 15 },
       today: { checked_in_at: null, discount_used_today: false },
     });
     const result = await lookupPhone("0491 570 101");
@@ -80,7 +80,7 @@ describe("lookupPhone", () => {
         maskedPhone: "04•• ••• 101",
         points: 7,
         visits: 7,
-        birthday: { eligible: false, used: false },
+        birthday: { eligible: true, used: false, label: "15% off" },
         checkedInAt: null,
         discountUsedToday: false,
       },
@@ -128,7 +128,7 @@ describe("checkIn sign-up validation (KA-03, KA-04)", () => {
       firstName: "Alice",
       pointsAwarded: 1,
       points: 1,
-      birthday: { eligible: false, used: false },
+      birthday: { eligible: false, used: false, label: null },
       discountUsedToday: false,
     });
   });

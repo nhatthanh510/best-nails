@@ -8,6 +8,7 @@ import type { BirthdayStatus, Reward } from "@/lib/rewards";
 import { isBirthdayOn } from "@/lib/birthday";
 import { tierRange, type TierThresholds } from "@/lib/tiers";
 import { giftVoucherStatus, type GiftVoucherStatus } from "@/lib/gift-vouchers";
+import { discountLabel, type Discount } from "@/lib/rewards";
 
 // Every read starts with requireAdmin(): RLS would return nothing to a non-staff user anyway,
 // but this sends them to the login page instead of showing an empty admin.
@@ -21,7 +22,7 @@ export type CheckInRow = Tables["check_ins"]["Row"] & {
   services: Pick<Tables["check_in_services"]["Row"], "position" | "name" | "category_name">[];
 };
 /** Something a customer used on the day of a check-in: a discount or part of a gift voucher. */
-export type VisitUse = { kind: "points"; label: string } | { kind: "birthday"; percent: number } | { kind: "gift"; cents: number };
+export type VisitUse = { kind: "points"; label: string } | { kind: "birthday"; label: string } | { kind: "gift"; cents: number };
 /** A points history row; a check-in also brings what was done on that visit (picked on the kiosk). */
 export type LedgerRow = Tables["point_transactions"]["Row"] & {
   visit: (Pick<Tables["check_ins"]["Row"], "technician_name"> & { services: CheckInRow["services"] }) | null;
@@ -70,6 +71,23 @@ export async function staffNames(): Promise<Map<string, string>> {
   return new Map((data ?? []).map((s) => [s.user_id, s.display_name]));
 }
 
+/**
+ * The Birthday badge for a customer in their birthday window: they can claim it today, or have
+ * claimed it for this birthday. Days until the birthday (negative once it's passed) and e.g. "15% off".
+ */
+export type BirthdayBadgeInfo = { state: "claimable" | "claimed"; daysAway: number; label: string };
+
+/** The Birthday badges for a page of customers, in one call; nothing to ask when the discount is off. */
+export async function birthdayBadges(customerIds: (string | null | undefined)[]): Promise<Map<string, BirthdayBadgeInfo>> {
+  const ids = [...new Set(customerIds.filter((id): id is string => Boolean(id)))];
+  if (ids.length === 0 || !(await getSettings()).birthday_discount_enabled) return new Map();
+  const { supabase } = await staffClient();
+  const { data, error } = await supabase.rpc("birthday_badges", { p_customer_ids: ids });
+  if (error) throw error;
+  const rows = (data ?? []) as ({ id: string; state: BirthdayBadgeInfo["state"]; days_away: number } & Discount)[];
+  return new Map(rows.map((r) => [r.id, { state: r.state, daysAway: r.days_away, label: discountLabel(r) ?? "Discount" }]));
+}
+
 /** Cached for the request: pages and the loaders that need the shop's timezone all read it. */
 export const getSettings = cache(async (): Promise<Settings> => {
   const { supabase } = await staffClient();
@@ -85,13 +103,16 @@ export const getSettings = cache(async (): Promise<Settings> => {
 const DASHBOARD_CHECK_INS = 10;
 const TOP_SERVICES = 5;
 
-/** How many vouchers were sold and used, and for how much (spends are stored as negative deltas). */
+/**
+ * How many vouchers were sold and used, and for how much (spends are stored as negative deltas).
+ * Value added to an existing voucher is money taken too, so it's in soldCents but not the count.
+ */
 function voucherTotals(rows: { kind: string; delta_cents: number }[]) {
   const sales = rows.filter((r) => r.kind === "sale");
   const uses = rows.filter((r) => r.kind === "spend");
   return {
     sold: sales.length,
-    soldCents: sales.reduce((sum, r) => sum + r.delta_cents, 0),
+    soldCents: rows.filter((r) => r.kind === "sale" || r.kind === "top_up").reduce((sum, r) => sum + r.delta_cents, 0),
     used: uses.length,
     usedCents: uses.reduce((sum, r) => sum - r.delta_cents, 0),
   };
@@ -145,7 +166,7 @@ export async function getDashboard(period: DashboardPeriod = "today") {
     supabase.from("point_transactions").select("id", { count: "exact", head: true }).eq("reason", "redeem").gte("created_at", from),
     supabase.from("birthday_redemptions").select("id", { count: "exact", head: true }).gte("created_at", from),
     // Voucher sales and uses, from the ledger (older undone uses keep voided_at).
-    supabase.from("gift_voucher_transactions").select("kind, delta_cents").in("kind", ["sale", "spend"]).gte("created_at", from).is("voided_at", null),
+    supabase.from("gift_voucher_transactions").select("kind, delta_cents").in("kind", ["sale", "top_up", "spend"]).gte("created_at", from).is("voided_at", null),
   ]);
 
   return {
@@ -237,7 +258,7 @@ export const CUSTOMER_FILTERS = ["all", "today", "yesterday", "week", "birthday"
 export type CustomerFilter = (typeof CUSTOMER_FILTERS)[number];
 export const PAGE_SIZE = 25;
 
-export const CUSTOMER_SORTS = ["last_visit", "name", "points", "lifetime", "joined"] as const;
+export const CUSTOMER_SORTS = ["last_visit", "name", "points", "lifetime"] as const;
 export type CustomerSort = (typeof CUSTOMER_SORTS)[number];
 export type SortDir = "asc" | "desc";
 /** The direction a column sorts in when first clicked: biggest and newest first, names A–Z. */
@@ -246,7 +267,6 @@ export const DEFAULT_SORT_DIR: Record<CustomerSort, SortDir> = {
   name: "asc",
   points: "desc",
   lifetime: "desc",
-  joined: "desc",
 };
 
 // PostgREST answers 416 "Requested range not satisfiable" for a page past the last row.
@@ -289,7 +309,6 @@ export async function listCustomers({
   else if (sort === "points") query = query.order("points_balance", { ascending });
   // Lifetime points decide the tier, so that is what the list shows and sorts by (not visits).
   else if (sort === "lifetime") query = query.order("lifetime_points", { ascending });
-  else if (sort === "joined") query = query.order("created_at", { ascending });
   // Customers who never visited go last whichever way the list is sorted.
   else query = query.order("last_visit_at", { ascending, nullsFirst: false });
 
@@ -405,7 +424,7 @@ export async function listCheckIns({
     query,
     supabase.rpc("check_in_totals", { p_since: since }),
     supabase.from("point_transactions").select("customer_id, created_at, promotion:promotions(title)").eq("reason", "redeem").gte("created_at", since).limit(5000),
-    supabase.from("birthday_redemptions").select("customer_id, created_at, percent").gte("created_at", since).limit(5000),
+    supabase.from("birthday_redemptions").select("customer_id, created_at, percent, amount_cents").gte("created_at", since).limit(5000),
     supabase
       .from("gift_voucher_transactions")
       .select("customer_id, created_at, delta_cents, voucher:gift_vouchers(customer_id)")
@@ -424,7 +443,7 @@ export async function listCheckIns({
     if (key) uses.set(key, [...(uses.get(key) ?? []), use]);
   };
   for (const r of redeems.data ?? []) add(dayKey(r.customer_id, r.created_at), { kind: "points", label: r.promotion?.title ?? "Reward" });
-  for (const b of birthdays.data ?? []) add(dayKey(b.customer_id, b.created_at), { kind: "birthday", percent: b.percent });
+  for (const b of birthdays.data ?? []) add(dayKey(b.customer_id, b.created_at), { kind: "birthday", label: discountLabel(b) ?? "discount" });
   // A spend names the customer only when staff gave one; otherwise it's the voucher's owner.
   for (const g of spends.data ?? []) add(dayKey(g.customer_id ?? g.voucher?.customer_id, g.created_at), { kind: "gift", cents: -g.delta_cents });
 
@@ -551,13 +570,64 @@ export type GiftVoucherRow = Tables["gift_vouchers"]["Row"] & {
 };
 export type GiftVoucherTransaction = Tables["gift_voucher_transactions"]["Row"] & { customer: CustomerRef | null };
 
-export const GIFT_VOUCHER_FILTERS = ["all", "used_today", "active", "used_up", "expired"] as const;
+/** The list's status tabs (`inactive` is shown as Not sold). */
+export const GIFT_VOUCHER_FILTERS = ["all", "active", "used_up", "expired", "inactive", "blocked"] as const;
 export type GiftVoucherFilter = (typeof GIFT_VOUCHER_FILTERS)[number];
+export const GIFT_VOUCHER_SORTS = ["newest", "oldest", "balance", "expiring"] as const;
+export type GiftVoucherSort = (typeof GIFT_VOUCHER_SORTS)[number];
 export const GIFT_VOUCHERS_PAGE_SIZE = 25;
 
 const CUSTOMER_REF = "customer:customers(id, first_name, last_name, phone)";
 
-export async function listGiftVouchers({ q, filter, page }: { q: string; filter: GiftVoucherFilter; page: number }) {
+// Each sort's first ordering; newest first breaks ties. Not sold vouchers (no expiry) go last when expiring.
+const GIFT_VOUCHER_ORDER: Record<GiftVoucherSort, ["created_at" | "balance_cents" | "expires_on", { ascending: boolean; nullsFirst?: boolean }]> = {
+  newest: ["created_at", { ascending: false }],
+  oldest: ["created_at", { ascending: true }],
+  balance: ["balance_cents", { ascending: false }],
+  expiring: ["expires_on", { ascending: true, nullsFirst: false }],
+};
+
+/** How many vouchers each status tab holds (not narrowed by a search), for the tab counts. */
+export async function giftVoucherCounts(): Promise<Record<GiftVoucherFilter, number>> {
+  const { supabase } = await staffClient();
+  const today = isoDate(shopDate(await shopTimezone()));
+  const count = () => supabase.from("gift_vouchers").select("id", { count: "exact", head: true });
+  // The same conditions as the tabs in listGiftVouchers.
+  const [all, active, usedUp, expired, inactive, blocked] = await Promise.all([
+    count(),
+    count().gt("balance_cents", 0).gte("expires_on", today).is("blocked_at", null),
+    count().eq("balance_cents", 0).gte("expires_on", today).is("blocked_at", null),
+    count().lt("expires_on", today).is("blocked_at", null),
+    count().is("sold_on", null),
+    count().not("blocked_at", "is", null),
+  ]);
+  return {
+    all: all.count ?? 0,
+    active: active.count ?? 0,
+    used_up: usedUp.count ?? 0,
+    expired: expired.count ?? 0,
+    inactive: inactive.count ?? 0,
+    blocked: blocked.count ?? 0,
+  };
+}
+
+/**
+ * One page of vouchers: a status tab, an optional search, `usedToday` (for checking against the
+ * till at the end of the day) and a sort.
+ */
+export async function listGiftVouchers({
+  q,
+  filter,
+  usedToday = false,
+  sort = "newest",
+  page,
+}: {
+  q: string;
+  filter: GiftVoucherFilter;
+  usedToday?: boolean;
+  sort?: GiftVoucherSort;
+  page: number;
+}) {
   const { supabase } = await staffClient();
   const today = isoDate(shopDate(await shopTimezone()));
   let query = supabase
@@ -597,7 +667,7 @@ export async function listGiftVouchers({ q, filter, page }: { q: string; filter:
     query = query.or(either.join(","));
   }
   // For checking against the till at the end of the day.
-  if (filter === "used_today") {
+  if (usedToday) {
     const { data: spends, error } = await supabase
       .from("gift_voucher_transactions")
       .select("gift_voucher_id")
@@ -610,12 +680,17 @@ export async function listGiftVouchers({ q, filter, page }: { q: string; filter:
     if (!ids.length) return { vouchers: [] as GiftVoucherRow[], total: 0, pastEnd: false };
     query = query.in("id", ids);
   }
-  if (filter === "active") query = query.gt("balance_cents", 0).gte("expires_on", today);
-  if (filter === "used_up") query = query.eq("balance_cents", 0).gte("expires_on", today);
-  if (filter === "expired") query = query.lt("expires_on", today);
+  // A blocked voucher is only under Blocked, as its status says.
+  if (filter === "active") query = query.gt("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
+  if (filter === "used_up") query = query.eq("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
+  if (filter === "expired") query = query.lt("expires_on", today).is("blocked_at", null);
+  if (filter === "blocked") query = query.not("blocked_at", "is", null);
+  // Printed ahead of time and not sold yet (no expiry until then).
+  if (filter === "inactive") query = query.is("sold_on", null);
 
   const from = (page - 1) * GIFT_VOUCHERS_PAGE_SIZE;
   const { data, count, error } = await query
+    .order(...GIFT_VOUCHER_ORDER[sort])
     .order("created_at", { ascending: false })
     .order("id")
     .range(from, from + GIFT_VOUCHERS_PAGE_SIZE - 1);
@@ -674,7 +749,7 @@ export async function giftVoucherSummary() {
     outstandingCents: Number(totals.data?.outstanding_cents ?? 0),
     activeCount: totals.data?.active_count ?? 0,
     soldThisMonth: sold.data?.length ?? 0,
-    soldThisMonthCents: (sold.data ?? []).reduce((sum, v) => sum + v.amount_cents, 0),
+    soldThisMonthCents: (sold.data ?? []).reduce((sum, v) => sum + (v.amount_cents ?? 0), 0),
   };
 }
 

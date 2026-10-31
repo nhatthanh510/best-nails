@@ -133,7 +133,7 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 | ST-02 | VIP at or below Regular shows the error and disables Save |
 | G-07 | Use part of a voucher (typed in lower case with spaces) and see the new balance |
 | G-08 | An amount above the balance is blocked inline; "Use all" fills the balance and says what to take at the till |
-| G-12 | Adjust balance needs a reason and changes the balance |
+| G-12 | Correct balance needs a reason and changes the balance |
 | G-14 | An expired voucher is refused |
 | G-16 | A code with two digits swapped says it looks mistyped |
 | G-17 | An unspent voucher can be deleted; a spent one has no Delete |

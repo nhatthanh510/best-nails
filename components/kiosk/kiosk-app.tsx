@@ -146,8 +146,8 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     });
   };
 
-  // Check in → services → staff → checked in. A step with nothing turned on in the admin is left
-  // out, and Skip moves on without a choice.
+  // Check in → services → staff → checked in. Services need at least one pick; staff can be
+  // skipped. A step with nothing turned on in the admin is left out.
   const hasServices = content.services.length > 0;
   const hasStaff = content.technicians.length > 0;
   const startVisit = (from: Visit["from"], signup?: SignupInput) => {
@@ -199,7 +199,6 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
 
   const redeemProps = {
     rewards: content.rewards,
-    birthdayPercent: content.birthday?.percent,
     pending,
     error: redeemError,
     onRedeem: redeem,
@@ -295,7 +294,6 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
               })
             }
             onBack={() => backFrom("services", visit)}
-            onSkip={() => afterServices({ ...visit, serviceIds: [] })}
             onNext={() => afterServices(visit)}
           />
         );

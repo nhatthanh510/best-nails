@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Crown, Star } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Cake, Check, ChevronLeft, ChevronRight, Crown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TIER_LABELS, type Tier } from "@/lib/tiers";
 
@@ -33,7 +33,8 @@ export function Card({ className, ...props }: React.ComponentProps<"section">) {
 }
 
 /** The dashboard's four "today" tiles: two by two on phones and iPads in portrait, one row from lg. */
-export const dashboardTileGrid = "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4";
+// Two by two until there's room for four across (`wide`): at 1024 px four squeeze their numbers.
+export const dashboardTileGrid = "grid grid-cols-2 gap-3 sm:gap-4 wide:grid-cols-4";
 
 export function StatTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: React.ReactNode }) {
   return (
@@ -176,6 +177,68 @@ export function TierBadge({ tier, showNew = false }: { tier: Tier; showNew?: boo
       {tier === "vip" && <Crown className="size-3.5" aria-hidden="true" />}
       {tier === "regular" && <Star className="size-3.5" aria-hidden="true" />}
       {TIER_LABELS[tier]}
+    </span>
+  );
+}
+
+const BIRTHDAY_WHEN = {
+  soon: { label: "Birthday soon", className: "text-warning" },
+  today: { label: "Birthday today", className: "text-primary" },
+  recent: { label: "Recent birthday", className: "text-info" },
+};
+
+/**
+ * The Birthday badge (`birthdayBadges`). Still to claim: whether the birthday is coming up, today
+ * or just passed, and what to claim, e.g. "Birthday soon · claim $10 off", in a dashed outline so
+ * it doesn't read like a discount already used. Claimed: a quiet "✓ Birthday claimed".
+ * `compact` (beside the date in the DoB column): "✓ Claimed", or the timing and the discount as two
+ * pills that wrap onto their own lines, so the column can stay narrow.
+ */
+export function BirthdayBadge({
+  state,
+  daysAway,
+  label,
+  compact = false,
+}: {
+  state: "claimable" | "claimed";
+  daysAway: number;
+  label: string;
+  compact?: boolean;
+}) {
+  if (state === "claimed") {
+    return (
+      <span
+        title={`Birthday discount (${label}) already used for this birthday`}
+        className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-bold whitespace-nowrap text-muted-foreground"
+      >
+        <Check className="size-3.5" strokeWidth={2.6} aria-hidden="true" />
+        {compact ? "Claimed" : "Birthday claimed"}
+      </span>
+    );
+  }
+  const when = BIRTHDAY_WHEN[daysAway > 0 ? "soon" : daysAway === 0 ? "today" : "recent"];
+  const pill = cn(
+    "inline-flex items-center gap-1 rounded-full border border-dashed border-current px-2 py-0.5 text-xs font-bold whitespace-nowrap",
+    when.className,
+  );
+  if (compact) {
+    return (
+      <>
+        <span title="Birthday discount not used yet: they can claim it today" className={pill}>
+          <Cake className="size-3.5" aria-hidden="true" />
+          {when.label}
+        </span>
+        <span className={pill}>{label}</span>
+      </>
+    );
+  }
+  return (
+    <span
+      title="Birthday discount not used yet: they can claim it today"
+      className={pill}
+    >
+      <Cake className="size-3.5" aria-hidden="true" />
+      {when.label} · claim {label}
     </span>
   );
 }

@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/admin/sidebar";
+import { RESTORE_SIDEBAR } from "@/lib/sidebar";
 import { Avatar } from "@/components/admin/ui";
 import { NavProgress } from "@/components/admin/nav-progress";
 import { getStaff } from "@/lib/auth";
@@ -13,6 +15,8 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
   // height so the panel can take what's left, and scrolls only if the screen is too short.
   return (
     <div data-admin className="flex min-h-dvh flex-1 flex-col bg-background md:flex-row md:has-[[data-list-panel]]:max-h-dvh">
+      {/* Runs as the page is read, before the sidebar paints: puts it back collapsed if it was. */}
+      <script dangerouslySetInnerHTML={{ __html: RESTORE_SIDEBAR }} />
       <Sidebar
         account={
           <Suspense fallback={<div className="h-11" />}>
@@ -38,11 +42,14 @@ const iconButton = "flex size-11 flex-none items-center justify-center rounded-[
 
 /** Who's signed in (a link to Your account), with a sign-out button. */
 async function Account() {
+  // At request time only: pages that cache their data ("use cache: private") are prerendered with
+  // the cookies, and the session check then reads the clock, which a prerender can't.
+  await connection();
   const staff = await getStaff();
   if (!staff) return null;
   return (
-    <form action={signOut} className="flex items-center justify-between gap-2 px-1 md:max-lg:justify-center md:max-lg:px-0">
-      <Link href="/account" title="Your account" className="min-w-0 truncate rounded-[10px] py-2.5 text-sm hover:underline md:max-lg:sr-only">
+    <form action={signOut} className="flex items-center justify-between gap-2 px-1 rail:justify-center rail:px-0">
+      <Link href="/account" title="Your account" className="min-w-0 truncate rounded-[10px] py-2.5 text-sm hover:underline rail:sr-only">
         <span className="font-bold">{staff.displayName}</span>
         <span className="text-muted-foreground"> · {staff.role === "admin" ? "Admin" : "Staff"}</span>
       </Link>
@@ -60,6 +67,9 @@ async function Account() {
 
 /** The top of the phone menu: who's signed in. */
 async function Profile() {
+  // At request time only: pages that cache their data ("use cache: private") are prerendered with
+  // the cookies, and the session check then reads the clock, which a prerender can't.
+  await connection();
   const staff = await getStaff();
   if (!staff) return null;
   const letters = staff.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();

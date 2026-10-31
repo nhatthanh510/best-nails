@@ -42,13 +42,37 @@ test.describe("Admin: rewards", () => {
   test("RW-02 turning the birthday discount on shows it on the kiosk", async ({ page }) => {
     await page.goto("/admin/rewards");
     await page.getByLabel("Offer a birthday discount").check();
-    await page.getByLabel("Discount", { exact: true }).fill("15");
+    await page.getByRole("textbox", { name: /^New/ }).fill("10");
+    await page.getByRole("textbox", { name: /^Regular/ }).fill("15");
+    await page.getByRole("textbox", { name: /^VIP/ }).fill("20");
     await page.getByRole("button", { name: "Save birthday discount" }).click();
     await expect(page.getByText("Birthday discount saved.")).toBeVisible();
-    expect(await getSettings()).toMatchObject({ birthday_discount_enabled: true, birthday_discount_percent: 15 });
+    expect(await getSettings()).toMatchObject({
+      birthday_discount_enabled: true,
+      birthday_value_new: 10,
+      birthday_value_regular: 15,
+      birthday_value_vip: 20,
+    });
+
+    // The kiosk names the top tier's discount and the tiers to reach.
+    await page.goto("/kiosk");
+    await expect(page.getByText("10% off on your birthday — up to 20% off for VIPs")).toBeVisible();
+    await expect(page.getByText(/Visit more to reach Regular and VIP for a bigger birthday treat\./)).toBeVisible();
+  });
+
+  test("RW-03 a tier's birthday discount can be a dollar amount", async ({ page }) => {
+    await page.goto("/admin/rewards");
+    await page.getByLabel("Offer a birthday discount").check();
+    for (const tier of ["New", "Regular", "VIP"]) {
+      await page.getByLabel(`${tier} discount type`).selectOption("$ off");
+      await page.getByRole("textbox", { name: new RegExp(`^${tier}`) }).fill("20");
+    }
+    await page.getByRole("button", { name: "Save birthday discount" }).click();
+    await expect(page.getByText("Birthday discount saved.")).toBeVisible();
+    expect(await getSettings()).toMatchObject({ birthday_kind_vip: "amount", birthday_value_vip: 2000 });
 
     await page.goto("/kiosk");
-    await expect(page.getByText("Birthday 15% off")).toBeVisible();
+    await expect(page.getByText("$20 off on your birthday", { exact: true })).toBeVisible();
   });
 });
 

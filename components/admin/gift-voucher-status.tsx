@@ -2,6 +2,8 @@ import { cn } from "@/lib/utils";
 import { GIFT_VOUCHER_STATUS_LABELS, type GiftVoucherStatus } from "@/lib/gift-vouchers";
 
 const STYLES: Record<GiftVoucherStatus, string> = {
+  inactive: "bg-muted text-muted-foreground",
+  blocked: "bg-foreground/10 text-foreground",
   active: "bg-success-soft text-success",
   used_up: "bg-destructive/10 text-destructive",
   expired: "bg-warning-soft text-warning",
