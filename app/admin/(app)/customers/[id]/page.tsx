@@ -2,7 +2,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { notFound, redirect } from "next/navigation";
 import { Cake, Check, ChevronLeft, NotebookPen } from "lucide-react";
-import { Avatar, Card, DataTable, EmptyRow, Pager, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
+import { Avatar, BirthdayBadge, Card, DataTable, EmptyRow, Pager, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
 import { TIER_LABELS, nextTier, tierFor } from "@/lib/tiers";
 import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
 import { customerGiftVouchers, customerTitle, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
@@ -11,7 +11,7 @@ import { UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
 import { requireAdmin } from "@/lib/auth";
 import { deleteCustomer, redeemBirthday, redeemReward } from "@/app/admin/actions";
 import { formatPhone, isStandardPhone } from "@/lib/phone";
-import type { BirthdayStatus } from "@/lib/rewards";
+import { discountLabel, type BirthdayStatus } from "@/lib/rewards";
 import { formatBirthday, formatDate, formatLastVisit, formatTime, fullName, initials, isShopToday, signed } from "@/lib/format";
 import { AdjustPointsForm, EditCustomerButton } from "./customer-actions";
 import { formatMoney } from "@/lib/gift-vouchers";
@@ -117,6 +117,9 @@ async function CustomerDetail({
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-[32px] leading-tight font-bold">{fullName(c)}</h1>
               <TierBadge tier={tierFor(c.lifetime_points, settings)} showNew />
+              {bday.in_window && (bday.used || (bday.eligible && !discountToday)) && (
+                <BirthdayBadge state={bday.used ? "claimed" : "claimable"} daysAway={bday.days_away ?? 0} label={discountLabel(bday) ?? "Discount"} />
+              )}
             </div>
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span className="tabular-nums">
@@ -131,7 +134,7 @@ async function CustomerDetail({
             {bday.enabled && bday.in_window && (
               <Pill className="mt-1 w-fit bg-accent text-accent-foreground">
                 <Cake className="size-3.5" aria-hidden="true" />
-                {bday.used ? "Birthday week · discount used" : `Birthday week · ${bday.percent ?? settings.birthday_discount_percent}% off available`}
+                {bday.used ? "Birthday week · discount used" : discountLabel(bday) ? `Birthday week · ${discountLabel(bday)} available` : "Birthday week · no discount for their tier"}
               </Pill>
             )}
           </div>
@@ -230,7 +233,9 @@ async function CustomerDetail({
                     <td className={`${td} whitespace-nowrap text-muted-foreground tabular-nums`}>{when(h.row.created_at)}</td>
                     <td className={td}>
                       <p className="font-bold">Birthday discount</p>
-                      <p className="text-[13px] text-muted-foreground">{h.row.percent}% off · {h.row.birthday_year}</p>
+                      <p className="text-[13px] text-muted-foreground">
+                        {discountLabel(h.row)} · {h.row.birthday_year}
+                      </p>
                       {by(h.row.created_by)}
                     </td>
                     <td className={`${td} hidden @2xl:table-cell`} />
@@ -263,7 +268,7 @@ async function CustomerDetail({
             {bday.enabled && (
               <div className="flex items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-3">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[15px] font-bold">Birthday {settings.birthday_discount_percent}% off</span>
+                  <span className="text-[15px] font-bold">{discountLabel(bday) ? `Birthday ${discountLabel(bday)}` : "Birthday discount"}</span>
                   <span className="text-[13px] text-muted-foreground">{birthdayHint(bday)}</span>
                 </div>
                 <ActionButton
@@ -347,6 +352,8 @@ async function CustomerDetail({
 
 function birthdayHint(b: BirthdayStatus) {
   if (!b.has_birthday) return "No birthday on file. Add it with Edit";
+  if (b.enabled && !discountLabel(b)) return "Their tier has no birthday discount";
+  if (b.too_new) return "Available from their second visit";
   if (b.used && b.in_window) return "Already used for this birthday";
   if (b.eligible) return b.days_away === 0 ? "Today is their birthday!" : "Available now";
   const until = (b.days_away ?? 0) - (b.window_days ?? 0);

@@ -63,8 +63,9 @@ test.describe("Kiosk: entering a number", () => {
     await kiosk.goto();
     await expect(page.getByText("E2E 10% off")).toBeVisible();
     await expect(page.getByText("After 10 visits")).toBeVisible();
-    await expect(page.getByText("Birthday 10% off")).toBeVisible();
-    await expect(page.getByText("Once a year, in your birthday week.")).toBeVisible();
+    await expect(page.getByText("10% off on your birthday", { exact: true })).toBeVisible();
+    // Every tier gets the same, so there's no tier to reach.
+    await expect(page.getByText(/Visit more to reach/)).toHaveCount(0);
   });
 });
 

@@ -83,7 +83,8 @@ test.describe("Kiosk: birthday discount", () => {
 
   test("B-02 in the birthday window, the birthday discount is redeemed with no points", async ({ kiosk, page }) => {
     const { month, day } = shopToday();
-    await seedCustomer({ phone: testPhone(14), firstName: "Kim", birthday: { month, day } });
+    // A returning customer: the birthday discount starts at 2 lifetime points (their second visit).
+    await seedCustomer({ phone: testPhone(14), firstName: "Kim", birthday: { month, day }, points: 2 });
     await kiosk.goto();
     await kiosk.enter(testPhone(14));
     await expect(page.getByText("Happy birthday! 10% off is waiting.")).toBeVisible();
@@ -93,7 +94,7 @@ test.describe("Kiosk: birthday discount", () => {
     await kiosk.redeem("Birthday 10% off");
     await expect(page.getByRole("status").filter({ hasText: "Birthday 10% off" })).toBeVisible();
     await expect(page.getByText("Points used")).toHaveCount(0);
-    expect(await findCustomer(testPhone(14))).toMatchObject({ points_balance: 1 });
+    expect(await findCustomer(testPhone(14))).toMatchObject({ points_balance: 3 });
   });
 
   test("the birthday discount counts as today's one discount", async ({ kiosk, page }) => {
@@ -109,6 +110,17 @@ test.describe("Kiosk: birthday discount", () => {
     await kiosk.enter(testPhone(15));
     await expect(page.getByText("You've had today's discount")).toBeVisible();
     expect(await findCustomer(testPhone(15))).toMatchObject({ points_balance: 10 });
+  });
+
+  test("B-04 joining on their birthday doesn't get the birthday discount on that first visit", async ({ kiosk, page }) => {
+    const { month, day } = shopToday();
+    await kiosk.goto();
+    await kiosk.enter(testPhone(17));
+    await kiosk.signUp("Nia", { day, month: new Date(2000, month - 1, 1).toLocaleString("en-AU", { month: "long" }) });
+
+    await expect(page.getByText("You're checked in, Nia!")).toBeVisible();
+    await expect(page.getByText(/Birthday/)).toHaveCount(0);
+    await expect(redeemList(page)).toHaveCount(0);
   });
 
   test("B-03 with the birthday discount off, nothing is offered on the birthday", async ({ kiosk, page }) => {

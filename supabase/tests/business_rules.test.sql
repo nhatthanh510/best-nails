@@ -14,7 +14,7 @@ insert into public.staff (user_id, display_name, role, removed_at) values
   ('dddddddd-0000-4000-8000-000000000001', 'QA Admin', 'admin', null),
   ('dddddddd-0000-4000-8000-000000000002', 'QA Staff', 'staff', null),
   ('dddddddd-0000-4000-8000-000000000003', 'QA Removed', 'staff', now());
-update public.settings set birthday_discount_enabled = true, birthday_window_days = 7, birthday_discount_percent = 10 where id;
+update public.settings set birthday_discount_enabled = true, birthday_window_days = 7, birthday_value_new = 10 where id;
 insert into public.promotions (id, title, type, points_cost) values ('eeeeeeee-0000-4000-8000-000000000001', 'QA reward', 'reward', 10);
 create temp table d on commit drop as select (now() at time zone 'Australia/Hobart')::date as today;
 create temp table r (k text primary key, v jsonb) on commit drop;
@@ -58,6 +58,10 @@ select is((kiosk_redeem('+61491570101', 'eeeeeeee-0000-4000-8000-000000000001'))
 reset role;
 insert into customers (phone, first_name, birthday_month, birthday_day)
 select '+61491570103', 'QA Bday Two', extract(month from today), extract(day from today) from d;
+-- A returning customer: the birthday discount starts at 2 lifetime points (their second visit).
+select set_config('best_nails.ledger_write', 'on', true);
+update customers set lifetime_points = 1 where phone = '+61491570103';
+select set_config('best_nails.ledger_write', 'off', true);
 set local role service_role;
 select is((kiosk_redeem_birthday('+61491570103'))->>'status', 'check_in_required', 'B-01 birthday discount also needs today''s check-in');
 select is((kiosk_check_in('+61491570103'))->>'status', 'checked_in', 'B-02 check-in');

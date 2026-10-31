@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getStaff } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPhone, maskPhone, normalizePhone } from "@/lib/phone";
-import type { BirthdayStatus } from "@/lib/rewards";
+import { discountLabel, type BirthdayStatus } from "@/lib/rewards";
 import { isValidBirthday } from "@/lib/birthday";
 
 // Everything returned from here reaches a public screen, so it carries only what the
@@ -15,6 +15,8 @@ export type KioskBirthday = {
   eligible: boolean;
   /** Already used it for this birthday. */
   used: boolean;
+  /** The customer's discount, e.g. "10% off" or "$20 off" (it depends on their tier), or null when there's none for them. */
+  label: string | null;
 };
 
 export type KioskCustomer = {
@@ -78,7 +80,11 @@ async function guard(): Promise<{ staffId: string } | { error: string }> {
 type TodayStatus = { checked_in_at?: string | null; discount_used_today?: boolean };
 
 function kioskBirthday(status: BirthdayStatus | null): KioskBirthday {
-  return { eligible: Boolean(status?.eligible), used: Boolean(status?.in_window && status.used) };
+  return {
+    eligible: Boolean(status?.eligible),
+    used: Boolean(status?.in_window && status.used),
+    label: status ? discountLabel(status) : null,
+  };
 }
 
 /** Whether they've checked in today and had today's discount (one per visit). */
@@ -138,7 +144,7 @@ const signupSchema = z.object({
 
 export type SignupInput = z.input<typeof signupSchema>;
 
-/** What the customer picked on the services and staff steps. Both can be skipped. */
+/** What the customer picked on the services (at least one, when the shop has any on) and staff (can be skipped) steps. */
 export type VisitPicks = { serviceIds: string[]; technicianId: string | null };
 
 const picksSchema = z.object({
@@ -253,7 +259,7 @@ export async function redeemAtKiosk(digits: string, target: RedeemTarget): Promi
   if (parsedTarget.data.kind === "birthday") {
     return {
       status: "redeemed",
-      title: `Birthday ${result.percent}% off`,
+      title: `Birthday ${discountLabel(result as { percent?: number; amount_cents?: number }) ?? "discount"}`,
       pointsSpent: 0,
       points: result.points_balance as number,
       redeemedAt: result.redeemed_at as string,

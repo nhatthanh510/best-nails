@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { createReward, findCustomer, seedCustomer, testPhone } from "./support/db";
+import { createReward, db, findCustomer, seedCustomer, shopToday, testPhone, updateSettings } from "./support/db";
 import { alert, expect, settled, test } from "./support/fixtures";
 
 /**
@@ -157,5 +157,29 @@ test.describe("Admin: today's activity", () => {
     await page.goto("/admin/check-ins");
     await expect(page.getByRole("heading", { name: "Check-ins", level: 1 })).toBeVisible();
     await expect(page.getByRole("cell", { name: /Yara Today/ })).toBeVisible();
+  });
+});
+
+test.describe("Admin: birthday badge", () => {
+  test("B-05 a customer who can claim the birthday discount today has a Birthday badge by their name", async ({ page }) => {
+    await updateSettings({ birthday_discount_enabled: true });
+    const { month, day } = shopToday();
+    // A returning customer (2+ lifetime points) on their birthday, and one who joined today.
+    await seedCustomer({ phone: testPhone(45), firstName: "Bea", lastName: "Badge", birthday: { month, day }, checkedIn: true, points: 1 });
+    await seedCustomer({ phone: testPhone(46), firstName: "Neil", lastName: "Newbie", birthday: { month, day }, checkedIn: true });
+
+    const row = (name: string) => page.getByRole("row").filter({ hasText: name });
+    // The Customers list shows it beside their birthday in the DoB column; not for someone who just joined.
+    await page.goto("/admin/customers?q=Badge");
+    const dob = row("Bea Badge").getByRole("cell").nth(1);
+    await expect(dob.getByText("Birthday today")).toBeVisible();
+    await expect(dob.getByText("10% off")).toBeVisible();
+    await page.goto("/admin/customers?q=Newbie");
+    await expect(row("Neil Newbie").getByText(/Birthday today/)).toHaveCount(0);
+
+    // Once it's used, it says Claimed. (Check-ins has no badge: its Redeemed column shows it.)
+    await db().rpc("kiosk_redeem_birthday", { p_phone: "+61491570145" });
+    await page.goto("/admin/customers?q=Badge");
+    await expect(row("Bea Badge").getByText("Claimed", { exact: true }).filter({ visible: true })).toBeVisible();
   });
 });

@@ -196,16 +196,58 @@ describe("rewards and birthday (AA-05)", () => {
     expect(h.db.calls.find((c) => c.method === "eq")!.args).toEqual(["id", id]);
   });
 
-  it("needs a birthday discount of at least 1%", async () => {
-    expect(await actions.saveBirthdayDiscount(null, form({ birthday_discount_percent: "0", birthday_window_days: "7" }))).toEqual({
+  const tiers = (n: string, r: string, v: string, kinds: { regular?: string } = {}) => ({
+    birthday_discount_enabled: "on",
+    birthday_kind_new: "percent",
+    birthday_value_new: n,
+    birthday_kind_regular: kinds.regular ?? "percent",
+    birthday_value_regular: r,
+    birthday_kind_vip: "percent",
+    birthday_value_vip: v,
+    birthday_window_days: "7",
+  });
+
+  it("saves each tier's discount as a percent or an amount in cents, 0 meaning none", async () => {
+    expect(await actions.saveBirthdayDiscount(null, form(tiers("0", "20.50", "15", { regular: "amount" })))).toEqual({
+      ok: true,
+      message: "Birthday discount saved.",
+    });
+    expect(h.db.calls.find((c) => c.method === "update")!.args[0]).toEqual({
+      birthday_discount_enabled: true,
+      birthday_window_days: 7,
+      birthday_kind_new: "percent",
+      birthday_value_new: 0,
+      birthday_kind_regular: "amount",
+      birthday_value_regular: 2050,
+      birthday_kind_vip: "percent",
+      birthday_value_vip: 15,
+    });
+  });
+
+  it("needs a discount for at least one tier while it's on, each in range", async () => {
+    expect(await actions.saveBirthdayDiscount(null, form(tiers("0", "0", "0")))).toEqual({
       ok: false,
-      message: "Enter a discount of at least 1%.",
+      message: "Give at least one tier a discount, or turn the birthday discount off.",
+    });
+    expect(await actions.saveBirthdayDiscount(null, form(tiers("10", "10", "101")))).toEqual({
+      ok: false,
+      message: "Enter a VIP discount from 0 to 100%.",
+    });
+    expect(await actions.saveBirthdayDiscount(null, form(tiers("10", "1000.01", "10", { regular: "amount" })))).toEqual({
+      ok: false,
+      message: "Enter a Regular discount from $0 to $1,000.",
+    });
+    expect(await actions.saveBirthdayDiscount(null, form(tiers("7.5", "10", "10")))).toEqual({
+      ok: false,
+      message: "Enter a New discount from 0 to 100%.",
     });
   });
 
   it("explains each birthday redemption outcome", async () => {
     h.db.next.rpc = { data: { status: "redeemed", percent: 10 }, error: null };
     expect(await actions.redeemBirthday("c1")).toEqual({ ok: true, message: "Birthday 10% off redeemed." });
+    h.db.next.rpc = { data: { status: "redeemed", percent: null, amount_cents: 2000 }, error: null };
+    expect(await actions.redeemBirthday("c1")).toEqual({ ok: true, message: "Birthday $20 off redeemed." });
     h.db.next.rpc = { data: { status: "already_used" }, error: null };
     expect(await actions.redeemBirthday("c1")).toEqual({ ok: false, message: "The birthday discount was already used for this birthday." });
     h.db.next.rpc = { data: { status: "not_eligible" }, error: null };

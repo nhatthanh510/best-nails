@@ -13,7 +13,7 @@ insert into public.staff (user_id, display_name, role) values
 
 update public.settings
    set timezone = 'Australia/Hobart',
-       birthday_discount_enabled = true, birthday_discount_percent = 10, birthday_window_days = 7
+       birthday_discount_enabled = true, birthday_value_new = 10, birthday_window_days = 7
  where id;
 update public.promotions set is_active = false;
 insert into public.promotions (id, title, type, points_cost) values
@@ -31,6 +31,10 @@ insert into public.customers (phone, first_name, birthday_month, birthday_day)
 select '+61400000100', 'Birthday soon', extract(month from today + 3), extract(day from today + 3) from d;
 insert into public.customers (phone, first_name, birthday_month, birthday_day)
 select '+61400000200', 'Birthday far', extract(month from today + 60), extract(day from today + 60) from d;
+-- Returning customers (the birthday discount starts at 2 lifetime points: their second visit).
+select set_config('best_nails.ledger_write', 'on', true);
+update public.customers set lifetime_points = 1 where phone in ('+61400000100', '+61400000200');
+select set_config('best_nails.ledger_write', 'off', true);
 
 create temp table r (k text primary key, v jsonb) on commit drop;
 grant all on r, d to service_role, authenticated, anon;

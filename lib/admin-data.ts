@@ -8,6 +8,7 @@ import type { BirthdayStatus, Reward } from "@/lib/rewards";
 import { isBirthdayOn } from "@/lib/birthday";
 import { tierRange, type TierThresholds } from "@/lib/tiers";
 import { giftVoucherStatus, type GiftVoucherStatus } from "@/lib/gift-vouchers";
+import { discountLabel, type Discount } from "@/lib/rewards";
 
 // Every read starts with requireAdmin(): RLS would return nothing to a non-staff user anyway,
 // but this sends them to the login page instead of showing an empty admin.
@@ -21,7 +22,7 @@ export type CheckInRow = Tables["check_ins"]["Row"] & {
   services: Pick<Tables["check_in_services"]["Row"], "position" | "name" | "category_name">[];
 };
 /** Something a customer used on the day of a check-in: a discount or part of a gift voucher. */
-export type VisitUse = { kind: "points"; label: string } | { kind: "birthday"; percent: number } | { kind: "gift"; cents: number };
+export type VisitUse = { kind: "points"; label: string } | { kind: "birthday"; label: string } | { kind: "gift"; cents: number };
 /** A points history row; a check-in also brings what was done on that visit (picked on the kiosk). */
 export type LedgerRow = Tables["point_transactions"]["Row"] & {
   visit: (Pick<Tables["check_ins"]["Row"], "technician_name"> & { services: CheckInRow["services"] }) | null;
@@ -68,6 +69,23 @@ export async function staffNames(): Promise<Map<string, string>> {
   const { supabase } = await staffClient();
   const { data } = await supabase.from("staff").select("user_id, display_name, role");
   return new Map((data ?? []).map((s) => [s.user_id, s.display_name]));
+}
+
+/**
+ * The Birthday badge for a customer in their birthday window: they can claim it today, or have
+ * claimed it for this birthday. Days until the birthday (negative once it's passed) and e.g. "15% off".
+ */
+export type BirthdayBadgeInfo = { state: "claimable" | "claimed"; daysAway: number; label: string };
+
+/** The Birthday badges for a page of customers, in one call; nothing to ask when the discount is off. */
+export async function birthdayBadges(customerIds: (string | null | undefined)[]): Promise<Map<string, BirthdayBadgeInfo>> {
+  const ids = [...new Set(customerIds.filter((id): id is string => Boolean(id)))];
+  if (ids.length === 0 || !(await getSettings()).birthday_discount_enabled) return new Map();
+  const { supabase } = await staffClient();
+  const { data, error } = await supabase.rpc("birthday_badges", { p_customer_ids: ids });
+  if (error) throw error;
+  const rows = (data ?? []) as ({ id: string; state: BirthdayBadgeInfo["state"]; days_away: number } & Discount)[];
+  return new Map(rows.map((r) => [r.id, { state: r.state, daysAway: r.days_away, label: discountLabel(r) ?? "Discount" }]));
 }
 
 /** Cached for the request: pages and the loaders that need the shop's timezone all read it. */
@@ -240,7 +258,7 @@ export const CUSTOMER_FILTERS = ["all", "today", "yesterday", "week", "birthday"
 export type CustomerFilter = (typeof CUSTOMER_FILTERS)[number];
 export const PAGE_SIZE = 25;
 
-export const CUSTOMER_SORTS = ["last_visit", "name", "points", "lifetime", "joined"] as const;
+export const CUSTOMER_SORTS = ["last_visit", "name", "points", "lifetime"] as const;
 export type CustomerSort = (typeof CUSTOMER_SORTS)[number];
 export type SortDir = "asc" | "desc";
 /** The direction a column sorts in when first clicked: biggest and newest first, names A–Z. */
@@ -249,7 +267,6 @@ export const DEFAULT_SORT_DIR: Record<CustomerSort, SortDir> = {
   name: "asc",
   points: "desc",
   lifetime: "desc",
-  joined: "desc",
 };
 
 // PostgREST answers 416 "Requested range not satisfiable" for a page past the last row.
@@ -292,7 +309,6 @@ export async function listCustomers({
   else if (sort === "points") query = query.order("points_balance", { ascending });
   // Lifetime points decide the tier, so that is what the list shows and sorts by (not visits).
   else if (sort === "lifetime") query = query.order("lifetime_points", { ascending });
-  else if (sort === "joined") query = query.order("created_at", { ascending });
   // Customers who never visited go last whichever way the list is sorted.
   else query = query.order("last_visit_at", { ascending, nullsFirst: false });
 
@@ -408,7 +424,7 @@ export async function listCheckIns({
     query,
     supabase.rpc("check_in_totals", { p_since: since }),
     supabase.from("point_transactions").select("customer_id, created_at, promotion:promotions(title)").eq("reason", "redeem").gte("created_at", since).limit(5000),
-    supabase.from("birthday_redemptions").select("customer_id, created_at, percent").gte("created_at", since).limit(5000),
+    supabase.from("birthday_redemptions").select("customer_id, created_at, percent, amount_cents").gte("created_at", since).limit(5000),
     supabase
       .from("gift_voucher_transactions")
       .select("customer_id, created_at, delta_cents, voucher:gift_vouchers(customer_id)")
@@ -427,7 +443,7 @@ export async function listCheckIns({
     if (key) uses.set(key, [...(uses.get(key) ?? []), use]);
   };
   for (const r of redeems.data ?? []) add(dayKey(r.customer_id, r.created_at), { kind: "points", label: r.promotion?.title ?? "Reward" });
-  for (const b of birthdays.data ?? []) add(dayKey(b.customer_id, b.created_at), { kind: "birthday", percent: b.percent });
+  for (const b of birthdays.data ?? []) add(dayKey(b.customer_id, b.created_at), { kind: "birthday", label: discountLabel(b) ?? "discount" });
   // A spend names the customer only when staff gave one; otherwise it's the voucher's owner.
   for (const g of spends.data ?? []) add(dayKey(g.customer_id ?? g.voucher?.customer_id, g.created_at), { kind: "gift", cents: -g.delta_cents });
 

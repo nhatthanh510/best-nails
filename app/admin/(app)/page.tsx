@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { ChevronRight, Gift } from "lucide-react";
-import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, dashboardTileGrid, td, th } from "@/components/admin/ui";
+import { BirthdayBadge, Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, dashboardTileGrid, td, th } from "@/components/admin/ui";
 import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import {
   DASHBOARD_PERIODS,
+  birthdayBadges,
   getCloseToReward,
   getDashboard,
   getNotBackLately,
@@ -65,14 +66,16 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
     const costs = rewards.filter((r) => r.is_active).map((r) => r.points_cost);
     return costs.length ? { cost: Math.min(...costs), title: rewards.find((r) => r.is_active && r.points_cost === Math.min(...costs))!.title } : null;
   });
-  const [settings, stats, reward, birthdays, closeToReward, notBack] = await Promise.all([
+  const statsPromise = getDashboard(period);
+  const [settings, stats, reward, birthdays, closeToReward, notBack, birthdayBadgeFor] = await Promise.all([
     settingsPromise,
-    getDashboard(period),
+    statsPromise,
     rewardCostPromise,
     // The list is for offering the birthday discount, so it's skipped while that's switched off.
     settingsPromise.then((s) => (s.birthday_discount_enabled ? getUpcomingBirthdays(s.timezone) : [])),
     rewardCostPromise.then((r) => getCloseToReward(r?.cost ?? null)),
     settingsPromise.then(getNotBackLately),
+    statsPromise.then((s) => birthdayBadges(s.checkIns.map((c) => c.customer?.id))),
   ]);
   const tz = settings.timezone;
   const weekday = new Date().toLocaleDateString("en-AU", { weekday: "long", timeZone: tz });
@@ -167,6 +170,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
                             {fullName(c.customer)}
                           </Link>
                           <TierBadge tier={tierFor(c.customer.lifetime_points, settings)} />
+                          {birthdayBadgeFor.has(c.customer.id) && <BirthdayBadge {...birthdayBadgeFor.get(c.customer.id)!} />}
                         </span>
                         <p className="text-[13px] whitespace-nowrap text-muted-foreground tabular-nums">{formatPhone(c.customer.phone)}</p>
                       </>

@@ -181,7 +181,7 @@ function UsedPills({ used }: { used: VisitUse[] }) {
           </Pill>
         ) : u.kind === "birthday" ? (
           <Pill key={i} className="bg-info-soft whitespace-nowrap text-info">
-            Birthday {u.percent}% off
+            Birthday {u.label}
           </Pill>
         ) : (
           <Pill key={i} className="bg-warning-soft whitespace-nowrap text-warning">

@@ -9,6 +9,9 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizePhone } from "@/lib/phone";
 import { isValidBirthday } from "@/lib/birthday";
 import { safeRedirectPath } from "@/lib/safe-redirect";
+import { parseDollars } from "@/lib/gift-vouchers";
+import { discountLabel } from "@/lib/rewards";
+import type { Database } from "@/lib/database.types";
 
 /** `href` asks the client to navigate after showing the message (used instead of redirect() so a warning can be shown). */
 export type ActionState = { ok: boolean; message?: string; href?: string } | null;
@@ -245,24 +248,57 @@ export async function deleteReward(id: string): Promise<ActionState> {
   return { ok: true, message: "Reward deleted." };
 }
 
-const birthdaySchema = z.object({
-  birthday_discount_enabled: z.boolean(),
-  birthday_discount_percent: z.coerce.number().int().min(1, "Enter a discount of at least 1%.").max(100),
-  birthday_window_days: z.coerce.number().int().min(0).max(31),
-});
+const BIRTHDAY_TIERS = [
+  ["new", "New"],
+  ["regular", "Regular"],
+  ["vip", "VIP"],
+] as const;
+
+/**
+ * One tier's birthday discount from the form: `birthday_kind_<tier>` (percent or amount) and
+ * `birthday_value_<tier>`, a percent (0–100) or dollars (up to $1,000) stored as cents. 0 means
+ * that tier gets none.
+ */
+function birthdayTier(
+  formData: FormData,
+  tier: (typeof BIRTHDAY_TIERS)[number],
+): { error: string } | { kind: "percent" | "amount"; value: number } {
+  const [key, label] = tier;
+  const kind = formData.get(`birthday_kind_${key}`) === "amount" ? "amount" : "percent";
+  const raw = String(formData.get(`birthday_value_${key}`) ?? "").trim();
+  if (kind === "percent") {
+    const value = /^\d{1,3}$/.test(raw) ? Number(raw) : NaN;
+    if (!(value >= 0 && value <= 100)) return { error: `Enter a ${label} discount from 0 to 100%.` };
+    return { kind, value };
+  }
+  const cents = parseDollars(raw);
+  if (cents === null || cents > 100000) return { error: `Enter a ${label} discount from $0 to $1,000.` };
+  return { kind, value: cents };
+}
 
 export async function saveBirthdayDiscount(_: ActionState, formData: FormData): Promise<ActionState> {
   const staff = await requireAdmin();
   if (staff.role !== "admin") return fail("Only an admin can change the birthday discount.");
-  const parsed = birthdaySchema.safeParse({
-    birthday_discount_enabled: formData.get("birthday_discount_enabled") === "on",
-    birthday_discount_percent: formData.get("birthday_discount_percent"),
-    birthday_window_days: formData.get("birthday_window_days"),
-  });
-  if (!parsed.success) return fail(parsed.error.issues[0].message);
+  const enabled = formData.get("birthday_discount_enabled") === "on";
+  const windowDays = z.coerce.number().int().min(0).max(31).safeParse(formData.get("birthday_window_days"));
+  if (!windowDays.success) return fail("Choose when it can be used.");
+
+  const row: Database["public"]["Tables"]["settings"]["Update"] = {
+    birthday_discount_enabled: enabled,
+    birthday_window_days: windowDays.data,
+  };
+  let offered = false;
+  for (const tier of BIRTHDAY_TIERS) {
+    const t = birthdayTier(formData, tier);
+    if ("error" in t) return fail(t.error);
+    row[`birthday_kind_${tier[0]}`] = t.kind;
+    row[`birthday_value_${tier[0]}`] = t.value;
+    offered ||= t.value > 0;
+  }
+  if (enabled && !offered) return fail("Give at least one tier a discount, or turn the birthday discount off.");
 
   const supabase = await createClient();
-  const { error } = await supabase.from("settings").update(parsed.data).eq("id", true);
+  const { error } = await supabase.from("settings").update(row).eq("id", true);
   if (error) return dbError(error);
   refresh();
   return { ok: true, message: "Birthday discount saved." };
@@ -273,11 +309,11 @@ export async function redeemBirthday(customerId: string): Promise<ActionState> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("redeem_birthday", { p_customer_id: customerId });
   if (error) return dbError(error);
-  const result = data as { status: string; percent?: number };
+  const result = data as { status: string; percent?: number; amount_cents?: number };
   refresh();
   if (result.status === "already_used") return fail("The birthday discount was already used for this birthday.");
   if (result.status !== "redeemed") return fail("The birthday discount isn't available today.");
-  return { ok: true, message: `Birthday ${result.percent}% off redeemed.` };
+  return { ok: true, message: `Birthday ${discountLabel(result) ?? "discount"} redeemed.` };
 }
 
 // ---------------------------------------------------------------------------

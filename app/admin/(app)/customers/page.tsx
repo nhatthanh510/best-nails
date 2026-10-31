@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
-import { DataTable, ListPanel, EmptyRow, PageHeader, Pager, SortableTh, Avatar, TierBadge, td, th } from "@/components/admin/ui";
+import { DataTable, ListPanel, EmptyRow, PageHeader, Pager, SortableTh, Avatar, BirthdayBadge, TierBadge, td, th } from "@/components/admin/ui";
 import { tierFor } from "@/lib/tiers";
 import { SearchBox } from "@/components/admin/search-box";
 import { FilterSelect } from "@/components/admin/filter-select";
@@ -11,6 +11,7 @@ import {
   CUSTOMER_SORTS,
   DEFAULT_SORT_DIR,
   PAGE_SIZE,
+  birthdayBadges,
   getSettings,
   listCustomers,
   type CustomerFilter,
@@ -18,7 +19,7 @@ import {
   type SortDir,
 } from "@/lib/admin-data";
 import { formatPhone } from "@/lib/phone";
-import { formatDate, formatLastVisit, fullName, initials } from "@/lib/format";
+import { formatBirthday, formatLastVisit, fullName, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
@@ -53,6 +54,7 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
   const page = Math.max(1, Number(params.page) || 1);
 
   const { customers, total, pastEnd } = await listCustomers({ q, filter, sort, dir, page });
+  const birthdays = await birthdayBadges(customers.map((c) => c.id));
   const tz = settings.timezone;
 
   // Every link keeps the search, filter and sort; anything that changes the list goes back to page 1.
@@ -129,45 +131,56 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
           {/* From tablet width up the pager sits in this toolbar, Gmail-style; phones keep it under the list. */}
           <Pager compact page={page} pageSize={PAGE_SIZE} total={total} href={(p) => href({ page: p })} className="ml-auto hidden md:flex" />
         </div>
-        {/* Narrower screens drop columns rather than scroll: phone and tier move under the name.
+        {/* Narrower screens drop columns rather than scroll, so the name and its tier stay on one
+            line: the phone moves under the name (below wide), the birthday badge beside it when DoB
+            is hidden, and the avatar only shows on the widest screens.
             Every column but the name has a fixed width, so new search results don't re-space them.
             The key starts each new search, sort or page at the top of the rows. */}
         <DataTable key={href({ page })} minWidth={0} fill>
           <thead className="bg-card">
             <tr>
               {sortable("name", "Name")}
-              <th className={`${th} hidden w-28 xl:table-cell`}>Tier</th>
-              <th className={`${th} hidden w-34 sm:table-cell`}>Phone</th>
+              <th className={`${th} hidden w-36 lg:table-cell wide:w-52`}>DoB</th>
+              <th className={`${th} hidden w-34 wide:table-cell`}>Phone</th>
               {sortable("points", "Points", "w-24 text-right")}
-              {sortable("lifetime", "Lifetime points", "hidden w-40 text-right wide:table-cell")}
+              {sortable("lifetime", "Lifetime points", "hidden w-36 text-right wide:table-cell")}
               {sortable("last_visit", "Last visit", "hidden w-30 md:table-cell")}
-              {sortable("joined", "Joined", "hidden w-26 xl:table-cell")}
             </tr>
           </thead>
           <tbody>
             {customers.length === 0 && (
-              <EmptyRow colSpan={7}>{q ? `No customers match “${q}”.` : "No customers here yet."}</EmptyRow>
+              <EmptyRow colSpan={6}>{q ? `No customers match “${q}”.` : "No customers here yet."}</EmptyRow>
             )}
             {customers.map((c) => (
               <tr key={c.id} className="hover:bg-background/60">
                 <td className={td}>
                   <Link href={`/admin/customers/${c.id}`} className="flex items-center gap-3 hover:underline">
-                    <span className="hidden sm:block">
+                    {/* The avatar only where there's room, so the name and its badges stay on one line. */}
+                    <span className="hidden 2xl:block">
                       <Avatar text={initials(c)} />
                     </span>
                     <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="font-bold">{fullName(c)}</span>
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground tabular-nums xl:hidden">
-                        <span className="whitespace-nowrap sm:hidden">{formatPhone(c.phone)}</span>
-                        <TierBadge tier={tierFor(c.lifetime_points, settings)} />
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold">{fullName(c)}</span>
+                        <TierBadge tier={tierFor(c.lifetime_points, settings)} showNew />
+                        {/* Below lg the DoB column is hidden, so the birthday badge comes here. */}
+                        {birthdays.has(c.id) && (
+                          <span className="lg:hidden">
+                            <BirthdayBadge {...birthdays.get(c.id)!} />
+                          </span>
+                        )}
                       </span>
+                      <span className="text-[13px] whitespace-nowrap text-muted-foreground tabular-nums wide:hidden">{formatPhone(c.phone)}</span>
                     </span>
                   </Link>
                 </td>
-                <td className={`${td} hidden xl:table-cell`}>
-                  <TierBadge tier={tierFor(c.lifetime_points, settings)} showNew />
+                <td className={`${td} hidden lg:table-cell`}>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="whitespace-nowrap text-muted-foreground">{formatBirthday(c.birthday_month, c.birthday_day) ?? "–"}</span>
+                    {birthdays.has(c.id) && <BirthdayBadge {...birthdays.get(c.id)!} compact />}
+                  </span>
                 </td>
-                <td className={`${td} hidden whitespace-nowrap text-muted-foreground tabular-nums sm:table-cell`}>{formatPhone(c.phone)}</td>
+                <td className={`${td} hidden whitespace-nowrap text-muted-foreground tabular-nums wide:table-cell`}>{formatPhone(c.phone)}</td>
                 <td className={`${td} text-right font-bold tabular-nums`}>
                   {c.points_balance}
                   {/* The Lifetime points column needs a wide screen (on a tablet it squeezed the names);
@@ -176,9 +189,6 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
                 </td>
                 <td className={`${td} hidden text-right tabular-nums wide:table-cell`}>{c.lifetime_points}</td>
                 <td className={`${td} hidden whitespace-nowrap text-muted-foreground md:table-cell`}>{formatLastVisit(c.last_visit_at, tz)}</td>
-                <td className={`${td} hidden text-muted-foreground xl:table-cell`}>
-                  {formatDate(c.created_at, tz, { month: "short", year: "numeric" })}
-                </td>
               </tr>
             ))}
           </tbody>
