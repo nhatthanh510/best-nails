@@ -5,6 +5,30 @@
 
 /* Landscape iPads with browser chrome, or older 768px-tall iPads */
 @custom-variant short (@media (max-height: 780px));
+/* Where the admin content area is roomy enough for a list's extra columns or a page's second
+   column: wider than an iPad in landscape with the full sidebar (1024 px), as on the 1180 px kiosk iPad. */
+@custom-variant wide (@media (width >= 71.25rem));
+@custom-variant below-wide (@media (width < 71.25rem));
+/* The admin sidebar as an icon rail: always on tablets (md to lg), and from lg when the owner has
+   collapsed it (data-nav-collapsed on <html>, set by components/admin/sidebar-toggle.tsx). The
+   attribute selector outranks the expanded lg: styles. */
+@custom-variant rail {
+  @media (width >= 48rem) and (width < 64rem) {
+    @slot;
+  }
+  @media (width >= 64rem) {
+    :root[data-nav-collapsed] & {
+      @slot;
+    }
+  }
+}
+/* The shadcn components here use Base UI's state attributes (data-checked, data-open, …), but the
+   primitives are Radix, which marks state with data-state="…". Matching both makes the switch's
+   on state and the dialogs' and menus' open/close animations work. */
+@custom-variant data-checked (&:where([data-state="checked"], [data-checked]));
+@custom-variant data-unchecked (&:where([data-state="unchecked"], [data-unchecked]));
+@custom-variant data-open (&:where([data-state="open"], [data-open]));
+@custom-variant data-closed (&:where([data-state="closed"], [data-closed]));
 
 @theme inline {
   --color-background: var(--background);
@@ -186,6 +210,12 @@
   h1 {
     font-family: var(--font-heading);
   }
+  /* Cormorant's default old-style figures make a code like BN00623769 read "BNoo…" and prices look
+     uneven, so headings in it use lining figures. */
+  h1,
+  .font-heading {
+    font-variant-numeric: lining-nums;
+  }
 }
 
 /*
@@ -236,3 +266,41 @@
   font-size: 1.0625rem;
 }
 
+
+/* Printing a gift voucher (PrintVoucherButton in components/admin/voucher-card.tsx): a copy of the
+   card goes into #print-root, and only that prints, at about the size of a gift card holder. */
+@media screen {
+  #print-root {
+    display: none;
+  }
+}
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body:has(> #print-root) > :not(#print-root) {
+    display: none !important;
+  }
+  body:has(> #print-root) {
+    background: #fff;
+  }
+  #print-root {
+    width: 140mm;
+    margin: 0 auto;
+  }
+}
+/* Blank cards printed ahead of time (components/admin/blank-vouchers.tsx): 2 × 5 cards on an A4
+   page with a gap to cut between. 80 mm wide at the card's 1.7 ratio is 47 mm tall. Keep in step
+   with SHEET in lib/voucher-pdf.ts, which lays out the PDF the same way. */
+@media print {
+  #print-root[data-sheet] {
+    display: grid;
+    width: auto;
+    grid-template-columns: repeat(2, 80mm);
+    justify-content: center;
+    gap: 8mm 12mm;
+  }
+  #print-root[data-sheet] > * {
+    break-inside: avoid;
+  }
+}

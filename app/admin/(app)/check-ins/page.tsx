@@ -1,9 +1,10 @@
-import { SegmentedLinks } from "@/components/admin/segmented-links";
+import { connection } from "next/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DataTable, EmptyRow, ListPanel, PageHeader, Pager, Pill, TierBadge, td, th } from "@/components/admin/ui";
 import { SearchBox } from "@/components/admin/search-box";
 import { FilterSelect } from "@/components/admin/filter-select";
+import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { tierFor } from "@/lib/tiers";
 import { CHECK_IN_RANGES, CHECK_INS_PAGE_SIZE, getSettings, listCheckIns, type CheckInRange, type VisitUse } from "@/lib/admin-data";
 import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
@@ -25,6 +26,8 @@ export default function CheckInsPage({ searchParams }: PageProps<"/admin/check-i
 }
 
 async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/check-ins">["searchParams"] }) {
+  // Request time only: a link prefetch prerenders the page with the cookies, and it reads the clock.
+  await connection();
   const params = await searchParams;
   const range = (params.range as CheckInRange) in CHECK_IN_RANGES ? (params.range as CheckInRange) : "today";
   const q = typeof params.q === "string" ? params.q.slice(0, 60) : "";

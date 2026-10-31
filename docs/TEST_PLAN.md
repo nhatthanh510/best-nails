@@ -80,7 +80,7 @@ Run on 26 Oct 2026 against the local stack (Next.js dev server, Supabase in Dock
 | G-07 | Spend part of the balance (code typed in lower case) | Balance goes down | DB + E2E | Pass |
 | G-08 | Spend more than the balance | Blocked inline before saving; balance unchanged | DB + E2E | Pass |
 | G-09 | Spend exactly the balance, then spend again | Used up; further spends refused | DB | Pass |
-| G-10 | Fix a use entered by mistake | No Undo (removed 26 Oct, owner's decision); Adjust balance puts it back with a reason; the undo function no longer exists | DB + E2E | Pass |
+| G-10 | Fix a use entered by mistake | No Undo (removed 26 Oct, owner's decision); Correct balance puts it back with a reason; the undo function no longer exists | DB + E2E | Pass |
 | G-11 | Unknown code | not_found | DB | Pass |
 | G-12 | Adjust below $0, or with no reason | Refused | DB | Pass |
 | G-13 | Edit the balance directly | Refused by the guard | DB | Pass |

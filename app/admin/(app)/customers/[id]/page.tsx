@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { notFound, redirect } from "next/navigation";
 import { Cake, Check, ChevronLeft, NotebookPen } from "lucide-react";
 import { Avatar, Card, DataTable, EmptyRow, Pager, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
@@ -54,6 +55,8 @@ async function CustomerDetail({
   params: PageProps<"/admin/customers/[id]">["params"];
   searchParams: PageProps<"/admin/customers/[id]">["searchParams"];
 }) {
+  // Request time only: a link prefetch prerenders the page with the cookies, and it reads the clock.
+  await connection();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const page = Math.max(1, Number(sp.page) || 1);
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
@@ -151,7 +154,8 @@ async function CustomerDetail({
         )}
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] sm:gap-4">
+      {/* Four tiles: two by two until there's room for a row of four, so none is left on its own. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 wide:grid-cols-4">
         <StatTile label="Points balance" value={c.points_balance} hint={tierHint(c.lifetime_points, settings)} />
         <StatTile label="Visits" value={c.visit_count} hint="Check-ins at the shop" />
         <StatTile label="Last visit" value={formatLastVisit(c.last_visit_at, tz)} />
@@ -309,7 +313,7 @@ async function CustomerDetail({
               vouchers={giftVouchers.map((g) => ({
                 id: g.id,
                 code: g.code,
-                amountCents: g.amount_cents,
+                amountCents: g.amount_cents ?? 0,
                 balanceCents: g.balance_cents,
                 status: g.status,
               }))}

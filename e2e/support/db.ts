@@ -224,8 +224,14 @@ export async function seedVoucher(v: { code: string; amountCents: number; custom
   return id;
 }
 
+/** A voucher printed ahead of time (Print vouchers) and not sold yet: inactive, no amount or expiry. */
+export async function seedInactiveVoucher(code: string) {
+  if (!code.startsWith("QA")) throw new Error("Test voucher codes must start with QA so they get cleaned up.");
+  return must(await db().from("gift_vouchers").insert({ code, balance_cents: 0 }).select("id, code, public_token").single(), "insert inactive voucher");
+}
+
 export async function findVoucher(code: string) {
-  return check(await db().from("gift_vouchers").select("id, code, balance_cents, customer_id").eq("code", code).maybeSingle(), "find voucher");
+  return check(await db().from("gift_vouchers").select("id, code, balance_cents, customer_id, public_token").eq("code", code).maybeSingle(), "find voucher");
 }
 
 // ---------------------------------------------------------------------------

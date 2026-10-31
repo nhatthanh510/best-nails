@@ -112,6 +112,14 @@ describe("giftVoucherStatus (M-04)", () => {
     expect(giftVoucherStatus({ balance_cents: 500, expires_on: "2026-10-24" }, "2026-10-24")).toBe("active");
   });
 
+  it("is blocked while an admin has blocked it, whatever its balance", () => {
+    expect(giftVoucherStatus({ balance_cents: 500, expires_on: "2029-10-24", blocked_at: "2026-10-24T01:00:00Z" }, "2026-10-24")).toBe("blocked");
+  });
+
+  it("is inactive while printed and not sold (no expiry yet)", () => {
+    expect(giftVoucherStatus({ balance_cents: 0, expires_on: null }, "2026-10-24")).toBe("inactive");
+  });
+
   it("calls a voucher expired even when it's also used up", () => {
     expect(giftVoucherStatus({ balance_cents: 0, expires_on: "2026-10-23" }, "2026-10-24")).toBe("expired");
   });
@@ -124,6 +132,6 @@ describe("constants", () => {
   });
 
   it("has a message for every reason a voucher can't be used", () => {
-    expect(Object.keys(GIFT_VOUCHER_PROBLEMS).sort()).toEqual(["expired", "mistyped", "not_found", "used_up"]);
+    expect(Object.keys(GIFT_VOUCHER_PROBLEMS).sort()).toEqual(["blocked", "expired", "mistyped", "not_found", "not_sold", "used_up"]);
   });
 });

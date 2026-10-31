@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStaff } from "@/lib/auth";
@@ -18,6 +19,8 @@ export default function KioskPage() {
 
 // The kiosk runs on the shop's one iPad while any account (admin or staff) is signed in on it.
 async function KioskGate() {
+  // At request time only: the session check (and the content) read the clock, which a prerender can't.
+  await connection();
   // Both start at once, so the screen doesn't wait for one round trip after the other. The
   // content is only shown once the sign-in check has passed.
   const contentPromise = loadKioskContent();

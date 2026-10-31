@@ -7,7 +7,7 @@ import { requireAdmin, requireSignedIn } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { findCustomer } from "@/lib/customer-lookup";
-import { formatMoney, GIFT_VOUCHER_PROBLEMS, looksMistyped, parseDollars } from "@/lib/gift-vouchers";
+import { formatMoney, GIFT_VOUCHER_PROBLEMS, looksMistyped, normalizeGiftCode, parseDollars, type GiftVoucherStatus } from "@/lib/gift-vouchers";
 import type { ActionState } from "./actions";
 
 function fail(message: string): ActionState {
@@ -49,7 +49,16 @@ const sellSchema = z.object({
 });
 
 /** What the "Voucher created" screen shows, so staff can copy the code onto the card. */
-export type CreatedVoucher = { id: string; code: string; amountCents: number; expiresOn: string; customerName: string | null };
+export type CreatedVoucher = {
+  id: string;
+  code: string;
+  amountCents: number;
+  expiresOn: string;
+  publicToken: string | null;
+  /** Sold from a card printed ahead of time (Print blank vouchers), so it's already printed. */
+  preprinted: boolean;
+  customerName: string | null;
+};
 export type SellState = (ActionState & { voucher?: CreatedVoucher }) | null;
 
 export async function sellGiftVoucher(_: SellState, formData: FormData): Promise<SellState> {
@@ -79,9 +88,9 @@ export async function sellGiftVoucher(_: SellState, formData: FormData): Promise
     p_notes: parsed.data.notes ?? undefined,
   });
   if (error) return dbError(error);
-  const r = data as { id: string; code: string };
-  // The expiry for the confirmation; staff accounts can't read gift_vouchers themselves.
-  const { data: row } = await createAdminClient().from("gift_vouchers").select("expires_on").eq("id", r.id).single();
+  const r = data as { id: string; code: string; preprinted?: boolean };
+  // The expiry and QR token for the printable voucher; staff accounts can't read gift_vouchers themselves.
+  const { data: row } = await createAdminClient().from("gift_vouchers").select("expires_on, public_token").eq("id", r.id).single();
   // Lists and totals behind the dialog update while it shows the new code.
   refresh();
   return {
@@ -93,9 +102,39 @@ export async function sellGiftVoucher(_: SellState, formData: FormData): Promise
       code: r.code,
       amountCents: cents,
       expiresOn: row?.expires_on ?? "",
+      publicToken: row?.public_token ?? null,
+      preprinted: r.preprinted === true,
       customerName: customer ? [customer.first_name, customer.last_name].filter(Boolean).join(" ") : null,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Printing ahead of time (admin): preview a batch of codes, then save them as inactive vouchers
+// and print them. Selling one's code later sets its amount.
+// ---------------------------------------------------------------------------
+
+export type PrintedVoucher = { code: string; token: string };
+
+/** New codes for a batch, shown before anything is saved. */
+export async function previewGiftVoucherCodes(count: number): Promise<{ ok: true; codes: string[] } | { ok: false; message: string }> {
+  await requireAdmin();
+  if (!Number.isInteger(count) || count < 1 || count > 100) return { ok: false, message: "Print between 1 and 100 vouchers at a time." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("preview_gift_voucher_codes", { p_count: count });
+  if (error) return dbError(error) as { ok: false; message: string };
+  return { ok: true, codes: data };
+}
+
+/** Saves the previewed codes as inactive vouchers; their QR tokens come back for printing. */
+export async function createInactiveGiftVouchers(codes: string[]): Promise<{ ok: true; vouchers: PrintedVoucher[] } | { ok: false; message: string }> {
+  await requireAdmin();
+  if (!Array.isArray(codes) || codes.length < 1 || codes.length > 100) return { ok: false, message: "Print between 1 and 100 vouchers at a time." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_inactive_gift_vouchers", { p_codes: codes.map(String) });
+  if (error) return dbError(error) as { ok: false; message: string };
+  refresh();
+  return { ok: true, vouchers: (data as { code: string; public_token: string }[]).map((v) => ({ code: v.code, token: v.public_token })) };
 }
 
 /** A fresh code with the business prefix, for the sell form's Generate button. */
@@ -123,6 +162,75 @@ export type GiftVoucherCheck =
     }
   | { ok: false; message: string };
 
+/** A voucher found by its code at the front desk, with what's needed to choose what to do next. */
+export type FoundVoucher = {
+  id: string;
+  code: string;
+  status: GiftVoucherStatus;
+  balanceCents: number;
+  /** The sale plus top-ups; null before it's sold. */
+  loadedCents: number | null;
+  expiresOn: string | null;
+  customerName: string | null;
+  blockedReason: string | null;
+};
+export type FindResult = { ok: true; voucher: FoundVoucher } | { ok: false; message: string; canCreate: boolean };
+
+/**
+ * Find voucher: whatever state a code is in (not sold, active, used up, expired or blocked), so
+ * the front desk can show only the actions that apply. An unknown code that isn't a typo can be
+ * created (a number printed elsewhere). Open to any signed-in account, like checking a balance.
+ */
+export async function findGiftVoucher(code: string): Promise<FindResult> {
+  await requireSignedIn();
+  const typed = normalizeGiftCode(String(code ?? "").slice(0, 40));
+  if (!typed) return { ok: false, message: "Type the code on the voucher.", canCreate: false };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("check_gift_voucher", { p_code: typed });
+  if (error || !data) return { ok: false, message: "Couldn't look the voucher up. Please try again.", canCreate: false };
+  const r = data as Record<string, unknown>;
+  if (r.status === "not_found") {
+    const mistyped = looksMistyped(typed);
+    return { ok: false, message: problem("not_found", typed), canCreate: !mistyped && /^[A-Z0-9]{4,20}$/.test(typed) };
+  }
+  if (r.status === "not_sold" || r.status === "blocked") {
+    // check_gift_voucher says no more for these; staff accounts can't read gift_vouchers, so the
+    // few details shown come from the service client, here on the server.
+    const { data: v } = await createAdminClient()
+      .from("gift_vouchers")
+      .select("balance_cents, expires_on, blocked_reason, customer:customers(first_name, last_name)")
+      .eq("id", r.id as string)
+      .single();
+    const customer = v?.customer as { first_name: string; last_name: string | null } | null;
+    return {
+      ok: true,
+      voucher: {
+        id: r.id as string,
+        code: r.code as string,
+        status: r.status === "blocked" ? "blocked" : "inactive",
+        balanceCents: v?.balance_cents ?? 0,
+        loadedCents: null,
+        expiresOn: v?.expires_on ?? null,
+        customerName: customer ? [customer.first_name, customer.last_name].filter(Boolean).join(" ") : null,
+        blockedReason: v?.blocked_reason ?? null,
+      },
+    };
+  }
+  return {
+    ok: true,
+    voucher: {
+      id: r.id as string,
+      code: r.code as string,
+      status: r.status === "valid" ? "active" : (r.status as GiftVoucherStatus),
+      balanceCents: r.balance_cents as number,
+      loadedCents: r.amount_cents as number,
+      expiresOn: r.expires_on as string,
+      customerName: (r.customer_name as string) ?? null,
+      blockedReason: null,
+    },
+  };
+}
+
 /** Look a code up first, so staff can tell the customer their balance. */
 export async function checkGiftVoucherCode(code: string): Promise<GiftVoucherCheck> {
   await requireSignedIn();
@@ -140,6 +248,54 @@ export async function checkGiftVoucherCode(code: string): Promise<GiftVoucherChe
     expiresOn: r.expires_on as string,
     customerName: (r.customer_name as string) ?? null,
   };
+}
+
+/** What "Topped up" shows: the new balance and expiry, for the customer at the till. */
+export type TopUpState = (ActionState & { topUp?: { code: string; addedCents: number; balanceCents: number; expiresOn: string } }) | null;
+
+/**
+ * Top up a voucher a customer already has (any signed-in account, like creating one): payment
+ * is taken at the till. The expiry moves out to at least 3 years from today for the new money.
+ */
+export async function topUpGiftVoucher(_: TopUpState, formData: FormData): Promise<TopUpState> {
+  await requireSignedIn();
+  const code = String(formData.get("code") ?? "").trim().slice(0, 40);
+  const cents = parseDollars(String(formData.get("amount") ?? ""));
+  if (!code) return fail("Enter the voucher's code.");
+  if (cents === null || cents < 100) return fail("Enter the amount to add, e.g. 50.");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("top_up_gift_voucher", { p_code: code, p_amount_cents: cents });
+  if (error) return dbError(error);
+  const r = data as { status: string; id?: string; code?: string; added_cents?: number; balance_cents?: number; expires_on?: string };
+  if (r.status !== "topped_up") return fail(problem(r.status, code));
+  refresh();
+  return {
+    ok: true,
+    message: `Topped up ${r.code} with ${formatMoney(r.added_cents!)}. Take payment at the till.`,
+    href: `/admin/gift-vouchers/${r.id}`,
+    topUp: { code: r.code!, addedCents: r.added_cents!, balanceCents: r.balance_cents!, expiresOn: r.expires_on! },
+  };
+}
+
+/** Block a lost or stolen voucher (admin): nothing can be spent or added until it's unblocked. */
+export async function blockGiftVoucher(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 200);
+  if (!reason) return fail("Give a reason, e.g. lost by the customer.");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("block_gift_voucher", { p_gift_voucher_id: id, p_reason: reason });
+  if (error) return dbError(error);
+  refresh();
+  return { ok: true, message: "Voucher blocked. Its balance is kept until it's unblocked." };
+}
+
+export async function unblockGiftVoucher(id: string): Promise<ActionState> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("unblock_gift_voucher", { p_gift_voucher_id: id });
+  if (error) return dbError(error);
+  refresh();
+  return { ok: true, message: "Voucher unblocked. It can be used again." };
 }
 
 export async function spendGiftVoucher(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -172,7 +328,7 @@ export async function spendGiftVoucher(_: ActionState, formData: FormData): Prom
   return {
     ok: true,
     message:
-      `Spent ${formatMoney(r.spent_cents as number)} from ${r.code as string}. ${formatMoney(r.balance_cents as number)} left.` +
+      `Used ${formatMoney(r.spent_cents as number)} from ${r.code as string}. ${formatMoney(r.balance_cents as number)} left.` +
       // "Use the full balance" sends what's still owed, so the reminder comes with the confirmation.
       (tillCents > 0 ? ` Take ${formatMoney(tillCents)} at the till.` : ""),
   };
@@ -219,6 +375,28 @@ export async function adjustGiftVoucher(id: string, _: ActionState, formData: Fo
   if (error) return dbError(error);
   refresh();
   return { ok: true, message: `Balance is now ${formatMoney(data as number)}.` };
+}
+
+/**
+ * Delete several at once, e.g. a misprinted batch of blank cards. Like one at a time, only
+ * vouchers nothing has been spent from (RLS); any others are kept and counted in the message.
+ */
+export async function deleteGiftVouchers(ids: string[]): Promise<ActionState> {
+  const staff = await requireAdmin();
+  if (staff.role !== "admin") return fail("Only an admin can delete gift vouchers.");
+  const valid = (Array.isArray(ids) ? ids : []).filter((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+  if (!valid.length) return fail("Choose the vouchers to delete.");
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("gift_vouchers").delete().in("id", valid).select("id");
+  if (error) return dbError(error);
+  refresh();
+  const deleted = data?.length ?? 0;
+  const kept = valid.length - deleted;
+  if (!deleted) return fail(kept === 1 ? "This voucher has been used, so it can't be deleted." : "These vouchers have been used, so they can't be deleted.");
+  return {
+    ok: true,
+    message: `Deleted ${deleted} voucher${deleted === 1 ? "" : "s"}.${kept ? ` ${kept} ${kept === 1 ? "has" : "have"} been used, so ${kept === 1 ? "it was" : "they were"} kept.` : ""}`,
+  };
 }
 
 export async function deleteGiftVoucher(id: string): Promise<ActionState> {

@@ -49,12 +49,12 @@ describe("sellGiftVoucher (GA-01)", () => {
   it("creates the voucher and returns what the confirmation screen shows", async () => {
     h.customer = { id: "c1", first_name: "Alice", last_name: "Ng" };
     h.db.next.rpc = { data: { id: "v1", code: "QA12345678" }, error: null };
-    h.service.next.query = { data: { expires_on: "2029-10-26" }, error: null };
+    h.service.next.query = { data: { expires_on: "2029-10-26", public_token: "abcdefghijklmnopqrstuv" }, error: null };
     expect(await sell({ amount: "$150", notes: "For mum" })).toEqual({
       ok: true,
       message: "Created QA12345678 for $150.00. Take payment at the till.",
       href: "/admin/gift-vouchers/v1",
-      voucher: { id: "v1", code: "QA12345678", amountCents: 15000, expiresOn: "2029-10-26", customerName: "Alice Ng" },
+      voucher: { id: "v1", code: "QA12345678", amountCents: 15000, expiresOn: "2029-10-26", publicToken: "abcdefghijklmnopqrstuv", preprinted: false, customerName: "Alice Ng" },
     });
     expect(h.db.client.rpc).toHaveBeenCalledWith("sell_gift_voucher", {
       p_amount_cents: 15000,
@@ -129,7 +129,7 @@ describe("spendGiftVoucher (GA-02)", () => {
     h.db.next.rpc = { data: { status: "spent", spent_cents: 2000, balance_cents: 0, code: "QA12345678" }, error: null };
     expect(await spend({ amount: "20", till: "15.00" })).toEqual({
       ok: true,
-      message: "Spent $20.00 from QA12345678. $0.00 left. Take $15.00 at the till.",
+      message: "Used $20.00 from QA12345678. $0.00 left. Take $15.00 at the till.",
     });
     expect(h.db.client.rpc).toHaveBeenCalledWith("spend_gift_voucher", { p_code: "QA12345678", p_amount_cents: 2000, p_customer_id: undefined, p_note: undefined });
   });

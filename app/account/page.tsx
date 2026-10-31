@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -28,6 +29,8 @@ export default function AccountPage() {
 }
 
 async function Account() {
+  // At request time only: the session check reads the clock, which a prerender can't.
+  await connection();
   const me = await getStaff();
   if (!me) redirect("/admin/login?next=/account");
   const reason = me.mustChangePassword ? "temporary" : me.fromResetLink ? "reset" : null;

@@ -33,7 +33,8 @@ export function Card({ className, ...props }: React.ComponentProps<"section">) {
 }
 
 /** The dashboard's four "today" tiles: two by two on phones and iPads in portrait, one row from lg. */
-export const dashboardTileGrid = "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4";
+// Two by two until there's room for four across (`wide`): at 1024 px four squeeze their numbers.
+export const dashboardTileGrid = "grid grid-cols-2 gap-3 sm:gap-4 wide:grid-cols-4";
 
 export function StatTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: React.ReactNode }) {
   return (

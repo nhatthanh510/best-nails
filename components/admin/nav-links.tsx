@@ -39,7 +39,7 @@ export function NavLinks({ pathname }: { pathname: string | null }) {
         <div key={group.label ?? "main"} className={cn(group.label && "border-t border-border pt-4")}>
           {group.label && (
             // The icon rail on portrait iPads has no room for it: the divider marks the group there.
-            <h2 id={`nav-${group.label}`} className="mb-1.5 px-3 text-xs font-bold tracking-[0.12em] text-muted-foreground uppercase md:max-lg:sr-only">
+            <h2 id={`nav-${group.label}`} className="mb-1.5 px-3 text-xs font-bold tracking-[0.12em] text-muted-foreground uppercase rail:sr-only">
               {group.label}
             </h2>
           )}
@@ -55,12 +55,12 @@ export function NavLinks({ pathname }: { pathname: string | null }) {
                     className={cn(
                       "flex min-h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-semibold whitespace-nowrap",
                       // Icon rail on portrait iPads: the label stays for screen readers.
-                      "md:max-lg:justify-center md:max-lg:px-0",
+                      "rail:justify-center rail:px-0",
                       active ? "bg-accent font-bold text-accent-foreground" : "hover:bg-muted",
                     )}
                   >
                     <Icon className="size-5 flex-none" aria-hidden="true" />
-                    <span className="md:max-lg:sr-only">{label}</span>
+                    <span className="rail:sr-only">{label}</span>
                   </Link>
                 </li>
               );

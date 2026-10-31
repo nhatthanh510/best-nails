@@ -78,7 +78,8 @@ test.describe("Accessibility basics", () => {
       const unnamed = await page.evaluate(() =>
         [...document.querySelectorAll<HTMLElement>("button, a[href]")]
           .filter((el) => el.checkVisibility())
-          .filter((el) => !(el.getAttribute("aria-label") || el.textContent?.trim() || el.getAttribute("title")))
+          // A <label for> names a control too (e.g. a switch beside its words).
+          .filter((el) => !(el.getAttribute("aria-label") || el.textContent?.trim() || el.getAttribute("title") || (el as HTMLButtonElement).labels?.length))
           .map((el) => el.outerHTML.slice(0, 120)),
       );
       expect(unnamed, `${path} has controls with no name`).toEqual([]);

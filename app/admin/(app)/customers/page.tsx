@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { DataTable, ListPanel, EmptyRow, PageHeader, Pager, SortableTh, Avatar, TierBadge, td, th } from "@/components/admin/ui";
 import { tierFor } from "@/lib/tiers";
@@ -39,6 +40,8 @@ export default function CustomersPage({ searchParams }: PageProps<"/admin/custom
 }
 
 async function Customers({ searchParams }: { searchParams: PageProps<"/admin/customers">["searchParams"] }) {
+  // Request time only: a link prefetch prerenders the page with the cookies, and it reads the clock.
+  await connection();
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q.slice(0, 60) : "";
   const settings = await getSettings();
@@ -134,9 +137,9 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
             <tr>
               {sortable("name", "Name")}
               <th className={`${th} hidden w-28 xl:table-cell`}>Tier</th>
-              <th className={`${th} hidden w-36 sm:table-cell`}>Phone</th>
+              <th className={`${th} hidden w-34 sm:table-cell`}>Phone</th>
               {sortable("points", "Points", "w-24 text-right")}
-              {sortable("lifetime", "Lifetime points", "hidden w-40 text-right sm:table-cell")}
+              {sortable("lifetime", "Lifetime points", "hidden w-40 text-right wide:table-cell")}
               {sortable("last_visit", "Last visit", "hidden w-30 md:table-cell")}
               {sortable("joined", "Joined", "hidden w-26 xl:table-cell")}
             </tr>
@@ -167,10 +170,11 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
                 <td className={`${td} hidden whitespace-nowrap text-muted-foreground tabular-nums sm:table-cell`}>{formatPhone(c.phone)}</td>
                 <td className={`${td} text-right font-bold tabular-nums`}>
                   {c.points_balance}
-                  {/* The Lifetime points column is hidden on phones; it decides the tier, so keep it here. */}
-                  <span className="block text-[12px] font-medium whitespace-nowrap text-muted-foreground sm:hidden">{c.lifetime_points} lifetime</span>
+                  {/* The Lifetime points column needs a wide screen (on a tablet it squeezed the names);
+                      it decides the tier, so below that it's here. */}
+                  <span className="block text-[12px] font-medium whitespace-nowrap text-muted-foreground wide:hidden">{c.lifetime_points} lifetime</span>
                 </td>
-                <td className={`${td} hidden text-right tabular-nums sm:table-cell`}>{c.lifetime_points}</td>
+                <td className={`${td} hidden text-right tabular-nums wide:table-cell`}>{c.lifetime_points}</td>
                 <td className={`${td} hidden whitespace-nowrap text-muted-foreground md:table-cell`}>{formatLastVisit(c.last_visit_at, tz)}</td>
                 <td className={`${td} hidden text-muted-foreground xl:table-cell`}>
                   {formatDate(c.created_at, tz, { month: "short", year: "numeric" })}

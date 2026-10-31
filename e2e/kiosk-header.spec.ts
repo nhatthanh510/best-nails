@@ -20,8 +20,10 @@ test.describe("Kiosk header: gift vouchers", () => {
     await dialog.getByRole("button", { name: "Create $50.00 voucher" }).click();
 
     const created = dialog.getByRole("status");
-    await expect(created).toContainText("Voucher created · write this code on the card");
-    await expect(created).toContainText("QA20000001");
+    await expect(created).toContainText("Voucher QA20000001 created · print it, or write the code on a card");
+    // The printable voucher, with the QR that opens its balance page.
+    await expect(dialog.getByRole("img", { name: "QR code to check the balance" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Print" })).toBeVisible();
     await expect(dialog.getByText("$50.00 · take payment at the till")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Open voucher" })).toHaveCount(0);
 
@@ -78,15 +80,16 @@ test.describe("Kiosk header: as a staff account", () => {
 
     await page.getByRole("button", { name: "Gift voucher" }).click();
     const dialog = page.getByRole("dialog");
-    await dialog.getByRole("button", { name: /Use a gift voucher/ }).click();
+    await dialog.getByRole("button", { name: /Find a voucher/ }).click();
     await dialog.getByLabel("Gift voucher code").fill("qa-3000 0001");
-    await dialog.getByRole("button", { name: "Check balance" }).click();
+    await dialog.getByRole("button", { name: "Find", exact: true }).click();
+    await dialog.getByRole("button", { name: "Use", exact: true }).click();
     await expect(dialog.getByText("$100.00 left")).toBeVisible();
 
     await dialog.getByLabel("Today's service").fill("35");
     await expect(dialog.getByText("Leaves $65.00 on the voucher.")).toBeVisible();
     await dialog.getByRole("button", { name: "Use $35.00" }).click();
-    await expect(page.getByText("Spent $35.00 from QA30000001. $65.00 left.")).toBeVisible();
+    await expect(page.getByText("Used $35.00 from QA30000001. $65.00 left.")).toBeVisible();
     expect(await findVoucher("QA30000001")).toMatchObject({ balance_cents: 6500 });
   });
 

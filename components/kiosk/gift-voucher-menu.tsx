@@ -1,17 +1,18 @@
 "use client";
 
 import { useLayoutEffect, useState } from "react";
-import { ArrowLeft, Gift, Plus, WalletCards } from "lucide-react";
+import { ArrowLeft, Gift, Plus, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { SellGiftVoucherForm, UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
+import { SellGiftVoucherForm } from "@/components/admin/gift-voucher-forms";
+import { FindVoucher } from "@/components/admin/find-voucher";
 import { fillPhoneMask } from "@/lib/phone-mask";
 
-type View = "menu" | "sell" | "use";
+type View = "menu" | "sell" | "find";
 
 const VIEWS: Record<View, { title: string; description: string }> = {
-  menu: { title: "Gift vouchers", description: "Create a new voucher, or take today's service off one." },
+  menu: { title: "Gift vouchers", description: "Find a voucher the customer has, or create a new one." },
   sell: { title: "Create a gift voucher", description: "Take payment at the till as usual. The voucher is valid for 3 years." },
-  use: { title: "Use a gift voucher", description: "Check the balance, then take today's service off it." },
+  find: { title: "Find a gift voucher", description: "Type the code on the voucher. You'll see its balance and what you can do with it." },
 };
 
 const choice =
@@ -81,24 +82,24 @@ export function GiftVoucherMenu({
           </DialogHeader>
           {view === "menu" && (
             <div className="flex flex-col gap-3">
+              <button type="button" onClick={() => setView("find")} className={choice}>
+                <Search className="size-6 flex-none text-primary" aria-hidden="true" />
+                <span className="flex flex-col">
+                  <span className="text-base font-bold">Find a voucher</span>
+                  <span className="text-sm text-muted-foreground">They have one: use it, top it up, or create a printed card</span>
+                </span>
+              </button>
               <button type="button" onClick={() => setView("sell")} className={choice}>
                 <Plus className="size-6 flex-none text-primary" aria-hidden="true" />
                 <span className="flex flex-col">
                   <span className="text-base font-bold">Create a gift voucher</span>
-                  <span className="text-sm text-muted-foreground">A customer is buying one</span>
-                </span>
-              </button>
-              <button type="button" onClick={() => setView("use")} className={choice}>
-                <WalletCards className="size-6 flex-none text-primary" aria-hidden="true" />
-                <span className="flex flex-col">
-                  <span className="text-base font-bold">Use a gift voucher</span>
-                  <span className="text-sm text-muted-foreground">Check a balance or pay with one</span>
+                  <span className="text-sm text-muted-foreground">A customer is buying a new one</span>
                 </span>
               </button>
             </div>
           )}
           {view === "sell" && <SellGiftVoucherForm onDone={close} openAfterSale={false} defaultPhone={formatted} phoneKnown={Boolean(formatted)} />}
-          {view === "use" && <UseGiftVoucher onDone={close} defaultPhone={formatted} phoneKnown={Boolean(formatted)} />}
+          {view === "find" && <FindVoucher onDone={close} onKiosk defaultPhone={formatted} phoneKnown={Boolean(formatted)} />}
         </DialogContent>
       </Dialog>
     </>

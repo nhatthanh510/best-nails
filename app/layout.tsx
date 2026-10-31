@@ -37,7 +37,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${jakarta.variable} ${cormorant.variable} h-full antialiased`}>
+    // suppressHydrationWarning: the admin sets data-nav-collapsed on <html> before React hydrates.
+    <html lang="en" className={`${jakarta.variable} ${cormorant.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
         {children}
       </body>
