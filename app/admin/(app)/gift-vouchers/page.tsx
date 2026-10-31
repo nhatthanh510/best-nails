@@ -184,9 +184,7 @@ async function VoucherList({ params }: { params: Params }) {
               <th className={`${th} hidden md:table-cell`}>Customer</th>
               <th className={`${th} w-28 text-right`}>Balance</th>
               <th className={`${th} hidden w-28 text-right xl:table-cell`}>Amount</th>
-              <th className={`${th} hidden w-32 wide:table-cell`}>Created</th>
               <th className={`${th} hidden w-32 xl:table-cell`}>Expires</th>
-              <th className={`${th} hidden w-48 wide:table-cell`}>Last used</th>
               <th className={`${th} hidden w-30 sm:table-cell`}>Status</th>
               <th className={`${th} w-22 px-0`}>
                 <span className="sr-only">Actions</span>
@@ -195,7 +193,7 @@ async function VoucherList({ params }: { params: Params }) {
           </thead>
           <tbody>
             {vouchers.length === 0 && (
-              <EmptyRow colSpan={10}>{q ? `No gift vouchers match “${q}”.` : usedToday ? "No gift vouchers here were used today." : filter === "inactive" ? "No blank cards waiting to be activated. Print some with Print blank cards." : "No gift vouchers here yet."}</EmptyRow>
+              <EmptyRow colSpan={8}>{q ? `No gift vouchers match “${q}”.` : usedToday ? "No gift vouchers here were used today." : filter === "inactive" ? "No blank cards waiting to be activated. Print some with Print blank cards." : "No gift vouchers here yet."}</EmptyRow>
             )}
             {vouchers.map((v) => (
               // A used-up voucher gets a red tint, so staff spot at a glance that there's no credit left.
@@ -211,9 +209,21 @@ async function VoucherList({ params }: { params: Params }) {
                     </Link>
                     <CopyButton text={v.code} label={`Copy ${v.code}`} className="-my-2" />
                   </span>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground wide:hidden">
+                  {/* Its last use (when and how much; the full history is on its page), at every width. */}
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
                     {v.customer && <span className="md:hidden">{fullName(v.customer)}</span>}
-                    <span>{v.status === "inactive" ? "Not sold yet" : v.lastUse ? `Last used ${formatDate(v.lastUse.created_at, tz)}` : "Not used yet"}</span>
+                    <span className="whitespace-nowrap">
+                      {v.status === "inactive" ? (
+                        "Not sold yet"
+                      ) : v.lastUse ? (
+                        <>
+                          Last used {formatDate(v.lastUse.created_at, tz)} ·{" "}
+                          <span className="font-semibold tabular-nums">{formatMoney(Math.abs(v.lastUse.delta_cents))}</span>
+                        </>
+                      ) : (
+                        "Not used yet"
+                      )}
+                    </span>
                   </p>
                 </td>
                 <td className={`${td} hidden md:table-cell`}>
@@ -255,25 +265,8 @@ async function VoucherList({ params }: { params: Params }) {
                 <td className={`${td} hidden text-right whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell`}>
                   {v.amount_cents === null ? "–" : formatMoney(v.amount_cents)}
                 </td>
-                <td className={`${td} hidden whitespace-nowrap text-muted-foreground wide:table-cell`}>
-                  {formatDate(v.created_at, tz, { day: "numeric", month: "short", year: "numeric" })}
-                </td>
                 <td className={`${td} hidden whitespace-nowrap text-muted-foreground xl:table-cell`}>
                   {v.expires_on ? formatDate(`${v.expires_on}T12:00:00Z`, "UTC", { day: "numeric", month: "short", year: "numeric" }) : "–"}
-                </td>
-                <td className={`${td} hidden wide:table-cell`}>
-                  {v.lastUse ? (
-                    <span className="flex flex-col">
-                      <span className="whitespace-nowrap">{formatDate(v.lastUse.created_at, tz, { day: "numeric", month: "short", year: "numeric" })}</span>
-                      {/* Amount and who, so the second line can't be read as a note. */}
-                      <span className="truncate text-[13px] text-muted-foreground">
-                        <span className="font-semibold tabular-nums">{formatMoney(Math.abs(v.lastUse.delta_cents))}</span>
-                        {v.lastUse.customer ? ` by ${fullName(v.lastUse.customer)}` : " · no customer linked"}
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">{v.status === "inactive" ? "Not sold yet" : "Not used yet"}</span>
-                  )}
                 </td>
                 <td className={`${td} hidden sm:table-cell`}>
                   <GiftVoucherStatusPill status={v.status} />
