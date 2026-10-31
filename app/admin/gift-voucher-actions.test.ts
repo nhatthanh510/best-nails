@@ -156,9 +156,9 @@ describe("adjustGiftVoucher (GA-03)", () => {
 });
 
 describe("deleteGiftVoucher (GA-04)", () => {
-  it("can't delete a voucher that has been spent from (RLS returns no row)", async () => {
+  it("can't delete a voucher that has been used (RLS returns no row)", async () => {
     h.db.next.query = { data: [], error: null };
-    expect(await actions.deleteGiftVoucher("v1")).toEqual({ ok: false, message: "Part of this voucher has been spent, so it can't be deleted." });
+    expect(await actions.deleteGiftVoucher("v1")).toEqual({ ok: false, message: "This voucher has been used, so it can't be deleted." });
   });
 
   it("deletes an unspent voucher and goes back to the list", async () => {

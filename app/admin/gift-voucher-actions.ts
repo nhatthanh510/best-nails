@@ -95,7 +95,7 @@ export async function sellGiftVoucher(_: SellState, formData: FormData): Promise
   refresh();
   return {
     ok: true,
-    message: `Created ${r.code} for ${formatMoney(cents)}. Take payment at the till.`,
+    message: `${r.preprinted ? "Activated" : "Created"} ${r.code} for ${formatMoney(cents)}. Take payment at the till.`,
     href: `/admin/gift-vouchers/${r.id}`,
     voucher: {
       id: r.id,
@@ -119,7 +119,7 @@ export type PrintedVoucher = { code: string; token: string };
 /** New codes for a batch, shown before anything is saved. */
 export async function previewGiftVoucherCodes(count: number): Promise<{ ok: true; codes: string[] } | { ok: false; message: string }> {
   await requireAdmin();
-  if (!Number.isInteger(count) || count < 1 || count > 100) return { ok: false, message: "Print between 1 and 100 vouchers at a time." };
+  if (!Number.isInteger(count) || count < 1 || count > 100) return { ok: false, message: "Print between 1 and 100 blank cards at a time." };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("preview_gift_voucher_codes", { p_count: count });
   if (error) return dbError(error) as { ok: false; message: string };
@@ -129,7 +129,7 @@ export async function previewGiftVoucherCodes(count: number): Promise<{ ok: true
 /** Saves the previewed codes as inactive vouchers; their QR tokens come back for printing. */
 export async function createInactiveGiftVouchers(codes: string[]): Promise<{ ok: true; vouchers: PrintedVoucher[] } | { ok: false; message: string }> {
   await requireAdmin();
-  if (!Array.isArray(codes) || codes.length < 1 || codes.length > 100) return { ok: false, message: "Print between 1 and 100 vouchers at a time." };
+  if (!Array.isArray(codes) || codes.length < 1 || codes.length > 100) return { ok: false, message: "Print between 1 and 100 blank cards at a time." };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_inactive_gift_vouchers", { p_codes: codes.map(String) });
   if (error) return dbError(error) as { ok: false; message: string };
@@ -363,7 +363,7 @@ export async function updateGiftVoucher(id: string, _: ActionState, formData: Fo
 
 export async function adjustGiftVoucher(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const staff = await requireAdmin();
-  if (staff.role !== "admin") return fail("Only an admin can adjust a gift voucher.");
+  if (staff.role !== "admin") return fail("Only an admin can correct a voucher's balance.");
   const cents = parseDollars(String(formData.get("amount") ?? ""));
   if (cents === null || cents === 0) return fail("Enter an amount, e.g. 10.");
   const note = String(formData.get("note") ?? "").trim();
@@ -406,6 +406,6 @@ export async function deleteGiftVoucher(id: string): Promise<ActionState> {
   // RLS only lets an admin delete a voucher nothing has been spent from.
   const { data, error } = await supabase.from("gift_vouchers").delete().eq("id", id).select("id");
   if (error) return dbError(error);
-  if (!data?.length) return fail("Part of this voucher has been spent, so it can't be deleted.");
+  if (!data?.length) return fail("This voucher has been used, so it can't be deleted.");
   return { ok: true, message: "Gift voucher deleted.", href: "/admin/gift-vouchers" };
 }

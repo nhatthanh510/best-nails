@@ -734,7 +734,7 @@ export async function getGiftVoucher(id: string) {
   };
 }
 
-/** Unspent credit the shop owes, and this month's sales. */
+/** Unused credit the shop owes, and this month's new vouchers. */
 export async function giftVoucherSummary() {
   const { supabase } = await staffClient();
   // Only this month's sales need the timezone, so the totals don't wait for it.

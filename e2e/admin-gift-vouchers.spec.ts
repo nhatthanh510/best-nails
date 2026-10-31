@@ -63,31 +63,34 @@ test.describe("Admin: creating gift vouchers", () => {
     await theirs.context().close();
   });
 
-  test("G-20 a voucher printed ahead of time is inactive until it's sold from its page", async ({ page, browser }) => {
+  test("G-20 a voucher printed ahead of time is inactive until it's activated from its page", async ({ page, browser }) => {
     const card = await seedInactiveVoucher("QA40000020");
     const theirs = await freshPage(browser);
     await theirs.goto(`/v/${card.public_token}`);
     await expect(theirs.getByRole("heading", { name: "Not activated yet", level: 1 })).toBeVisible();
 
-    // Find voucher shows it's not sold yet, with Create as the only action.
+    // Find voucher shows it's not sold yet, with Activate as the only action.
     const found = await findCode(page, "QA40000020");
     await expect(found.getByText("Not sold", { exact: true })).toBeVisible();
-    await expect(found.getByRole("button", { name: "Create voucher" })).toBeVisible();
+    await expect(found.getByRole("button", { name: "Activate voucher" })).toBeVisible();
     await expect(found.getByRole("button", { name: "Use", exact: true })).toHaveCount(0);
 
     // Tracked in the list under Not sold.
     await page.goto("/admin/gift-vouchers?filter=inactive");
-    await page.getByRole("link", { name: "QA40000020" }).click();
+    await page.getByRole("link", { name: "QA40000020", exact: true }).click();
     await expect(page.getByRole("heading", { name: "QA40000020", level: 1 })).toBeVisible();
     await expect(page.getByText("Not sold", { exact: true }).first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Create voucher" }).click();
-    const dialog = await settled(page.getByRole("dialog", { name: "Create QA40000020" }));
+    await page.getByRole("button", { name: "Activate voucher" }).click();
+    const dialog = await settled(page.getByRole("dialog", { name: "Activate QA40000020" }));
+    // The code is the one printed on the card: it can't be changed or regenerated.
     await expect(dialog.getByLabel("Code")).toHaveValue("QA40000020");
+    await expect(dialog.getByLabel("Code")).not.toBeEditable();
+    await expect(dialog.getByRole("button", { name: "Generate" })).toHaveCount(0);
     await dialog.getByRole("button", { name: "$50", exact: true }).click();
-    await dialog.getByRole("button", { name: "Create $50.00 voucher" }).click();
+    await dialog.getByRole("button", { name: "Activate $50.00 voucher" }).click();
     // The page turns into the active voucher, with the reminder to take payment as a toast.
-    await expect(page.getByText("Created QA40000020 for $50.00. Take payment at the till.")).toBeVisible();
+    await expect(page.getByText("Activated QA40000020 for $50.00. Take payment at the till.")).toBeVisible();
     await expect(dialog).toHaveCount(0);
     await expect(page.getByText("Active", { exact: true }).first()).toBeVisible();
 
@@ -296,7 +299,7 @@ test.describe("Admin: managing a voucher", () => {
     await expect(page).toHaveURL(/today=1/);
     await expect(usedToday).toBeChecked();
     // Neither has been used today.
-    await expect(page.getByRole("link", { name: "QA42000005" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "QA42000005", exact: true })).toHaveCount(0);
   });
 
   test("G-24 a row's ⋯ menu offers what fits the voucher, and Top up works from the list", async ({ page }) => {
@@ -305,7 +308,7 @@ test.describe("Admin: managing a voucher", () => {
     await page.getByRole("button", { name: "Actions for QA42000007" }).click();
     const menu = page.getByRole("menu");
     await expect(menu.getByRole("menuitem", { name: "Use" })).toBeVisible();
-    await expect(menu.getByRole("menuitem", { name: "Create voucher" })).toHaveCount(0);
+    await expect(menu.getByRole("menuitem", { name: "Activate voucher" })).toHaveCount(0);
     await menu.getByRole("menuitem", { name: "Top up" }).click();
     const dialog = await settled(page.getByRole("dialog", { name: "Top up QA42000007" }));
     await dialog.getByRole("button", { name: "Top up $50.00" }).click();
@@ -317,7 +320,7 @@ test.describe("Admin: managing a voucher", () => {
     const id = await seedCustomer({ phone: testPhone(42), firstName: "Cleo", lastName: "Spender" });
     await seedVoucher({ code: "QA42000004", amountCents: 5000, customerId: id });
     await page.goto("/admin/gift-vouchers?q=Spender");
-    await expect(page.getByRole("link", { name: "QA42000004" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "QA42000004", exact: true })).toBeVisible();
     await expect(page.getByText("Cleo Spender").filter({ visible: true }).first()).toBeVisible();
   });
 });

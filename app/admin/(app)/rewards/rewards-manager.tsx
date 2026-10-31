@@ -214,7 +214,7 @@ export function BirthdayDiscountForm({
         <h2 className="text-lg font-extrabold">Birthday discount</h2>
       </div>
       <p className="text-sm text-muted-foreground">
-        Free, once per birthday, for customers with a birthday on file. Used {usedThisYear} time{usedThisYear === 1 ? "" : "s"} this
+        Free, once per birthday, from a customer&apos;s second visit, for customers with a birthday on file. Used {usedThisYear} time{usedThisYear === 1 ? "" : "s"} this
         year.
       </p>
       <form {...formSubmit}>

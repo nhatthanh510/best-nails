@@ -86,7 +86,7 @@ export function GiftVoucherMenu({
                 <Search className="size-6 flex-none text-primary" aria-hidden="true" />
                 <span className="flex flex-col">
                   <span className="text-base font-bold">Find a voucher</span>
-                  <span className="text-sm text-muted-foreground">They have one: use it, top it up, or create a printed card</span>
+                  <span className="text-sm text-muted-foreground">They have one: use it, top it up, or activate a blank card</span>
                 </span>
               </button>
               <button type="button" onClick={() => setView("sell")} className={choice}>

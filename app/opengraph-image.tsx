@@ -46,7 +46,7 @@ export default async function Image() {
           </div>
           <div style={{ width: 120, height: 3, background: "#c9a227", margin: "36px 0 28px" }} />
           <div style={{ fontSize: 30, color: "#cbbfa9", lineHeight: 1.4 }}>
-            Check in, collect points and enjoy 10% off.
+            Check in, collect points and enjoy rewards.
           </div>
         </div>
       </div>

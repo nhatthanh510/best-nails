@@ -26,6 +26,8 @@ import { formatDate, fullName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "@/components/admin/copy-button";
 import { VoucherRowActions } from "@/components/admin/voucher-row-actions";
+import { voucherBalanceUrl } from "@/lib/voucher-link";
+import { ExternalLink } from "lucide-react";
 
 // The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
 // the current page still up (and the sidebar's loading line) rather than showing a skeleton.
@@ -56,7 +58,7 @@ export default function GiftVouchersPage({ searchParams }: PageProps<"/admin/gif
         title="Gift vouchers"
         actions={
           <>
-            {/* Everything for a voucher a customer already has (use, top up, create a printed card)
+            {/* Everything for a voucher a customer already has (use, top up, activate a blank card)
                 starts from its code. Print blank cards is under Create gift voucher's ▾. */}
             <FindVoucherButton />
             <CreateVoucherSplitButton />
@@ -77,7 +79,7 @@ async function Summary() {
   return (
     <SummaryCard
       stats={[
-        { value: formatMoney(s.outstandingCents), label: "Unspent credit", href: "/admin/gift-vouchers?filter=active" },
+        { value: formatMoney(s.outstandingCents), label: "Unused credit", href: "/admin/gift-vouchers?filter=active" },
         { value: s.activeCount.toLocaleString(), label: "Active vouchers", href: "/admin/gift-vouchers?filter=active" },
         { value: formatMoney(s.soldThisMonthCents), label: `New this month (${s.soldThisMonth.toLocaleString()})` },
       ]}
@@ -163,7 +165,7 @@ async function VoucherList({ params }: { params: Params }) {
         {filter === "inactive" && (
           // Where blank cards are tracked, say what they are.
           <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-background/60 px-4 py-2.5 text-[13px] text-muted-foreground">
-            <span className="min-w-0 flex-1">Blank cards printed in advance, waiting to be sold. When one is bought, find its code and create it with the amount.</span>
+            <span className="min-w-0 flex-1">Blank cards printed in advance, waiting to be activated. When one is bought, find its code and activate it with the amount.</span>
             <PrintBlankCardsButton />
           </div>
         )}
@@ -186,14 +188,14 @@ async function VoucherList({ params }: { params: Params }) {
               <th className={`${th} hidden w-32 xl:table-cell`}>Expires</th>
               <th className={`${th} hidden w-48 wide:table-cell`}>Last used</th>
               <th className={`${th} hidden w-30 sm:table-cell`}>Status</th>
-              <th className={`${th} w-12 px-0`}>
+              <th className={`${th} w-22 px-0`}>
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {vouchers.length === 0 && (
-              <EmptyRow colSpan={10}>{q ? `No gift vouchers match “${q}”.` : usedToday ? "No gift vouchers here were used today." : filter === "inactive" ? "No blank cards waiting to be sold. Print some with Print blank cards." : "No gift vouchers here yet."}</EmptyRow>
+              <EmptyRow colSpan={10}>{q ? `No gift vouchers match “${q}”.` : usedToday ? "No gift vouchers here were used today." : filter === "inactive" ? "No blank cards waiting to be activated. Print some with Print blank cards." : "No gift vouchers here yet."}</EmptyRow>
             )}
             {vouchers.map((v) => (
               // A used-up voucher gets a red tint, so staff spot at a glance that there's no credit left.
@@ -226,7 +228,25 @@ async function VoucherList({ params }: { params: Params }) {
                   )}
                 </td>
                 <td className={cn(`${td} text-right whitespace-nowrap tabular-nums`, "font-extrabold", v.status === "used_up" && "text-destructive")}>
-                  {v.status === "inactive" ? <span className="font-normal text-muted-foreground">–</span> : formatMoney(v.balance_cents)}
+                  {/* The balance page the card's QR opens (what the customer sees), in a new tab, for
+                      every voucher. A Not sold card has no balance yet, so it says so. */}
+                  <span className="inline-flex items-center gap-1">
+                    {v.status === "inactive" ? (
+                      <span className="text-[13px] font-semibold text-muted-foreground">No balance yet</span>
+                    ) : (
+                      formatMoney(v.balance_cents)
+                    )}
+                    <a
+                      href={voucherBalanceUrl(v.public_token)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Open the balance page for ${v.code}`}
+                      title="Open the balance page"
+                      className="-my-2 inline-flex size-7 items-center justify-center rounded-md font-normal text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <ExternalLink className="size-3.5" aria-hidden="true" />
+                    </a>
+                  </span>
                   {/* Phones: the status sits under the balance, so a row stays two lines. */}
                   <span className="mt-1 flex justify-end sm:hidden">
                     <GiftVoucherStatusPill status={v.status} />
@@ -258,7 +278,7 @@ async function VoucherList({ params }: { params: Params }) {
                 <td className={`${td} hidden sm:table-cell`}>
                   <GiftVoucherStatusPill status={v.status} />
                 </td>
-                <td className={`${td} px-0 text-center`}>
+                <td className={`${td} px-0`}>
                   <VoucherRowActions
                     voucher={{ id: v.id, code: v.code, status: v.status, token: v.public_token, expiresOn: v.expires_on, neverUsed: !v.lastUse }}
                   />

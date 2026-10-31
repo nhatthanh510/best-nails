@@ -61,11 +61,11 @@ export default function GiftVoucherPage({ params }: PageProps<"/admin/gift-vouch
 }
 
 /**
- * Two columns where there's room (`wide`): on the left what staff need at the till (the balance, the actions
+ * Two columns from lg (a landscape iPad included): on the left what staff need at the till (the balance, the actions
  * that fit the voucher's state, and the card to print); on the right its history, then the
  * details and admin tools, folded away as they're rarely needed. One column on phones, same order.
  */
-const columns = "grid items-start gap-5 wide:grid-cols-[minmax(0,380px)_minmax(0,1fr)]";
+const columns = "grid items-start gap-5 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]";
 
 /** A Card that folds open: for what's rarely needed (details, admin tools). */
 function Fold({ title, children, open = false }: { title: string; children: React.ReactNode; open?: boolean }) {
@@ -189,7 +189,12 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
           {(v.status === "active" || v.status === "used_up") && (
             <div className="grid grid-cols-2 gap-2">
               {v.status === "active" && <UseThisVoucherButton code={v.code} />}
-              <TopUpButton code={v.code} variant={v.status === "used_up" ? "default" : "outline"} className={v.status === "used_up" ? "col-span-2" : undefined} />
+              <TopUpButton
+                code={v.code}
+                size="lg"
+                variant={v.status === "used_up" ? "default" : "outline"}
+                className={v.status === "used_up" ? "col-span-2" : undefined}
+              />
             </div>
           )}
         </Card>
@@ -214,7 +219,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
                 <th className={`${th} hidden sm:table-cell`}>By</th>
                 <th className={`${th} text-right`}>Amount</th>
                 {/* The running balance needs the room of a wide screen beside the summary column. */}
-                <th className={`${th} hidden text-right sm:below-wide:table-cell xl:table-cell`}>Balance</th>
+                <th className={`${th} hidden text-right sm:max-lg:table-cell xl:table-cell`}>Balance</th>
               </tr>
             </thead>
             <tbody>
@@ -244,7 +249,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
                     {t.delta_cents > 0 ? "+" : "−"}
                     {formatMoney(Math.abs(t.delta_cents))}
                   </td>
-                  <td className={`${td} hidden text-right whitespace-nowrap tabular-nums sm:below-wide:table-cell xl:table-cell`}>{formatMoney(t.balance_after_cents)}</td>
+                  <td className={`${td} hidden text-right whitespace-nowrap tabular-nums sm:max-lg:table-cell xl:table-cell`}>{formatMoney(t.balance_after_cents)}</td>
                 </tr>
               ))}
             </tbody>
@@ -314,7 +319,7 @@ function NotSoldVoucher({ voucher: v, printedBy, tz, isAdmin }: { voucher: GiftV
           </div>
           <p className="text-sm text-muted-foreground">
             A blank card printed {formatDate(v.created_at, tz, { day: "numeric", month: "short", year: "numeric" })} by {printedBy}. It has no balance
-            until a customer buys it: create it with the amount they pay. Its 3 years start that day, and the QR code on the card then shows the
+            until a customer buys it: activate it with the amount they pay. Its 3 years start that day, and the QR code on the card then shows the
             balance.
           </p>
           <SellGiftVoucherButton code={v.code} className="w-full" />

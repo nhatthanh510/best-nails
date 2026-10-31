@@ -75,7 +75,7 @@ export const GIFT_VOUCHER_PROBLEMS: Record<string, string> = {
   used_up: "This gift voucher has no balance left.",
   expired: "This gift voucher has expired.",
   blocked: "This voucher is blocked (reported lost or stolen). An admin can unblock it on its page.",
-  not_sold: "This voucher hasn't been sold yet. Create it with an amount first.",
+  not_sold: "This blank card hasn't been activated yet. Activate it with the amount the customer pays first.",
 };
 
 /** Quick amounts on the sell form. */

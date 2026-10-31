@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Ban, Copy, Ellipsis, ExternalLink, Link2, Plus, Printer, Trash2, Undo2, WalletCards } from "lucide-react";
+import { Ban, Copy, Ellipsis, ExternalLink, Eye, Link2, Plus, Printer, Trash2, Undo2, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -21,14 +21,14 @@ type Open = "use" | "top_up" | "create" | "block" | "delete" | null;
 const TITLES: Record<Exclude<Open, null>, (code: string) => { title: string; description: string }> = {
   use: (code) => ({ title: `Use ${code}`, description: "Take today's service off this voucher." }),
   top_up: (code) => ({ title: `Top up ${code}`, description: "Put more money on a voucher the customer already has. Take payment at the till as usual." }),
-  create: (code) => ({ title: `Create ${code}`, description: "Take payment at the till as usual. The voucher is valid for 3 years." }),
+  create: (code) => ({ title: `Activate ${code}`, description: "Take payment at the till as usual. The voucher is valid for 3 years." }),
   block: (code) => ({ title: `Block ${code}?`, description: "If it's lost or stolen, so nobody else can use it. The balance is kept, and you can unblock it later." }),
   delete: (code) => ({ title: `Delete ${code}?`, description: "For a voucher created by mistake (refund it at the till) or a blank card that's lost or spoiled. This can't be undone." }),
 };
 
 /**
  * A voucher row's ⋯ menu in the Gift vouchers list: the actions that fit its status (as on its
- * page: Use, Top up, Create), then copying, printing, and the admin fixes, so common jobs don't
+ * page: Use, Top up, Activate), then copying, printing, and the admin fixes, so common jobs don't
  * need the voucher's page. The forms open in a dialog over the list.
  */
 export function VoucherRowActions({ voucher: v }: { voucher: Row }) {
@@ -67,7 +67,13 @@ export function VoucherRowActions({ voucher: v }: { voucher: Row }) {
   const close = () => setOpen(null);
   const sold = v.status !== "inactive";
   return (
-    <>
+    <div className="flex items-center justify-end">
+      {/* The voucher's page, in one tap; everything else is in the ⋯ menu. */}
+      <Button asChild variant="ghost" size="icon" className="-my-2 text-muted-foreground">
+        <Link href={`/admin/gift-vouchers/${v.id}`} aria-label={`Open ${v.code}`} title="Open voucher">
+          <Eye aria-hidden="true" />
+        </Link>
+      </Button>
       {/* modal={false}: a dialog opened from an item would otherwise fight the menu for focus. */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
@@ -97,7 +103,7 @@ export function VoucherRowActions({ voucher: v }: { voucher: Row }) {
           {v.status === "inactive" && (
             <DropdownMenuItem onSelect={() => setOpen("create")}>
               <Plus aria-hidden="true" />
-              Create voucher
+              Activate voucher
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
@@ -145,7 +151,7 @@ export function VoucherRowActions({ voucher: v }: { voucher: Row }) {
           )}
           {open === "use" && <UseGiftVoucher code={v.code} onDone={close} />}
           {open === "top_up" && <TopUpForm code={v.code} onDone={close} />}
-          {open === "create" && <SellGiftVoucherForm defaultCode={v.code} onDone={close} />}
+          {open === "create" && <SellGiftVoucherForm defaultCode={v.code} activate onDone={close} />}
           {open === "block" && <BlockGiftVoucherForm id={v.id} onDone={close} />}
           {open === "delete" && (
             <DialogFooter>
@@ -166,6 +172,6 @@ export function VoucherRowActions({ voucher: v }: { voucher: Row }) {
           <VoucherCard ref={card} code={v.code} expiresOn={v.expiresOn} token={v.token} />
         </div>
       )}
-    </>
+    </div>
   );
 }

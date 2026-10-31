@@ -23,8 +23,8 @@ const segment = (active: boolean) =>
 /**
  * Blank cards: gift vouchers printed in advance, with a code and QR but no amount, as with
  * Square's physical gift cards. They're saved as Not sold vouchers (the list's Not sold filter, so
- * each one can be tracked) and activated when sold: Create gift voucher with the card's code and
- * the amount. It's under the header's Create gift voucher ▾, and in the list's Not sold tab.
+ * each one can be tracked) and activated when sold: Activate voucher with the amount (the code
+ * is the card's). It's under the header's Create gift voucher ▾, and in the list's Not sold tab.
  */
 export function PrintBlankCardsButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
@@ -77,7 +77,7 @@ function BlankCardsDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           <DialogTitle>Print blank cards</DialogTitle>
           <DialogDescription>
             Gift vouchers printed in advance, with a code and QR but no amount. They stay Not sold until a customer buys one: then find the
-            card&apos;s code and create it with the amount.
+            card&apos;s code and activate it with the amount.
           </DialogDescription>
         </DialogHeader>
         {open && <BlankCards onDone={() => onOpenChange(false)} />}
@@ -94,8 +94,9 @@ function BlankCards({ onDone }: { onDone: () => void }) {
   const [previewing, startPreview] = useTransition();
   const [saving, startSave] = useTransition();
   const [downloading, startDownload] = useTransition();
-  // What to do once the saved cards are drawn (off screen, below): print them or make the PDF.
-  const [next, setNext] = useState<{ kind: "print" | "pdf"; n: number } | null>(null);
+  // Print once the saved cards are drawn (off screen, below); `n` asks again for each Print click.
+  // The PDF is never automatic: Save shows a preview, and Download PDF makes it.
+  const [printRequest, setPrintRequest] = useState(0);
   const sheet = useRef<HTMLDivElement>(null);
 
   const preview = (n: number) =>
@@ -117,14 +118,12 @@ function BlankCards({ onDone }: { onDone: () => void }) {
     });
 
   useEffect(() => {
-    if (!next || !sheet.current) return;
-    if (next.kind === "print") printVoucherNodes([...sheet.current.children], true);
-    else download();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per request
-  }, [next]);
+    if (printRequest && sheet.current) printVoucherNodes([...sheet.current.children], true);
+  }, [printRequest]);
 
-  const [saveKind, setSaveKind] = useState<"print" | "pdf">("print");
-  const save = (kind: "print" | "pdf") =>
+  const [saveKind, setSaveKind] = useState<"pdf" | "print">("print");
+  // Save & PDF saves and shows the cards; the PDF is only made when Download PDF is clicked.
+  const save = (kind: "pdf" | "print") =>
     startSave(async () => {
       setSaveKind(kind);
       if (!codes) return;
@@ -132,7 +131,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
       if (!result.ok) return setError(result.message);
       setError(null);
       setSaved(result.vouchers);
-      setNext({ kind, n: 1 });
+      if (kind === "print") setPrintRequest(1);
     });
 
   if (saved) {
@@ -144,11 +143,11 @@ function BlankCards({ onDone }: { onDone: () => void }) {
           </span>
           <span className="font-bold text-success">{saved.length} blank cards saved as Not sold</span>
           <span className="text-sm text-muted-foreground">
-            {saved[0].code} to {saved.at(-1)!.code}. Each becomes active when it&apos;s sold.
+            {saved[0].code} to {saved.at(-1)!.code}. Each becomes Active when it&apos;s activated.
           </span>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <Button type="button" variant="outline" onClick={() => setNext((n) => ({ kind: "print", n: (n?.n ?? 0) + 1 }))}>
+          <Button type="button" variant="outline" onClick={() => setPrintRequest((n) => n + 1)}>
             <Printer aria-hidden="true" />
             Print
           </Button>
@@ -223,7 +222,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
             </li>
           ))}
         </ol>
-        <p className="text-[13px] text-muted-foreground">Nothing is saved until you print or download.</p>
+        <p className="text-[13px] text-muted-foreground">Nothing is saved until you choose Save &amp; PDF or Save &amp; print.</p>
       </section>
 
       {error && (

@@ -58,22 +58,22 @@ function FormError({ state }: { state: ActionState }) {
 // Sell
 // ---------------------------------------------------------------------------
 
-/** `code`: create a blank card printed ahead of time (its own page), with its code filled in. */
+/** `code`: activate a blank card printed ahead of time (from its own page), with its code fixed. */
 export function SellGiftVoucherButton({ variant, code, className }: { variant?: "default" | "outline"; code?: string; className?: string }) {
   return (
     <FormDialog
       variant={variant}
       className={className}
-      title={code ? `Create ${code}` : "Create a gift voucher"}
+      title={code ? `Activate ${code}` : "Create a gift voucher"}
       description="Take payment at the till as usual. The voucher is valid for 3 years."
       trigger={
         <>
           {code ? <Gift aria-hidden="true" /> : <Plus aria-hidden="true" />}
-          {code ? "Create voucher" : "Create gift voucher"}
+          {code ? "Activate voucher" : "Create gift voucher"}
         </>
       }
     >
-      {(close) => <SellGiftVoucherForm onDone={close} defaultCode={code} confirmAsToast={Boolean(code)} />}
+      {(close) => <SellGiftVoucherForm onDone={close} defaultCode={code} activate={Boolean(code)} confirmAsToast={Boolean(code)} />}
     </FormDialog>
   );
 }
@@ -138,6 +138,7 @@ export function SellGiftVoucherForm({
   defaultPhone = "",
   phoneKnown = false,
   defaultCode = "",
+  activate = false,
   confirmAsToast = false,
 }: {
   onDone: () => void;
@@ -148,6 +149,11 @@ export function SellGiftVoucherForm({
   confirmAsToast?: boolean;
   /** A printed voucher's code, when selling it from its own page. */
   defaultCode?: string;
+  /**
+   * Activating a blank card (a Not sold voucher): its code is already printed, so it's shown but
+   * can't be changed, and the button says Activate rather than Create.
+   */
+  activate?: boolean;
   openAfterSale?: boolean;
   /** The customer it's for, e.g. the number typed on the kiosk; staff can change or clear it. */
   defaultPhone?: string;
@@ -211,18 +217,25 @@ export function SellGiftVoucherForm({
             spellCheck={false}
             maxLength={40}
             required
+            readOnly={activate}
             placeholder={generating ? "Generating…" : "Number on the card"}
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
-            className="font-mono text-base tracking-wider uppercase placeholder:font-sans placeholder:tracking-normal placeholder:normal-case"
+            className={cn(
+              "font-mono text-base tracking-wider uppercase placeholder:font-sans placeholder:tracking-normal placeholder:normal-case",
+              activate && "bg-muted text-muted-foreground focus-visible:ring-0",
+            )}
           />
-          <Button type="button" variant="outline" onClick={generate} disabled={generating}>
-            <RefreshCw className={cn(generating && "animate-spin")} aria-hidden="true" />
-            Generate
-          </Button>
+          {!activate && (
+            <Button type="button" variant="outline" onClick={generate} disabled={generating}>
+              <RefreshCw className={cn(generating && "animate-spin")} aria-hidden="true" />
+              Generate
+            </Button>
+          )}
         </div>
         <p className={cn("text-[13px]", codeError ? "font-semibold text-destructive" : "text-muted-foreground")}>
-          {codeError ?? "Type the number printed on the voucher card, or press Generate."}
+          {codeError ??
+            (activate ? "The code printed on this blank card. It stays the same." : "Type the number printed on the voucher card, or press Generate.")}
         </p>
       </div>
       {phoneKnown ? (
@@ -254,7 +267,11 @@ export function SellGiftVoucherForm({
       <div className="sticky -bottom-4 -mx-4 -mb-4 border-t border-border bg-popover px-4 pt-3 pb-4">
         <Button type="submit" size="lg" pending={pending} disabled={cents === null || cents < 100 || !code.trim()} className="w-full">
           <Gift aria-hidden="true" />
-          {pending ? "Creating…" : cents && cents >= 100 ? `Create ${formatMoney(cents)} voucher` : "Create voucher"}
+          {pending
+            ? activate
+              ? "Activating…"
+              : "Creating…"
+            : `${activate ? "Activate" : "Create"} ${cents && cents >= 100 ? `${formatMoney(cents)} voucher` : "voucher"}`}
         </Button>
       </div>
     </form>
@@ -283,7 +300,7 @@ function VoucherCreated({ voucher: v, onDone, onOpen }: { voucher: CreatedVouche
         <span className="flex size-6 items-center justify-center rounded-full bg-success text-background">
           <Check className="size-3.5" aria-hidden="true" />
         </span>
-        {v.preprinted ? `Voucher ${v.code} is ready · hand over the printed card` : `Voucher ${v.code} created · print it, or write the code on a card`}
+        {v.preprinted ? `Voucher ${v.code} activated · hand over the printed card` : `Voucher ${v.code} created · print it, or write the code on a card`}
       </p>
       <VoucherCard ref={card} code={v.code} expiresOn={v.expiresOn || null} token={v.publicToken} className="mx-auto max-w-md" />
       <div className="grid grid-cols-2 gap-2">
@@ -604,7 +621,7 @@ export function GiftVoucherSettingsForm({
           <>
             <Input id="gv-expiry" name="expires_on" type="date" min={minExpiry} defaultValue={expiresOn} aria-describedby="gv-expiry-hint" />
             <p id="gv-expiry-hint" className="text-[13px] text-muted-foreground">
-              At least 3 years after it was created (Australian Consumer Law): {dateLabel(minExpiry)} or later.
+              At least 3 years after it was created or activated (Australian Consumer Law): {dateLabel(minExpiry)} or later.
             </p>
           </>
         ) : (
@@ -657,10 +674,22 @@ export function AdjustGiftVoucherForm({ id, balanceCents }: { id: string; balanc
 // ---------------------------------------------------------------------------
 
 /** Top up from a voucher's page (`code`), or from the front desk with the code typed in. */
-export function TopUpButton({ code, variant = "outline", className }: { code?: string; variant?: "default" | "outline"; className?: string }) {
+export function TopUpButton({
+  code,
+  variant = "outline",
+  size,
+  className,
+}: {
+  code?: string;
+  variant?: "default" | "outline";
+  /** "lg" beside Use this voucher on the voucher's page, so the two line up. */
+  size?: "lg";
+  className?: string;
+}) {
   return (
     <FormDialog
       variant={variant}
+      size={size}
       className={className}
       title={code ? `Top up ${code}` : "Top up a gift voucher"}
       description="Put more money on a voucher the customer already has. Take payment at the till as usual."

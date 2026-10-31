@@ -82,7 +82,15 @@ export function FindVoucher({
         {mode === "use" && <UseGiftVoucher code={found} onDone={onDone} defaultPhone={defaultPhone} phoneKnown={phoneKnown} />}
         {mode === "top_up" && <TopUpForm code={found} onDone={onDone} />}
         {mode === "create" && (
-          <SellGiftVoucherForm onDone={onDone} defaultCode={found} openAfterSale={!onKiosk} defaultPhone={defaultPhone} phoneKnown={phoneKnown} />
+          <SellGiftVoucherForm
+            onDone={onDone}
+            defaultCode={found}
+            // A blank card is activated with its printed code; a new code is created.
+            activate={result?.ok === true && result.voucher.status === "inactive"}
+            openAfterSale={!onKiosk}
+            defaultPhone={defaultPhone}
+            phoneKnown={phoneKnown}
+          />
         )}
       </div>
     );
@@ -145,7 +153,7 @@ export function FindVoucher({
           </div>
 
           {v.status === "inactive" ? (
-            <p className="text-sm text-muted-foreground">A blank card that hasn&apos;t been sold yet, so it has no balance. Create it with the amount the customer pays.</p>
+            <p className="text-sm text-muted-foreground">A blank card that hasn&apos;t been sold yet, so it has no balance. Activate it with the amount the customer pays.</p>
           ) : (
             <div className="flex flex-col gap-1">
               <span className="text-[36px] leading-none font-extrabold tabular-nums">{formatMoney(v.balanceCents)}</span>
@@ -171,7 +179,7 @@ export function FindVoucher({
             {v.status === "inactive" && (
               <Button type="button" size="lg" className="col-span-2" onClick={() => setMode("create")}>
                 <Plus aria-hidden="true" />
-                Create voucher
+                Activate voucher
               </Button>
             )}
             {v.status === "active" && (

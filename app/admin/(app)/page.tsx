@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { ChevronRight, Gift } from "lucide-react";
-import { BirthdayBadge, Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, dashboardTileGrid, td, th } from "@/components/admin/ui";
+import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, dashboardTileGrid, td, th } from "@/components/admin/ui";
 import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import {
   DASHBOARD_PERIODS,
-  birthdayBadges,
   getCloseToReward,
   getDashboard,
   getNotBackLately,
@@ -66,16 +65,14 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
     const costs = rewards.filter((r) => r.is_active).map((r) => r.points_cost);
     return costs.length ? { cost: Math.min(...costs), title: rewards.find((r) => r.is_active && r.points_cost === Math.min(...costs))!.title } : null;
   });
-  const statsPromise = getDashboard(period);
-  const [settings, stats, reward, birthdays, closeToReward, notBack, birthdayBadgeFor] = await Promise.all([
+  const [settings, stats, reward, birthdays, closeToReward, notBack] = await Promise.all([
     settingsPromise,
-    statsPromise,
+    getDashboard(period),
     rewardCostPromise,
     // The list is for offering the birthday discount, so it's skipped while that's switched off.
     settingsPromise.then((s) => (s.birthday_discount_enabled ? getUpcomingBirthdays(s.timezone) : [])),
     rewardCostPromise.then((r) => getCloseToReward(r?.cost ?? null)),
     settingsPromise.then(getNotBackLately),
-    statsPromise.then((s) => birthdayBadges(s.checkIns.map((c) => c.customer?.id))),
   ]);
   const tz = settings.timezone;
   const weekday = new Date().toLocaleDateString("en-AU", { weekday: "long", timeZone: tz });
@@ -122,17 +119,17 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
           }
         />
         <StatTile
-          // The app says "created" (payment happens at the till). New credit and credit spent are
-          // different money, so each gets its own line.
-          label="Gift vouchers created"
+          // The app says "created" (payment happens at the till). New credit (created, activated and
+          // topped up) and credit used are different money, so each gets its own line.
+          label="Gift voucher credit added"
           value={formatMoney(vouchers.soldCents)}
           hint={
             <>
               <span className="block">{vouchers.sold} new voucher{vouchers.sold === 1 ? "" : "s"}</span>
               <span className="block">
                 {vouchers.used > 0
-                  ? `${formatMoney(vouchers.usedCents)} spent from ${vouchers.used} voucher${vouchers.used === 1 ? "" : "s"}`
-                  : `None spent${period === "today" ? " yet" : ""}`}
+                  ? `${formatMoney(vouchers.usedCents)} used from ${vouchers.used} voucher${vouchers.used === 1 ? "" : "s"}`
+                  : `None used${period === "today" ? " yet" : ""}`}
               </span>
             </>
           }
@@ -170,7 +167,6 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
                             {fullName(c.customer)}
                           </Link>
                           <TierBadge tier={tierFor(c.customer.lifetime_points, settings)} />
-                          {birthdayBadgeFor.has(c.customer.id) && <BirthdayBadge {...birthdayBadgeFor.get(c.customer.id)!} />}
                         </span>
                         <p className="text-[13px] whitespace-nowrap text-muted-foreground tabular-nums">{formatPhone(c.customer.phone)}</p>
                       </>
@@ -256,7 +252,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
 
           <Card className={sideCard(notBack.total === 0)}>
             <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-lg font-extrabold">Regulars not back in {NOT_BACK_DAYS / 7} weeks</h2>
+              <h2 className="text-lg font-extrabold">Regulars and VIPs not back in {NOT_BACK_DAYS / 7} weeks</h2>
               {notBack.total > 0 && <span className="text-sm text-muted-foreground">{notBack.total}</span>}
             </div>
             {notBack.total === 0 && <p className="text-sm text-muted-foreground">All your regulars have been in lately.</p>}

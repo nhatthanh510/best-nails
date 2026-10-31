@@ -308,7 +308,7 @@ async function CustomerDetail({
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-extrabold">Gift vouchers</h2>
               <Link href="/admin/gift-vouchers" className="text-sm font-bold text-primary hover:underline">
-                Create one
+                All gift vouchers
               </Link>
             </div>
             {/* Their own vouchers are one tap; any other (e.g. a present) by typing its code. */}
