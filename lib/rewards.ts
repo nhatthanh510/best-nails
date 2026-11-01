@@ -15,6 +15,41 @@ export function discountLabel(d: Discount): string | null {
   return null;
 }
 
+/**
+ * A points reward's amounts: `discountCents` (e.g. $10 off), and `cashDiscountCents` (e.g. $30 off)
+ * when at least `cost` of the visits since the customer's last points reward were paid in cash.
+ * Both null for a reward described only by its title ("Free nail art").
+ */
+export type RewardAmounts = { cost: number; discountCents: number | null; cashDiscountCents: number | null };
+
+/** The reward pays more for cash visits (both amounts set, cash bigger). */
+export function hasCashBonus(r: RewardAmounts): boolean {
+  return r.discountCents != null && r.cashDiscountCents != null && r.cashDiscountCents > r.discountCents;
+}
+
+/** What the reward is worth to a customer with `cashVisits` cash visits since their last points reward (cents), or null for a title-only reward. Mirrors `_reward_value` in SQL. */
+export function rewardValueCents(r: RewardAmounts, cashVisits: number): number | null {
+  if (r.discountCents == null) return null;
+  return r.cashDiscountCents != null && cashVisits >= r.cost ? r.cashDiscountCents : r.discountCents;
+}
+
+/** The reward's name for a customer: "$30 off" / "$10 off" from its amounts, or its title. */
+export function rewardName(r: RewardAmounts & { title: string }, cashVisits: number): string {
+  const cents = rewardValueCents(r, cashVisits);
+  return cents ? `${dollars(cents)} off` : r.title;
+}
+
+/**
+ * The cash rule in one line, stated as information rather than a push to pay cash, e.g. "$10 off
+ * after 7 visits, or $30 off when all 7 are paid in cash". Null when the reward doesn't pay more
+ * for cash.
+ */
+export function cashBonusLine(r: RewardAmounts): string | null {
+  if (!hasCashBonus(r)) return null;
+  const all = r.cost === 1 ? "it's" : `all ${r.cost} are`;
+  return `${dollars(r.discountCents!)} off after ${r.cost} visit${r.cost === 1 ? "" : "s"}, or ${dollars(r.cashDiscountCents!)} off when ${all} paid in cash`;
+}
+
 function dollars(cents: number) {
   return `$${(cents / 100).toLocaleString("en-AU", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
 }

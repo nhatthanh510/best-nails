@@ -66,6 +66,7 @@ describe("lookupPhone", () => {
       phone: "+61491570101",
       points_balance: 7,
       visit_count: 7,
+      cash_visits: 5,
       birthday: { eligible: true, in_window: true, used: false, percent: 15 },
       today: { checked_in_at: null, discount_used_today: false },
     });
@@ -80,6 +81,7 @@ describe("lookupPhone", () => {
         maskedPhone: "04•• ••• 101",
         points: 7,
         visits: 7,
+        cashVisits: 5,
         birthday: { eligible: true, used: false, label: "15% off" },
         checkedInAt: null,
         discountUsedToday: false,
@@ -99,11 +101,11 @@ describe("lookupPhone", () => {
 
 describe("checkIn sign-up validation (KA-03, KA-04)", () => {
   it.each([
-    [{ firstName: "   " }, "Please enter your first name."],
-    [{ firstName: "Alice", birthdayMonth: 3 }, "Please pick both the day and the month of your birthday, or leave both blank."],
-    [{ firstName: "Alice", birthdayDay: 3 }, "Please pick both the day and the month of your birthday, or leave both blank."],
-    [{ firstName: "Alice", birthdayMonth: 2, birthdayDay: 31 }, "That birthday isn't a real date. Please check it."],
-    [{ firstName: "Alice", birthdayMonth: 4, birthdayDay: 31 }, "That birthday isn't a real date. Please check it."],
+    [{ name: "   " }, "Please enter your name."],
+    [{ name: "Alice", birthdayMonth: 3 }, "Please pick both the day and the month of your birthday, or leave both blank."],
+    [{ name: "Alice", birthdayDay: 3 }, "Please pick both the day and the month of your birthday, or leave both blank."],
+    [{ name: "Alice", birthdayMonth: 2, birthdayDay: 31 }, "That birthday isn't a real date. Please check it."],
+    [{ name: "Alice", birthdayMonth: 4, birthdayDay: 31 }, "That birthday isn't a real date. Please check it."],
   ])("refuses %o before calling the database", async (signup, message) => {
     expect(await checkIn("0491570101", signup)).toEqual({ status: "error", message });
     expect(h.rpc).not.toHaveBeenCalled();
@@ -113,9 +115,24 @@ describe("checkIn sign-up validation (KA-03, KA-04)", () => {
     expect(await checkIn("0491")).toEqual({ status: "error", message: "Please enter at least 8 digits of your phone number." });
   });
 
-  it("passes a 29 February birthday, trimmed names and no blank last name to the database", async () => {
+  it.each([
+    ["Alice Ng", "Alice", "Ng"],
+    ["  Mary   Jane  Smith ", "Mary", "Jane Smith"],
+    ["Nguyen Thi Lan", "Nguyen", "Thi Lan"],
+  ])("splits the one name %j into first %j and last %j", async (name, first, last) => {
+    rpcReturns({ status: "checked_in", customer_id: CUSTOMER_ID, first_name: first, points_awarded: 1, points_balance: 1 });
+    await checkIn("0491570101", { name });
+    expect(h.rpc).toHaveBeenCalledWith("kiosk_check_in", expect.objectContaining({ p_first_name: first, p_last_name: last }));
+  });
+
+  it("refuses a name part over 50 characters", async () => {
+    expect(await checkIn("0491570101", { name: "A".repeat(51) })).toEqual({ status: "error", message: "Please use a shorter name." });
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("passes a 29 February birthday, a trimmed name and no blank last name to the database", async () => {
     rpcReturns({ status: "checked_in", customer_id: CUSTOMER_ID, first_name: "Alice", points_awarded: 1, points_balance: 1 });
-    const result = await checkIn("0491 570 101", { firstName: "  Alice ", lastName: "  ", birthdayMonth: 2, birthdayDay: 29 });
+    const result = await checkIn("0491 570 101", { name: "  Alice ", birthdayMonth: 2, birthdayDay: 29 });
     expect(h.rpc).toHaveBeenCalledWith("kiosk_check_in", {
       p_phone: "+61491570101",
       p_first_name: "Alice",
@@ -128,6 +145,7 @@ describe("checkIn sign-up validation (KA-03, KA-04)", () => {
       firstName: "Alice",
       pointsAwarded: 1,
       points: 1,
+      cashVisits: 0,
       birthday: { eligible: false, used: false, label: null },
       discountUsedToday: false,
     });
@@ -196,6 +214,33 @@ describe("redeemAtKiosk", () => {
       redeemedAt: "2026-10-26T02:00:00Z",
     });
     expect(h.rpc).toHaveBeenCalledWith("kiosk_redeem", { p_phone: "+61491570101", p_promotion_id: REWARD_ID });
+  });
+
+  it("names a cash reward by what it gave, and why", async () => {
+    rpcReturns({
+      status: "redeemed",
+      reward_title: "$10 off, $30 off with cash",
+      points_spent: 7,
+      points_balance: 0,
+      discount_cents: 3000,
+      cash_qualified: true,
+      redeemed_at: "2026-10-26T02:00:00Z",
+    });
+    expect(await redeemAtKiosk("0491570101", { kind: "reward", rewardId: REWARD_ID })).toEqual({
+      status: "redeemed",
+      title: "$30 off",
+      note: "For paying cash on 7 visits",
+      pointsSpent: 7,
+      points: 0,
+      redeemedAt: "2026-10-26T02:00:00Z",
+    });
+  });
+
+  it("passes how the customer is paying with the check-in", async () => {
+    rpcReturns({ status: "checked_in", customer_id: CUSTOMER_ID, first_name: "Alice", points_awarded: 1, points_balance: 4, cash_visits: 4 });
+    const result = await checkIn("0491570101", undefined, { serviceIds: [], technicianId: null, paymentMethod: "cash" });
+    expect(h.rpc).toHaveBeenCalledWith("kiosk_check_in", expect.objectContaining({ p_payment_method: "cash" }));
+    expect(result).toMatchObject({ status: "checked_in", cashVisits: 4 });
   });
 
   it("redeems the birthday discount without spending points", async () => {

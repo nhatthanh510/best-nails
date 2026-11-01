@@ -25,7 +25,7 @@ export type CheckInRow = Tables["check_ins"]["Row"] & {
 export type VisitUse = { kind: "points"; label: string } | { kind: "birthday"; label: string } | { kind: "gift"; cents: number };
 /** A points history row; a check-in also brings what was done on that visit (picked on the kiosk). */
 export type LedgerRow = Tables["point_transactions"]["Row"] & {
-  visit: (Pick<Tables["check_ins"]["Row"], "technician_name"> & { services: CheckInRow["services"] }) | null;
+  visit: (Pick<Tables["check_ins"]["Row"], "id" | "technician_name" | "payment_method"> & { services: CheckInRow["services"] }) | null;
 };
 export type BirthdayRedemption = Tables["birthday_redemptions"]["Row"];
 
@@ -357,17 +357,18 @@ function customerSearch(q: string): { phone?: string; name?: string } | null {
 
 export async function getCustomer(id: string) {
   const { supabase } = await staffClient();
-  const [customer, ledger, rewards, birthday, birthdayHistory] = await Promise.all([
+  const [customer, ledger, rewards, birthday, birthdayHistory, cashVisits] = await Promise.all([
     supabase.from("customers").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("point_transactions")
-      .select("*, visit:check_ins(technician_name, services:check_in_services(position, name, category_name))")
+      .select("*, visit:check_ins(id, technician_name, payment_method, services:check_in_services(position, name, category_name))")
       .eq("customer_id", id)
       .order("seq", { ascending: false })
       .limit(HISTORY_LIMIT),
     supabase.from("promotions").select("*").eq("is_active", true).order("points_cost"),
     supabase.rpc("birthday_status", { p_customer_id: id }),
     supabase.from("birthday_redemptions").select("*").eq("customer_id", id).order("created_at", { ascending: false }),
+    supabase.rpc("cash_visits_since_reward", { p_customer_id: id }),
   ]);
   if (!customer.data) return null;
   return {
@@ -378,6 +379,8 @@ export async function getCustomer(id: string) {
     rewards: (rewards.data ?? []) as Reward[],
     birthday: (birthday.data ?? { enabled: false, has_birthday: false, eligible: false }) as BirthdayStatus,
     birthdayHistory: birthdayHistory.data ?? [],
+    /** Visits paid in cash since their last points reward (a reward with a cash discount gives it at its points). */
+    cashVisits: cashVisits.data ?? 0,
   };
 }
 

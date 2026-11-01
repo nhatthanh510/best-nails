@@ -58,14 +58,15 @@ test.describe("Kiosk header: Admin", () => {
     await seedCustomer({ phone: testPhone(21), firstName: "Ola" });
     await kiosk.goto();
     await kiosk.enter(testPhone(21));
-    await expect(page.getByRole("heading", { name: "Welcome back, Ola!" })).toBeVisible();
+    // Not checked in yet today: straight to the first visit step, which greets them.
+    await expect(page.getByText(/Welcome back, Ola/)).toBeVisible();
 
     await page.getByRole("link", { name: "Admin" }).click();
     await expect(page).toHaveURL(/\/admin$/);
     await page.getByRole("link", { name: "Open kiosk" }).click();
 
     await expect(page.getByText("Enter your phone number")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Welcome back, Ola!" })).toHaveCount(0);
+    await expect(page.getByText(/Welcome back, Ola/)).toHaveCount(0);
   });
 });
 

@@ -180,6 +180,9 @@ const adjustSchema = z.object({
   direction: z.enum(["add", "remove"]),
   amount: z.coerce.number().int().min(1, "Enter at least 1 point.").max(100000),
   note: z.string().trim().min(1, "Add a reason so the history makes sense later.").max(200),
+  // "Count as cash visits" (shown when a reward gives more for cash): made-up visits paid in cash,
+  // or taking back cash visits by mistake.
+  cash: z.literal("on").optional(),
 });
 
 export async function adjustPoints(customerId: string, _: ActionState, formData: FormData): Promise<ActionState> {
@@ -193,6 +196,7 @@ export async function adjustPoints(customerId: string, _: ActionState, formData:
     p_customer_id: customerId,
     p_delta: direction === "add" ? amount : -amount,
     p_note: note,
+    p_payment_method: parsed.data.cash ? "cash" : undefined,
   });
   if (error) return dbError(error);
   refresh();
@@ -204,8 +208,10 @@ export async function redeemReward(customerId: string, promotionId: string): Pro
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("redeem_reward", { p_customer_id: customerId, p_promotion_id: promotionId });
   if (error) return dbError(error);
+  const r = data as { points_balance: number; discount_cents: number | null; cash_qualified: boolean };
   refresh();
-  return { ok: true, message: `Reward redeemed · ${data} pts left` };
+  const what = r.discount_cents ? `${discountLabel({ amount_cents: r.discount_cents })}${r.cash_qualified ? " (cash visits)" : ""} redeemed` : "Reward redeemed";
+  return { ok: true, message: `${what} · ${r.points_balance} pts left` };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,11 +220,16 @@ export async function redeemReward(customerId: string, promotionId: string): Pro
 
 const rewardSchema = z.object({
   id: z.string().uuid().optional(),
-  title: z.string().trim().min(1, "Give the reward a name, e.g. 10% off.").max(80),
+  title: z.string().trim().max(80),
   points_cost: z.coerce.number().int().min(1, "It needs to cost at least 1 point.").max(10000),
   is_active: z.boolean(),
 });
 
+/**
+ * Saves a points reward. With amounts, it's "$10 off" (discount) and "$30 off" (cash discount) when
+ * at least its points in visits since the last reward were paid in cash; leave both blank for a
+ * reward described by its name ("Free nail art").
+ */
 export async function saveReward(_: ActionState, formData: FormData): Promise<ActionState> {
   await requireAdmin();
   const parsed = rewardSchema.safeParse({
@@ -228,7 +239,29 @@ export async function saveReward(_: ActionState, formData: FormData): Promise<Ac
     is_active: formData.get("is_active") === "on",
   });
   if (!parsed.success) return fail(parsed.error.issues[0].message);
-  const { id, ...row } = parsed.data;
+  const { id, ...fields } = parsed.data;
+
+  const rawDiscount = String(formData.get("discount") ?? "").trim();
+  const rawCash = String(formData.get("cash_discount") ?? "").trim();
+  let discount: number | null = null;
+  let cash: number | null = null;
+  if (rawDiscount || rawCash) {
+    discount = parseDollars(rawDiscount);
+    if (discount === null || discount <= 0 || discount > 100000) return fail("Enter the discount, from $0.01 to $1,000.");
+    // Blank cash discount: the same for everyone.
+    cash = rawCash ? parseDollars(rawCash) : discount;
+    if (cash === null || cash > 100000) return fail("Enter the cash discount, up to $1,000.");
+    if (cash < discount) return fail("The cash discount can't be less than the other discount.");
+  }
+  const title =
+    fields.title ||
+    (discount && cash
+      ? cash > discount
+        ? `${discountLabel({ amount_cents: discount })}, ${discountLabel({ amount_cents: cash })} with cash`
+        : discountLabel({ amount_cents: discount })!
+      : "");
+  if (!title) return fail("Give the reward a name, e.g. Free nail art, or enter a discount.");
+  const row = { ...fields, title, discount_cents: discount, cash_discount_cents: cash };
 
   const supabase = await createClient();
   const { error } = id

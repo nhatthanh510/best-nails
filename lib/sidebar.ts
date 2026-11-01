@@ -4,7 +4,8 @@ export const SIDEBAR_EVENT = "bn-nav-collapsed";
 
 /**
  * Before the page paints: put the sidebar back the way the owner left it, so it doesn't open wide
- * and then snap shut. An inline script at the top of the admin layout (a server component, so it
- * lives here rather than in the client toggle).
+ * and then snap shut. An inline script in the root layout's <head> (app/layout.tsx), so it runs on
+ * the first page load whichever page that is; in the admin layout it wouldn't run after a link
+ * from the kiosk. It only sets an attribute the admin's `rail:` styles read.
  */
 export const RESTORE_SIDEBAR = `try{localStorage.getItem("${SIDEBAR_KEY}")==="1"&&document.documentElement.setAttribute("data-nav-collapsed","")}catch(e){}`;

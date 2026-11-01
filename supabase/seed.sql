@@ -13,7 +13,7 @@ insert into auth.users (
 )
 values
   ('00000000-0000-0000-0000-000000000000', '11111111-1111-4111-8111-111111111111', 'authenticated', 'authenticated',
-   'owner@bestnails.test', extensions.crypt('bestnails-dev', extensions.gen_salt('bf')), now(),
+   'admin@gmail.com', extensions.crypt('12345678', extensions.gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', '');
 
 insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
@@ -21,7 +21,7 @@ select gen_random_uuid(), u.id, u.id::text,
        jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true),
        'email', now(), now(), now()
   from auth.users u
- where u.email = 'owner@bestnails.test';
+ where u.email = 'admin@gmail.com';
 
 insert into public.staff (user_id, display_name, role) values
   ('11111111-1111-4111-8111-111111111111', 'Admin', 'admin');

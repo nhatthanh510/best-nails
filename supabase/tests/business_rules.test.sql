@@ -29,11 +29,13 @@ select is((kiosk_check_in('+61491570101'))->>'status', 'already_checked_in', 'K-
 select is((select points_balance from customers where phone = '+61491570101'), 1, 'K-06 ...and earns no extra point');
 select is((select visit_count from customers where phone = '+61491570101'), 1, 'K-06 ...and adds no visit');
 select is((kiosk_check_in('+61491570101', 'Someone', 'Else'))->>'first_name', 'QA', 'K-07 signing up with an existing number keeps the original customer');
-select is(kiosk_lookup('+61499999999'), null, 'K-08 looking up an unknown number returns nothing');
+-- +61 0… can't come from normalizePhone (a local 0 is dropped), so no real customer has it,
+-- even in a local database with the shop's own test customers.
+select is(kiosk_lookup('+61000000000'), null, 'K-08 looking up an unknown number returns nothing');
 select is((kiosk_lookup('+61491570101'))->>'first_name', 'QA', 'K-08 looking up a number returns the customer');
 select ok((kiosk_lookup('+61491570101'))->'today'->>'checked_in_at' is not null, 'K-08 ...with today''s check-in, so the kiosk goes straight to redeeming');
 select is((kiosk_redeem('+61491570101', 'eeeeeeee-0000-4000-8000-000000000001'))->>'status', 'insufficient_points', 'R-01 redeeming without enough points is refused');
-select is((kiosk_redeem('+61499999999', 'eeeeeeee-0000-4000-8000-000000000001'))->>'status', 'not_found', 'R-02 redeeming for an unknown number is not_found');
+select is((kiosk_redeem('+61000000000', 'eeeeeeee-0000-4000-8000-000000000001'))->>'status', 'not_found', 'R-02 redeeming for an unknown number is not_found');
 
 -- A customer with 9 points (seeded through the ledger flag), birthday today, checked in today.
 reset role;

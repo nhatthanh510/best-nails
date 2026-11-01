@@ -117,6 +117,8 @@ type SeedCustomer = {
   checkedIn?: boolean;
   /** Extra points added by hand, after any check-in. */
   points?: number;
+  /** How those points' visits were paid (for a reward with a cash discount). */
+  pointsPaidBy?: "cash" | "card";
 };
 
 export async function seedCustomer(c: SeedCustomer) {
@@ -151,13 +153,16 @@ export async function seedCustomer(c: SeedCustomer) {
     );
     id = row.id;
   }
-  if (c.points) await addPoints(id, c.points);
+  if (c.points) await addPoints(id, c.points, c.pointsPaidBy);
   return id;
 }
 
 /** The same ledger entry Adjust points writes, so balances and lifetime points stay consistent. */
-export async function addPoints(customerId: string, points: number) {
-  check(await db().rpc("_post_points", { p_customer_id: customerId, p_delta: points, p_reason: "adjust", p_note: "E2E seed" }), "add points");
+export async function addPoints(customerId: string, points: number, paidBy?: "cash" | "card") {
+  check(
+    await db().rpc("_post_points", { p_customer_id: customerId, p_delta: points, p_reason: "adjust", p_note: "E2E seed", p_payment_method: paidBy }),
+    "add points",
+  );
 }
 
 export async function findCustomer(phone: string) {
@@ -171,9 +176,23 @@ export async function findCustomer(phone: string) {
 // Rewards
 // ---------------------------------------------------------------------------
 
-export async function createReward(title: string, pointsCost = 10, isActive = true) {
+export async function createReward(title: string, pointsCost = 10, isActive = true, amounts?: { discountCents: number; cashDiscountCents: number }) {
   if (!title.startsWith("E2E")) throw new Error("Test rewards must be named E2E … so they get cleaned up.");
-  return must(await db().from("promotions").insert({ title, points_cost: pointsCost, is_active: isActive, type: "reward" }).select("id").single(), "create reward").id;
+  return must(
+    await db()
+      .from("promotions")
+      .insert({
+        title,
+        points_cost: pointsCost,
+        is_active: isActive,
+        type: "reward",
+        discount_cents: amounts?.discountCents ?? null,
+        cash_discount_cents: amounts?.cashDiscountCents ?? null,
+      })
+      .select("id")
+      .single(),
+    "create reward",
+  ).id;
 }
 
 // ---------------------------------------------------------------------------

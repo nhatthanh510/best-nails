@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { birthdayOffer, birthdayPitch, birthdayWindowLabel, discountLabel } from "./rewards";
+import { birthdayOffer, birthdayPitch, birthdayWindowLabel, cashBonusLine, discountLabel, hasCashBonus, rewardName, rewardValueCents } from "./rewards";
 
 describe("birthdayWindowLabel", () => {
   it("names the window the way the kiosk says it", () => {
@@ -80,5 +80,31 @@ describe("birthdayPitch", () => {
       nudge: "Visit more to reach VIP for a birthday treat.",
     });
     expect(birthdayPitch(tiers(["percent", 0], ["percent", 0], ["percent", 0]))).toBeNull();
+  });
+});
+
+describe("cash bonus reward", () => {
+  const cash = { title: "Loyalty reward", cost: 7, discountCents: 1000, cashDiscountCents: 3000 };
+  const titleOnly = { title: "Free nail art", cost: 7, discountCents: null, cashDiscountCents: null };
+
+  it("gives the cash amount from the reward's points in cash visits, the other amount below that", () => {
+    expect(rewardValueCents(cash, 7)).toBe(3000);
+    expect(rewardValueCents(cash, 9)).toBe(3000);
+    expect(rewardValueCents(cash, 6)).toBe(1000);
+    expect(rewardValueCents(titleOnly, 7)).toBeNull();
+  });
+
+  it("names the reward by what it's worth, or by its title", () => {
+    expect(rewardName(cash, 7)).toBe("$30 off");
+    expect(rewardName(cash, 0)).toBe("$10 off");
+    expect(rewardName(titleOnly, 7)).toBe("Free nail art");
+  });
+
+  it("explains the rule only when cash pays more", () => {
+    expect(hasCashBonus(cash)).toBe(true);
+    expect(cashBonusLine(cash)).toBe("$10 off after 7 visits, or $30 off when all 7 are paid in cash");
+    expect(cashBonusLine({ ...cash, cost: 1 })).toBe("$10 off after 1 visit, or $30 off when it's paid in cash");
+    expect(hasCashBonus({ ...cash, cashDiscountCents: 1000 })).toBe(false);
+    expect(cashBonusLine(titleOnly)).toBeNull();
   });
 });
