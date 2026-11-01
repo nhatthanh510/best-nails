@@ -101,6 +101,8 @@
   --color-kiosk-field: #726655;
   --color-kiosk-ready: #8fc8a7;
   --color-kiosk-notice: #e8a87c;
+  /* Errors (always shown with an icon): the dark-palette counterpart of the admin's --destructive. */
+  --color-kiosk-error: #f08a8a;
 }
 
 /* The logo's brushed-gold look, for the kiosk's main buttons and the brand medallion ring.
@@ -238,7 +240,7 @@
   --muted-foreground: #cbbfa9;
   --accent: #3b2f21;
   --accent-foreground: #ecd48a;
-  --destructive: #f08a8a;
+  --destructive: var(--color-kiosk-error);
   --border: #3b2f21;
   --input: #726655;
   --ring: #d8b45c;
@@ -303,4 +305,24 @@
   #print-root[data-sheet] > * {
     break-inside: avoid;
   }
+}
+
+/* Native dropdowns: one clean chevron instead of the browser's own arrow, the same everywhere
+   (admin and kiosk), placed in the padding so the text never runs under it. The list itself stays
+   native (the iPad's picker wheel on the kiosk). Unlayered, so it wins over a utility's padding. */
+:root {
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236e6253' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+[data-kiosk],
+.kiosk-theme {
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23cbbfa9' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+select:not([multiple]):not([size]) {
+  appearance: none;
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 0.75em center;
+  background-size: 1.1em;
+  padding-right: 2.4em;
+  text-overflow: ellipsis;
 }

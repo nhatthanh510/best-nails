@@ -26,6 +26,8 @@ export const instant = false;
 
 export async function generateMetadata({ params }: PageProps<"/admin/gift-vouchers/[id]">) {
   const { id } = await params;
+  // The title reads the session, so a link prefetch mustn't prerender it (see CLAUDE.md).
+  await connection();
   const code = /^[0-9a-f-]{36}$/i.test(id) ? await giftVoucherCode(id) : null;
   return { title: code ? `Gift voucher ${code}` : "Gift voucher" };
 }

@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowRight,
+  Banknote,
   Cake,
   Check,
   ChevronLeft,
+  CircleAlert,
+  CreditCard,
   Gift,
   LayoutGrid,
   LogOut,
@@ -18,6 +21,7 @@ import type {
   CheckInResult,
   KioskBirthday,
   KioskCustomer,
+  PaymentMethod,
   RedeemResult,
   RedeemTarget,
   SignupInput,
@@ -29,6 +33,7 @@ import type {
   KioskTechnician,
 } from '@/lib/kiosk-content';
 import { daysInMonth } from '@/lib/birthday';
+import { cashBonusLine, hasCashBonus, rewardName } from '@/lib/rewards';
 import {
   fillPhoneMask,
   isCompleteNumber,
@@ -138,7 +143,9 @@ function mainReward(rewards: KioskReward[]) {
 
 function visitsToGo(points: number, reward: KioskReward) {
   const n = reward.cost - points;
-  return `${n} more visit${n === 1 ? '' : 's'} to ${reward.title}`;
+  // A cash-bonus reward's amount depends on how they pay, so CashProgress says what it'll be.
+  const to = hasCashBonus(reward) ? 'your reward' : reward.title;
+  return `${n} more visit${n === 1 ? '' : 's'} to ${to}`;
 }
 
 /** One stamp per point towards the reward, e.g. 7 of 10 filled. */
@@ -183,6 +190,58 @@ function PunchCard({
   );
 }
 
+/**
+ * Where they are on a reward that gives more for cash, as plain information (it never tells them
+ * how to pay): "4 of 7 visits paid in cash · $30 off at 7", "$30 off unlocked", or, when this
+ * round can no longer reach it, "$10 off this round". Nothing for other rewards.
+ */
+function CashProgress({
+  reward,
+  cashVisits,
+  points,
+}: {
+  reward: KioskReward;
+  cashVisits: number;
+  points: number;
+}) {
+  if (!hasCashBonus(reward)) return null;
+  const n = Math.min(cashVisits, reward.cost);
+  const done = cashVisits >= reward.cost;
+  // Visits left this round (before the points are spent) can't make up the cash visits.
+  const reachable =
+    cashVisits + Math.max(0, reward.cost - points) >= reward.cost;
+  const cash = rewardName(reward, reward.cost);
+  const other = rewardName(reward, 0);
+  // The amount leads; how they got there is the small line under it.
+  const amount = done || reachable ? cash : other;
+  const label = done
+    ? 'unlocked'
+    : reachable
+      ? `with ${reward.cost} cash visits`
+      : 'this round';
+  return (
+    <div className='flex w-fit items-center gap-3.5 rounded-2xl bg-kiosk-bg px-4 py-3 text-left'>
+      <span className='flex size-11 flex-none items-center justify-center rounded-full bg-kiosk-line'>
+        <Banknote className='size-5.5 text-kiosk-accent' aria-hidden='true' />
+      </span>
+      <div className='flex flex-col'>
+        <p className='text-lg leading-tight'>
+          <span className='text-2xl font-extrabold text-kiosk-accent tabular-nums'>
+            {amount}
+          </span>{' '}
+          <span className='font-semibold text-kiosk-ink'>{label}</span>
+        </p>
+        <p className='text-base text-kiosk-muted'>
+          <span className='font-bold text-kiosk-ink tabular-nums'>
+            {n} of {reward.cost}
+          </span>{' '}
+          visits paid in cash
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function ProgramCard({ content }: { content: KioskContent }) {
   const reward = mainReward(content.rewards);
   // A shop with no reward yet and the birthday discount off has nothing to advertise.
@@ -198,7 +257,8 @@ function ProgramCard({ content }: { content: KioskContent }) {
             {/* The reward's own name leads, whatever the shop calls it ("10% off", "Free nail art"). */}
             <p className='text-[19px] font-bold'>{reward.title}</p>
             <p className='text-base text-kiosk-muted'>
-              After {reward.cost} visit{reward.cost === 1 ? '' : 's'}
+              {cashBonusLine(reward) ??
+                `After ${reward.cost} visit${reward.cost === 1 ? '' : 's'}`}
             </p>
           </div>
         </div>
@@ -301,12 +361,7 @@ export function EnterScreen(props: {
             {/* One line is always kept for a message, so the keypad below never moves under a finger. */}
             <div className='flex min-h-6 items-center justify-center'>
               {props.error ? (
-                <p
-                  role='alert'
-                  className='text-base font-bold text-kiosk-notice'
-                >
-                  {props.error}
-                </p>
+                <KioskError className='text-base'>{props.error}</KioskError>
               ) : (
                 unusual && (
                   <p className='flex items-center gap-1.5 text-sm font-semibold text-kiosk-notice'>
@@ -351,65 +406,32 @@ export function EnterScreen(props: {
 
 // ---------------------------------------------------------------------------
 
-function BirthdayNote({ birthday }: { birthday: KioskBirthday }) {
-  const { label } = birthday;
-  if (!label || (!birthday.eligible && !birthday.used)) return null;
-  return (
-    <div className='flex items-center gap-4 rounded-3xl border-2 border-kiosk-accent/60 px-6 py-5'>
-      <Cake className='size-9 flex-none text-kiosk-accent' aria-hidden='true' />
-      <div className='flex flex-col gap-0.5'>
-        {birthday.eligible ? (
-          <>
-            <p className='text-xl font-extrabold'>
-              Happy birthday! {label} is waiting.
-            </p>
-            <p className='text-base text-kiosk-muted'>
-              Check in, then redeem it on the next screen.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className='text-xl font-extrabold'>Happy birthday!</p>
-            <p className='text-base text-kiosk-muted'>
-              Your birthday discount has been used this year.
-            </p>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
+/**
+ * A customer who has already checked in today and typed their number again (usually at the till):
+ * what they can redeem, or that they're all set. Someone not yet checked in today skips this and
+ * goes straight to the visit steps.
+ */
 export function FoundScreen({
   customer,
   content,
-  pending,
-  onCheckIn,
   onStartOver,
   onDone,
   redeem,
 }: {
   customer: KioskCustomer;
   content: KioskContent;
-  pending: boolean;
-  onCheckIn: () => void;
   onStartOver: () => void;
   onDone: () => void;
   redeem: RedeemProps;
 }) {
   const reward = mainReward(content.rewards);
-  const ready = reward && customer.points >= reward.cost;
-  // Already checked in today: they've come back (usually at the till) to redeem, so skip the
-  // check-in and go straight to what they can use, or say they're all set.
-  const returning = customer.checkedInAt !== null;
-  const options = returning
-    ? redeemOptions(
-        customer.points,
-        customer.birthday,
-        redeem,
-        customer.discountUsedToday,
-      )
-    : [];
+  const options = redeemOptions(
+    customer.points,
+    customer.cashVisits,
+    customer.birthday,
+    redeem,
+    customer.discountUsedToday,
+  );
   const checkedInTime =
     customer.checkedInAt &&
     new Date(customer.checkedInAt).toLocaleTimeString('en-AU', {
@@ -418,186 +440,112 @@ export function FoundScreen({
       timeZone: content.timezone,
     });
 
-  if (returning) {
-    return (
-      <Shell>
-        {/* One decision, one column: redeem or not, or "all set". */}
-        <div className='mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-7'>
-          <StepBack label='Not you? Start over' onClick={onStartOver} />
-          <div className='flex flex-1 flex-col items-center justify-center gap-7 pb-6 text-center'>
-            <div className='flex flex-col items-center gap-2'>
-              <p className='text-lg text-kiosk-muted tabular-nums'>
-                {customer.maskedPhone}
-              </p>
-              <h1 className='text-[36px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[48px] lg:text-[56px]'>
-                Welcome back, {customer.firstName}!
-              </h1>
-              <p className='flex flex-wrap items-center justify-center gap-x-2 text-lg text-kiosk-muted'>
-                <span className='flex items-center gap-1.5 font-semibold text-kiosk-ready'>
-                  <Check
-                    className='size-5'
-                    strokeWidth={2.6}
-                    aria-hidden='true'
-                  />
-                  Checked in today at {checkedInTime}
-                </span>
-                <span aria-hidden='true'>·</span>
-                <span>
-                  <span className='font-bold text-kiosk-ink tabular-nums'>
-                    {customer.points}
-                  </span>{' '}
-                  point{customer.points === 1 ? '' : 's'}
-                </span>
-              </p>
-            </div>
-
-            {options.length > 0 ? (
-              <>
-                <RedeemList
-                  options={options}
-                  pending={redeem.pending}
-                  error={redeem.error}
-                  onRedeem={redeem.onRedeem}
-                />
-                <button
-                  type='button'
-                  onClick={onDone}
-                  className={`${outlineButton} min-h-16 justify-center px-9 text-xl text-kiosk-ink`}
-                >
-                  No thanks, I&apos;m done
-                </button>
-              </>
-            ) : customer.discountUsedToday ? (
-              <>
-                <div className='flex flex-col items-center gap-3 rounded-3xl bg-kiosk-surface px-8 py-7'>
-                  <div className='flex size-16 items-center justify-center rounded-full bg-kiosk-accent'>
-                    <Gift
-                      className='size-8 text-kiosk-bg'
-                      strokeWidth={2.2}
-                      aria-hidden='true'
-                    />
-                  </div>
-                  <p className='text-2xl font-extrabold'>
-                    You&apos;ve had today&apos;s discount
-                  </p>
-                  <p className='text-lg text-kiosk-muted'>
-                    {customer.points > 0
-                      ? `${customer.points} point${customer.points === 1 ? '' : 's'} saved for your next visit · one discount per visit`
-                      : 'One discount per visit. See you next time!'}
-                  </p>
-                </div>
-                <button
-                  type='button'
-                  onClick={onDone}
-                  className={`${primaryButton} min-h-16 min-w-64 px-11 text-2xl`}
-                >
-                  Done
-                </button>
-              </>
-            ) : (
-              <>
-                {reward && (
-                  <div className='flex flex-col items-center gap-3 rounded-3xl bg-kiosk-surface px-8 py-7'>
-                    <PunchCard
-                      points={customer.points}
-                      cost={reward.cost}
-                      size='md'
-                    />
-                    <p className='text-lg text-kiosk-muted'>
-                      {visitsToGo(customer.points, reward)}
-                    </p>
-                  </div>
-                )}
-                <p className='text-xl text-kiosk-muted'>
-                  You&apos;re all checked in for today. See you next time!
-                </p>
-                <button
-                  type='button'
-                  onClick={onDone}
-                  className={`${primaryButton} min-h-16 min-w-64 px-11 text-2xl`}
-                >
-                  Done
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </Shell>
-    );
-  }
-
   return (
     <Shell>
-      <div className='flex min-h-0 flex-1 flex-col gap-8 lg:flex-row'>
-        <div className='flex min-w-0 flex-1 flex-col gap-6'>
-          <div className='flex flex-col gap-3'>
-            <StepBack label='Not you? Start over' onClick={onStartOver} />
-            <div className='flex flex-col gap-1'>
-              <p className='text-lg text-kiosk-muted tabular-nums'>
-                {customer.maskedPhone}
-              </p>
-              <h1 className='text-[36px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[48px] lg:text-[56px]'>
-                Welcome back, {customer.firstName}!
-              </h1>
-            </div>
+      {/* One decision, one column: redeem or not, or "all set". */}
+      <div className='mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-7'>
+        <StepBack label='Not you? Start over' onClick={onStartOver} />
+        <div className='flex flex-1 flex-col items-center justify-center gap-7 pb-6 text-center'>
+          <div className='flex flex-col items-center gap-2'>
+            <p className='text-lg text-kiosk-muted tabular-nums'>
+              {customer.maskedPhone}
+            </p>
+            <h1 className='text-[36px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[48px] lg:text-[56px]'>
+              Welcome back, {customer.firstName}!
+            </h1>
+            <p className='flex flex-wrap items-center justify-center gap-x-2 text-lg text-kiosk-muted'>
+              <span className='flex items-center gap-1.5 font-semibold text-kiosk-ready'>
+                <Check
+                  className='size-5'
+                  strokeWidth={2.6}
+                  aria-hidden='true'
+                />
+                Checked in today at {checkedInTime}
+              </span>
+              <span aria-hidden='true'>·</span>
+              <span>
+                <span className='font-bold text-kiosk-ink tabular-nums'>
+                  {customer.points}
+                </span>{' '}
+                point{customer.points === 1 ? '' : 's'}
+              </span>
+            </p>
           </div>
 
-          <section className='flex flex-col gap-5 rounded-3xl bg-kiosk-surface px-5 py-5 sm:px-8 sm:py-7'>
-            <div className='flex items-end gap-8 sm:gap-12'>
-              <div className='flex flex-col gap-1'>
-                <p className='text-base font-semibold text-kiosk-muted'>
-                  Your points
+          {options.length > 0 ? (
+            <>
+              <RedeemList
+                options={options}
+                pending={redeem.pending}
+                error={redeem.error}
+                onRedeem={redeem.onRedeem}
+              />
+              <button
+                type='button'
+                onClick={onDone}
+                className={`${outlineButton} min-h-16 justify-center px-9 text-xl text-kiosk-ink`}
+              >
+                No thanks, I&apos;m done
+              </button>
+            </>
+          ) : customer.discountUsedToday ? (
+            <>
+              <div className='flex flex-col items-center gap-3 rounded-3xl bg-kiosk-surface px-8 py-7'>
+                <div className='flex size-16 items-center justify-center rounded-full bg-kiosk-accent'>
+                  <Gift
+                    className='size-8 text-kiosk-bg'
+                    strokeWidth={2.2}
+                    aria-hidden='true'
+                  />
+                </div>
+                <p className='text-2xl font-extrabold'>
+                  You&apos;ve had today&apos;s discount
                 </p>
-                <p className='text-[56px] leading-none font-extrabold tracking-[-0.03em] text-kiosk-accent tabular-nums sm:text-[72px]'>
-                  {customer.points}
+                <p className='text-lg text-kiosk-muted'>
+                  {customer.points > 0
+                    ? `${customer.points} point${customer.points === 1 ? '' : 's'} saved for your next visit · one discount per visit`
+                    : 'One discount per visit. See you next time!'}
                 </p>
               </div>
-              <div className='flex flex-col gap-1 pb-1.5'>
-                <p className='text-base font-semibold text-kiosk-muted'>
-                  Visits
-                </p>
-                <p className='text-[40px] leading-none font-extrabold tabular-nums'>
-                  {customer.visits}
-                </p>
-              </div>
-            </div>
-            {reward && (
-              <div className='flex flex-col gap-3'>
-                <PunchCard points={customer.points} cost={reward.cost} />
-                {ready && !customer.discountUsedToday ? (
-                  <p className='text-lg font-bold text-kiosk-ready'>
-                    {reward.title} is ready. Check in, then redeem it.
-                  </p>
-                ) : ready ? (
-                  <p className='text-lg text-kiosk-muted'>
-                    {customer.points} point{customer.points === 1 ? '' : 's'}{' '}
-                    saved for your next visit.
-                  </p>
-                ) : (
+              <button
+                type='button'
+                onClick={onDone}
+                className={`${primaryButton} min-h-16 min-w-64 px-11 text-2xl`}
+              >
+                Done
+              </button>
+            </>
+          ) : (
+            <>
+              {reward && (
+                <div className='flex flex-col items-center gap-3 rounded-3xl bg-kiosk-surface px-8 py-7'>
+                  <PunchCard
+                    points={customer.points}
+                    cost={reward.cost}
+                    size='md'
+                  />
                   <p className='text-lg text-kiosk-muted'>
                     {visitsToGo(customer.points, reward)}
                   </p>
-                )}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className='flex w-full flex-none flex-col justify-end gap-5 lg:w-[380px]'>
-          <BirthdayNote birthday={customer.birthday} />
-          <button
-            type='button'
-            onClick={onCheckIn}
-            disabled={pending}
-            className={`${primaryButton} h-26 flex-none text-3xl`}
-          >
-            {pending ? (
-              <Spinner />
-            ) : (
-              <Check className='size-8' strokeWidth={2.6} aria-hidden='true' />
-            )}
-            Check in
-          </button>
+                  <CashProgress
+                    reward={reward}
+                    cashVisits={customer.cashVisits}
+                    points={customer.points}
+                  />
+                </div>
+              )}
+              <p className='text-xl text-kiosk-muted'>
+                You&apos;re all checked in for today. See you next time!
+              </p>
+              <button
+                type='button'
+                onClick={onDone}
+                className={`${primaryButton} min-h-16 min-w-64 px-11 text-2xl`}
+              >
+                Done
+              </button>
+            </>
+          )}
         </div>
       </div>
     </Shell>
@@ -621,46 +569,46 @@ const MONTHS = [
   'December',
 ];
 
-const fieldClass =
-  'h-18 rounded-[18px] border-2 border-kiosk-field bg-kiosk-surface px-5.5 text-[26px] font-semibold text-kiosk-ink outline-none placeholder:text-kiosk-placeholder focus:border-kiosk-accent';
-
-/** What joining gets you: the reward and the birthday discount. Hidden when the shop offers neither. */
-function ProgramLines({ content }: { content: KioskContent }) {
-  const reward = mainReward(content.rewards);
-  if (!reward && !content.birthday) return null;
+/**
+ * An error on the kiosk: the kiosk's one error colour (the same red the Gift voucher dialog uses)
+ * with an icon, so it never relies on colour alone. Warnings ("not a standard number") keep
+ * kiosk-notice with a triangle.
+ */
+function KioskError({
+  id,
+  className = 'text-lg',
+  children,
+}: {
+  id?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className='flex flex-col gap-3 rounded-3xl bg-kiosk-surface p-6.5'>
-      <p className='text-[15px] font-bold tracking-[0.12em] text-kiosk-muted uppercase'>
-        How it works
-      </p>
-      <ul className='flex flex-col gap-2 text-lg leading-snug'>
-        {reward && (
-          <li>
-            <span className='font-bold text-kiosk-accent'>{reward.title}</span>{' '}
-            after {reward.cost} visit{reward.cost === 1 ? '' : 's'}
-          </li>
-        )}
-        {content.birthday && (
-          <li className='flex flex-col gap-0.5'>
-            <span className='font-bold text-kiosk-accent'>
-              {content.birthday.pitch.headline}
-            </span>
-            {content.birthday.pitch.nudge && (
-              <span className='text-base text-kiosk-muted'>
-                {content.birthday.pitch.nudge}
-              </span>
-            )}
-          </li>
-        )}
-      </ul>
-    </div>
+    <p
+      id={id}
+      role='alert'
+      className={`flex items-center gap-2 font-bold text-kiosk-error ${className}`}
+    >
+      <CircleAlert className='size-[1.1em] flex-none' aria-hidden='true' />
+      {children}
+    </p>
   );
 }
+
+/**
+ * Kiosk text fields and dropdowns, in the same three states as the admin's inputs:
+ * - resting: a 2px edge at 3:1 against the page (kiosk-field), so the field is findable;
+ * - focused: a softened gold edge plus a faint gold halo, clear without a hard bright line
+ *   (the name field is focused as the screen opens);
+ * - invalid: the error red edge and halo, with the message and icon under the field.
+ */
+const fieldClass =
+  'h-18 rounded-[18px] border-2 border-kiosk-field bg-kiosk-surface px-5.5 text-[26px] font-semibold text-kiosk-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-kiosk-placeholder focus:border-kiosk-accent/70 focus:ring-4 focus:ring-kiosk-accent/15 aria-invalid:border-kiosk-error aria-invalid:ring-4 aria-invalid:ring-kiosk-error/15';
 
 export function SignupScreen({
   formattedPhone,
   nonStandard,
-  content,
+  birthday,
   pending,
   initial,
   onSubmit,
@@ -668,7 +616,8 @@ export function SignupScreen({
 }: {
   formattedPhone: string;
   nonStandard: boolean;
-  content: KioskContent;
+  /** The shop's birthday discount (null when it's off): shows the birthday note (it names no amount). */
+  birthday: KioskContent['birthday'];
   pending: boolean;
   /** What they typed before going on to the services step and coming back. */
   initial?: SignupInput;
@@ -677,7 +626,7 @@ export function SignupScreen({
 }) {
   // Each problem shows under the field it's about, so customers see what to fix.
   const [error, setError] = useState<{
-    field: 'firstName' | 'birthday';
+    field: 'name' | 'birthday';
     message: string;
   } | null>(null);
   // The day list only offers days the chosen month has (29 Feb included), so an impossible date
@@ -693,11 +642,11 @@ export function SignupScreen({
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const firstName = String(form.get('firstName') ?? '').trim();
-    if (!firstName) {
+    const name = String(form.get('name') ?? '').trim();
+    if (!name) {
       setError({
-        field: 'firstName',
-        message: 'Please enter your first name.',
+        field: 'name',
+        message: 'Please enter your name.',
       });
       return;
     }
@@ -712,8 +661,7 @@ export function SignupScreen({
       return;
     }
     onSubmit({
-      firstName,
-      lastName: String(form.get('lastName') ?? '').trim() || undefined,
+      name,
       birthdayMonth: month && day ? Number(month) : undefined,
       birthdayDay: month && day ? Number(day) : undefined,
     });
@@ -724,17 +672,16 @@ export function SignupScreen({
       {/* The form sits at the top so the on-screen keyboard never covers it. */}
       <form
         onSubmit={submit}
-        className='flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-12'
+        className='mx-auto flex w-full max-w-[720px] flex-col gap-6'
       >
-        <div className='flex min-w-0 flex-1 flex-col gap-6'>
+        <div className='flex min-w-0 flex-col gap-6'>
           <div className='flex flex-col gap-2.5'>
             <StepBack label='Wrong number? Go back' onClick={onBack} />
             <h1 className='text-[36px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[44px] lg:text-[52px]'>
               Nice to meet you!
             </h1>
             <p className='text-xl text-kiosk-muted'>
-              {formattedPhone} isn&apos;t in our rewards yet. Join in a few
-              seconds.
+              {formattedPhone} isn&apos;t in our rewards yet.
             </p>
             {nonStandard && (
               <p className='flex items-center gap-2.5 text-lg font-semibold text-kiosk-notice'>
@@ -748,61 +695,62 @@ export function SignupScreen({
             )}
           </div>
 
-          <div className='grid grid-cols-1 gap-4.5 sm:grid-cols-2'>
-            <div className='flex flex-col gap-2'>
-              <label htmlFor='firstName' className='text-base font-bold'>
-                First name <span className='text-kiosk-accent'>*</span>
-              </label>
-              <input
-                id='firstName'
-                name='firstName'
-                autoComplete='given-name'
-                autoFocus
-                maxLength={50}
-                defaultValue={initial?.firstName}
-                aria-invalid={error?.field === 'firstName' || undefined}
-                aria-describedby={
-                  error?.field === 'firstName' ? 'firstName-error' : undefined
-                }
-                onChange={() => error?.field === 'firstName' && setError(null)}
-                className={`${fieldClass} ${error?.field === 'firstName' ? 'border-kiosk-notice' : ''}`}
-              />
-              {error?.field === 'firstName' && (
-                <p
-                  id='firstName-error'
-                  role='alert'
-                  className='text-lg font-bold text-kiosk-notice'
-                >
-                  {error.message}
-                </p>
-              )}
-            </div>
-            <div className='flex flex-col gap-2'>
-              <label htmlFor='lastName' className='text-base font-bold'>
-                Last name{' '}
-                <span className='font-medium text-kiosk-muted'>(optional)</span>
-              </label>
-              <input
-                id='lastName'
-                name='lastName'
-                autoComplete='family-name'
-                maxLength={50}
-                defaultValue={initial?.lastName}
-                className={fieldClass}
-              />
-            </div>
+          {/* One name, as check-in kiosks ask: the first word is what the kiosk greets them by. */}
+          <div className='flex flex-col gap-2'>
+            <label htmlFor='name' className='text-base font-bold'>
+              Your name <span className='text-kiosk-accent'>*</span>
+            </label>
+            <input
+              id='name'
+              name='name'
+              autoComplete='name'
+              autoFocus
+              maxLength={100}
+              placeholder='What should we call you?'
+              defaultValue={initial?.name}
+              aria-invalid={error?.field === 'name' || undefined}
+              aria-describedby={
+                error?.field === 'name' ? 'name-error' : undefined
+              }
+              onChange={() => error?.field === 'name' && setError(null)}
+              className={fieldClass}
+            />
+            {error?.field === 'name' && (
+              <KioskError id='name-error'>{error.message}</KioskError>
+            )}
           </div>
 
-          <fieldset className='flex flex-col gap-2'>
-            <legend className='mb-2 text-base font-bold'>
-              Birthday{' '}
-              <span className='font-medium text-kiosk-muted'>
-                {content.birthday
-                  ? `(optional, for ${content.birthday.offer ?? 'a discount'} on your birthday from your next visit)`
-                  : '(optional)'}
-              </span>
-            </legend>
-            <div className='flex gap-3.5'>
+          {/* While the shop offers a birthday discount, the birthday gets a gold-edged card saying why
+              to add it (Galaxy-style, in our palette); otherwise it's a plain optional field. The
+              wording names no amount on purpose: a big number tempts people to give a birthday
+              that's coming up rather than their real one. */}
+          <fieldset
+            className={
+              birthday
+                ? 'flex flex-col gap-4 rounded-3xl border border-kiosk-accent/40 bg-kiosk-accent/[0.06] p-5'
+                : 'flex flex-col gap-2'
+            }
+            aria-describedby={birthday ? 'birthday-hint' : undefined}
+          >
+            <legend className='sr-only'>Birthday (optional)</legend>
+            {birthday ? (
+              <div aria-hidden='true' className='flex flex-col gap-1'>
+                <p className='flex items-center gap-2.5 text-xl font-extrabold text-kiosk-accent'>
+                  <Cake className='size-6 flex-none' />
+                  Add your birthday for a special birthday treat
+                </p>
+                <p id='birthday-hint' className='text-base text-kiosk-muted'>
+                  Optional · a little treat could be waiting for you around your
+                  birthday.
+                </p>
+              </div>
+            ) : (
+              <p aria-hidden='true' className='text-base font-bold'>
+                Birthday{' '}
+                <span className='font-medium text-kiosk-muted'>(optional)</span>
+              </p>
+            )}
+            <div className='grid grid-cols-[2fr_3fr] gap-3.5'>
               <select
                 name='birthdayDay'
                 aria-label='Birthday day'
@@ -811,7 +759,7 @@ export function SignupScreen({
                   setBdayDay(e.target.value);
                   if (error?.field === 'birthday') setError(null);
                 }}
-                className={`${fieldClass} w-32 text-2xl sm:w-40`}
+                className={`${fieldClass} w-full text-2xl`}
               >
                 <option value=''>Day</option>
                 {Array.from({ length: maxDay }, (_, i) => (
@@ -831,7 +779,7 @@ export function SignupScreen({
                   if (month && Number(bdayDay) > daysInMonth(Number(month)))
                     setBdayDay('');
                 }}
-                className={`${fieldClass} min-w-0 flex-1 text-2xl sm:w-60 sm:flex-none`}
+                className={`${fieldClass} w-full min-w-0 text-2xl`}
               >
                 <option value=''>Month</option>
                 {MONTHS.map((m, i) => (
@@ -842,19 +790,18 @@ export function SignupScreen({
               </select>
             </div>
             {error?.field === 'birthday' && (
-              <p role='alert' className='text-lg font-bold text-kiosk-notice'>
-                {error.message}
-              </p>
+              <KioskError>{error.message}</KioskError>
             )}
           </fieldset>
         </div>
 
-        <div className='flex w-full flex-none flex-col gap-4.5 lg:w-[360px] lg:pt-1.5'>
-          <ProgramLines content={content} />
+        {/* One centred column: the form, then Join right under it (where the eye is, and above the
+            iPad's keyboard). The program is on the keypad screen they've just seen. */}
+        <div className='mt-2 flex flex-col gap-3.5'>
           <button
             type='submit'
             disabled={pending}
-            className={`${primaryButton} h-26 text-[28px]`}
+            className={`${primaryButton} h-22 w-full text-[28px]`}
           >
             {pending && <Spinner />}
             Join &amp; check in
@@ -876,10 +823,22 @@ export function SignupScreen({
  * A step that can't be skipped (services) has no Skip, and the main button keeps the same size and
  * place, so it doesn't jump between steps.
  */
+/**
+ * A returning customer goes from the keypad straight to the first step, so that step says who they
+ * are ("Welcome back, Nathan · 04•• ••• 555") and its back pill is "Not you? Start over".
+ */
+export type StepIntro = { greeting?: React.ReactNode; backLabel?: string };
+
+function Greeting({ children }: { children: React.ReactNode }) {
+  return <p className='text-lg text-kiosk-muted sm:text-xl'>{children}</p>;
+}
+
 function PickStep({
   title,
   subtitle,
   onBack,
+  greeting,
+  backLabel = 'Back',
   children,
   skipLabel,
   nextLabel,
@@ -899,12 +858,13 @@ function PickStep({
   pending: boolean;
   onSkip?: () => void;
   onNext: () => void;
-}) {
+} & StepIntro) {
   return (
     <main className='flex w-full flex-1 flex-col text-kiosk-ink'>
       <div className='flex flex-1 flex-col gap-7 px-5 pt-6 pb-8 sm:px-10 sm:pt-8 lg:px-16 lg:pt-10 short:gap-5 lg:short:pt-6'>
         <div className='flex flex-col gap-3'>
-          <StepBack label='Back' onClick={onBack} />
+          <StepBack label={backLabel} onClick={onBack} />
+          {greeting && <Greeting>{greeting}</Greeting>}
           <h1 className='text-[34px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[44px] lg:text-[52px] lg:short:text-[44px]'>
             {title}
           </h1>
@@ -981,6 +941,47 @@ function ChoiceChip({
   );
 }
 
+/** The service menu: categories with their services as chips (pick as many as you like). */
+function ServiceMenu({
+  categories,
+  selected,
+  onToggle,
+}: {
+  categories: KioskServiceCategory[];
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div className='flex flex-col gap-10 short:gap-8'>
+      {categories.map((c) => (
+        <section
+          key={c.id}
+          aria-labelledby={`cat-${c.id}`}
+          className='flex flex-col gap-4'
+        >
+          <h2
+            id={`cat-${c.id}`}
+            className='font-heading text-[32px] leading-none font-bold text-kiosk-accent'
+          >
+            {c.name}
+          </h2>
+          <div className='flex flex-wrap gap-3.5'>
+            {c.services.map((s) => (
+              <ChoiceChip
+                key={s.id}
+                selected={selected.includes(s.id)}
+                onClick={() => onToggle(s.id)}
+              >
+                {s.name}
+              </ChoiceChip>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 /** At least one service is required: there's no Skip, and Next stays off until one is picked. */
 export function ServicesScreen({
   categories,
@@ -990,10 +991,11 @@ export function ServicesScreen({
   onToggle,
   onBack,
   onNext,
-}: {
+  ...intro
+}: StepIntro & {
   categories: KioskServiceCategory[];
   selected: string[];
-  /** No staff step follows, so the main button checks in. */
+  /** No staff or payment step follows, so the main button checks in. */
   isLast: boolean;
   pending: boolean;
   onToggle: (id: string) => void;
@@ -1006,6 +1008,7 @@ export function ServicesScreen({
       title='What are you in for today?'
       subtitle='Pick at least one, as many as you like.'
       onBack={onBack}
+      {...intro}
       nextLabel={
         <>
           {isLast ? 'Check in' : 'Next'}
@@ -1023,33 +1026,11 @@ export function ServicesScreen({
       pending={pending}
       onNext={onNext}
     >
-      <div className='flex flex-col gap-10 short:gap-8'>
-        {categories.map((c) => (
-          <section
-            key={c.id}
-            aria-labelledby={`cat-${c.id}`}
-            className='flex flex-col gap-4'
-          >
-            <h2
-              id={`cat-${c.id}`}
-              className='font-heading text-[32px] leading-none font-bold text-kiosk-accent'
-            >
-              {c.name}
-            </h2>
-            <div className='flex flex-wrap gap-3.5'>
-              {c.services.map((s) => (
-                <ChoiceChip
-                  key={s.id}
-                  selected={selected.includes(s.id)}
-                  onClick={() => onToggle(s.id)}
-                >
-                  {s.name}
-                </ChoiceChip>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+      <ServiceMenu
+        categories={categories}
+        selected={selected}
+        onToggle={onToggle}
+      />
     </PickStep>
   );
 }
@@ -1057,14 +1038,18 @@ export function ServicesScreen({
 export function StaffScreen({
   technicians,
   selected,
+  isLast = true,
   pending,
   onSelect,
   onBack,
   onSkip,
   onNext,
-}: {
+  ...intro
+}: StepIntro & {
   technicians: KioskTechnician[];
   selected: string | null;
+  /** No payment step follows, so the buttons check in. */
+  isLast?: boolean;
   pending: boolean;
   onSelect: (id: string | null) => void;
   onBack: () => void;
@@ -1076,8 +1061,9 @@ export function StaffScreen({
       title="Who's looking after you?"
       subtitle="Pick your nail technician, or skip if you don't mind."
       onBack={onBack}
-      skipLabel='Skip & check in'
-      nextLabel='Check in'
+      {...intro}
+      skipLabel={isLast ? 'Skip & check in' : 'Skip'}
+      nextLabel={isLast ? 'Check in' : 'Next'}
       canNext={selected !== null}
       pending={pending}
       onSkip={onSkip}
@@ -1107,6 +1093,104 @@ export function StaffScreen({
         ))}
       </div>
     </PickStep>
+  );
+}
+
+/** What the done screen lists back: the services, technician and payment they picked. */
+export type VisitSummary = {
+  services: string[];
+  technician?: string;
+  payment?: PaymentMethod | null;
+};
+
+const PAYMENT_CHOICES: {
+  method: PaymentMethod;
+  label: string;
+  Icon: typeof Banknote;
+}[] = [
+  { method: 'cash', label: 'Cash', Icon: Banknote },
+  { method: 'card', label: 'Card', Icon: CreditCard },
+];
+
+// The kiosk tells customers cash visits get the higher discount and leaves the choice to them:
+// no "pay cash" prompts, and neither button is highlighted or picked in advance.
+
+/**
+ * How they're paying today: the last step, asked when a reward gives more for cash. Tapping Cash or
+ * Card checks in (Back keeps everything picked); the done screen lists it back. One line under the
+ * heading states the rule. Staff fix a wrong tap with Adjust points ("Count as cash visits").
+ */
+export function PaymentScreen({
+  reward,
+  pending,
+  onPick,
+  onBack,
+  greeting,
+  backLabel = 'Back',
+}: StepIntro & {
+  /** The reward that gives more for cash. */
+  reward: KioskReward | null;
+  pending: boolean;
+  onPick: (method: PaymentMethod) => void;
+  onBack: () => void;
+}) {
+  const [picked, setPicked] = useState<PaymentMethod | null>(null);
+  return (
+    <main className='mx-auto flex w-full max-w-[848px] flex-1 flex-col gap-10 px-5 pt-6 pb-10 text-kiosk-ink sm:px-10 sm:pt-8 lg:px-16 lg:pt-10 short:gap-7 lg:short:pt-6'>
+      <div className='flex flex-col gap-3'>
+        <StepBack label={backLabel} onClick={onBack} />
+        {greeting && <Greeting>{greeting}</Greeting>}
+        <h1 className='text-[34px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[44px] lg:text-[52px] lg:short:text-[44px]'>
+          How are you paying today?
+        </h1>
+        {/* The rule, once: the amount stands out, and nothing tells them which to pick. */}
+        {reward && (
+          <p className='text-xl text-kiosk-muted'>
+            After {reward.cost} visits:{' '}
+            <span className='font-extrabold text-kiosk-accent'>
+              {rewardName(reward, reward.cost)}
+            </span>{' '}
+            if all are paid in cash, {rewardName(reward, 0)} otherwise.
+          </p>
+        )}
+      </div>
+
+      <div
+        role='group'
+        aria-label='Payment method'
+        className='grid grid-cols-2 gap-5'
+      >
+        {PAYMENT_CHOICES.map(({ method, label, Icon }) => (
+          <button
+            key={method}
+            type='button'
+            disabled={pending}
+            onClick={() => {
+              setPicked(method);
+              onPick(method);
+            }}
+            className={`flex min-h-40 flex-col items-center justify-center gap-3 rounded-3xl border-2 bg-kiosk-surface px-4 py-6 text-center transition active:scale-[0.98] disabled:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-kiosk-ink ${
+              pending && picked === method
+                ? 'border-kiosk-accent bg-kiosk-accent/12'
+                : 'border-transparent enabled:hover:border-kiosk-line'
+            }`}
+          >
+            {pending && picked === method ? (
+              <Spinner />
+            ) : (
+              <Icon
+                className='size-11 text-kiosk-accent'
+                strokeWidth={1.8}
+                aria-hidden='true'
+              />
+            )}
+            <span className='text-[30px] leading-none font-extrabold'>
+              {label}
+            </span>
+          </button>
+        ))}
+      </div>
+    </main>
   );
 }
 
@@ -1144,6 +1228,7 @@ type Option = {
 
 function redeemOptions(
   points: number,
+  cashVisits: number,
   birthday: KioskBirthday,
   { rewards }: RedeemProps,
   discountUsedToday = false,
@@ -1161,10 +1246,12 @@ function redeemOptions(
     });
   }
   for (const r of rewards.filter((r) => r.cost <= points)) {
+    const uses = `Uses ${r.cost} of your ${points} points`;
+    const cash = hasCashBonus(r) && cashVisits >= r.cost;
     options.push({
       key: r.id,
-      title: r.title,
-      detail: `Uses ${r.cost} of your ${points} points`,
+      title: rewardName(r, cashVisits),
+      detail: cash ? `For paying cash on ${r.cost} visits · ${uses}` : uses,
       target: { kind: 'reward', rewardId: r.id },
       birthday: false,
     });
@@ -1254,11 +1341,7 @@ function RedeemList({
           </li>
         ))}
       </ul>
-      {error && (
-        <p role='alert' className='text-base font-bold text-kiosk-notice'>
-          {error}
-        </p>
-      )}
+      {error && <KioskError className='text-base'>{error}</KioskError>}
     </section>
   );
 }
@@ -1267,20 +1350,21 @@ export function SuccessScreen({
   result,
   seconds,
   onDone,
-  technician,
+  summary,
   paused = false,
   ...redeem
 }: RedeemProps & {
   result: Extract<CheckInResult, { status: 'checked_in' }>;
   seconds: number;
   onDone: () => void;
-  /** The technician they picked, if any. */
-  technician?: string;
+  /** What they picked, listed back so they can see what was recorded. */
+  summary: VisitSummary;
   /** Hold the countdown, e.g. while staff use the Gift voucher dialog. */
   paused?: boolean;
 }) {
   const options = redeemOptions(
     result.points,
+    result.cashVisits,
     result.birthday,
     redeem,
     result.discountUsedToday,
@@ -1311,13 +1395,36 @@ export function SuccessScreen({
         </h1>
         {!canRedeem && (
           <p className='text-xl text-kiosk-muted sm:text-2xl'>
-            Have a seat. {technician ? `${technician} will` : "We'll"} be with
-            you shortly.
+            Have a seat.{' '}
+            {summary.technician ? `${summary.technician} will` : "We'll"} be
+            with you shortly.
           </p>
         )}
       </div>
 
       <div className='flex flex-col items-center gap-4 rounded-3xl bg-kiosk-surface px-6 py-6 sm:px-10'>
+        {(summary.services.length > 0 ||
+          summary.technician ||
+          summary.payment) && (
+          <div className='flex w-full flex-col items-center gap-1 border-b-2 border-kiosk-line pb-4 text-center'>
+            {summary.services.length > 0 && (
+              <p className='text-xl font-bold'>
+                {summary.services.join(' · ')}
+              </p>
+            )}
+            {(summary.technician || summary.payment) && (
+              <p className='text-lg text-kiosk-muted'>
+                {[
+                  summary.technician && `With ${summary.technician}`,
+                  summary.payment &&
+                    `Paying ${summary.payment === 'cash' ? 'cash' : 'by card'}`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            )}
+          </div>
+        )}
         <p className='text-xl'>
           <span className='font-extrabold text-kiosk-accent'>
             +{earned} point{earned === 1 ? '' : 's'}
@@ -1331,6 +1438,11 @@ export function SuccessScreen({
             <p className='text-lg text-kiosk-muted'>
               {visitsToGo(result.points, reward)}
             </p>
+            <CashProgress
+              reward={reward}
+              cashVisits={result.cashVisits}
+              points={result.points}
+            />
           </>
         )}
       </div>
@@ -1375,6 +1487,7 @@ export function AlreadyScreen({
   });
   const options = redeemOptions(
     result.points,
+    result.cashVisits,
     result.birthday,
     redeem,
     result.discountUsedToday,
@@ -1482,6 +1595,12 @@ export function RedeemedScreen({
         >
           {result.title}
         </h1>
+        {result.note && (
+          <p className='flex items-center gap-2 text-xl font-bold text-kiosk-ready'>
+            <Banknote className='size-6' aria-hidden='true' />
+            {result.note}
+          </p>
+        )}
         <p className='text-xl text-kiosk-muted sm:text-2xl'>
           Show this screen to the front desk when you pay.
         </p>

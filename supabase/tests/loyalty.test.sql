@@ -117,7 +117,7 @@ select throws_ok(
   $$ insert into public.promotions (title, type, points_cost) values ('Multiplier', 'multiplier', 1) $$,
   '22P02', null, 'only reward promotions can exist');
 select is(public.adjust_points((select id from public.customers where phone = '+61400001111'), 9, 'Top up'), 10, 'adjust adds points');
-select is(public.redeem_reward((select id from public.customers where phone = '+61400001111'), 'bbbbbbbb-0000-4000-8000-000000000001'), 0, 'staff redeem deducts the reward cost');
+select is((public.redeem_reward((select id from public.customers where phone = '+61400001111'), 'bbbbbbbb-0000-4000-8000-000000000001'))->>'points_balance', '0', 'staff redeem deducts the reward cost');
 select is((public.redeem_birthday((select id from public.customers where phone = '+61400000100')))->>'status', 'already_used', 'staff cannot give a second birthday discount');
 select is(public.adjust_points((select id from public.customers where phone = '+61400000100'), 10, 'Saved up'), 11, 'points can still be added after a discount');
 select throws_ok(

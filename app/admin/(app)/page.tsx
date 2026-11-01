@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { ChevronRight, Gift } from "lucide-react";
 import { Card, DataTable, EmptyRow, PageHeader, Pill, StatTile, TierBadge, dashboardTileGrid, td, th } from "@/components/admin/ui";
 import { SegmentedLinks } from "@/components/admin/segmented-links";
-import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
+import { VisitPayment, VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import {
   DASHBOARD_PERIODS,
   getCloseToReward,
@@ -75,6 +75,9 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
     settingsPromise.then(getNotBackLately),
   ]);
   const tz = settings.timezone;
+  // A Paid column only when today has visits the kiosk asked about (it asks while a reward pays
+  // more for cash), as on Check-ins.
+  const showPayment = stats.checkIns.some((c) => c.payment_method);
   const weekday = new Date().toLocaleDateString("en-AU", { weekday: "long", timeZone: tz });
   const change = stats.checkInsInPeriod - stats.checkInsBefore;
   // What the check-ins are compared with (see periodWindow in lib/admin-data.ts).
@@ -151,11 +154,12 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
                 <th className={th}>Customer</th>
                 <th className={`${th} hidden xl:table-cell`}>Service</th>
                 <th className={`${th} hidden xl:table-cell`}>Technician</th>
+                {showPayment && <th className={`${th} hidden xl:table-cell`}>Paid</th>}
                 <th className={`${th} text-right`}>Points</th>
               </tr>
             </thead>
             <tbody>
-              {stats.checkIns.length === 0 && <EmptyRow colSpan={5}>No check-ins yet today.</EmptyRow>}
+              {stats.checkIns.length === 0 && <EmptyRow colSpan={showPayment ? 6 : 5}>No check-ins yet today.</EmptyRow>}
               {stats.checkIns.map((c) => (
                 <tr key={c.id}>
                   <td className={`${td} whitespace-nowrap text-muted-foreground tabular-nums`}>{formatTime(c.created_at, tz)}</td>
@@ -173,7 +177,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
                     )}
                     {/* The service and technician columns fold in here below xl (the side column leaves the table narrow). */}
                     <div className="mt-1 xl:hidden">
-                      <VisitSummary services={c.services} staff={c.technician_name} />
+                      <VisitSummary services={c.services} staff={c.technician_name} payment={c.payment_method} />
                     </div>
                   </td>
                   <td className={`${td} hidden xl:table-cell`}>
@@ -182,6 +186,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
                   <td className={`${td} hidden whitespace-nowrap xl:table-cell`}>
                     <VisitStaff name={c.technician_name} />
                   </td>
+                  {showPayment && (
+                    <td className={`${td} hidden xl:table-cell`}>
+                      <VisitPayment method={c.payment_method} />
+                    </td>
+                  )}
                   <td className={`${td} text-right font-bold tabular-nums`}>+{c.points_awarded}</td>
                 </tr>
               ))}

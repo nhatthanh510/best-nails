@@ -1,0 +1,100 @@
+# Checks every pull request, and applies new database migrations to production when they reach main.
+#
+# Production deploys need three repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  personal access token, https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROJECT_ID    the project ref, e.g. the part after /project/ in the dashboard URL
+#   SUPABASE_DB_PASSWORD   the production database password
+# and a "production" environment (Settings → Environments), where you can require an approval.
+#
+# Production is only ever changed forward with `db push` (never reset, never seeded).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  app:
+    name: Typecheck, lint, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Placeholders: the build and unit tests don't connect to Supabase.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci
+      SUPABASE_SECRET_KEY: sb_secret_ci
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  database:
+    name: Migrations, pgTAP, generated types
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Fresh Postgres with every migration in supabase/migrations applied from scratch, plus the seed.
+      # Uses the CLI version pinned in package-lock.json, the same one as on developers' machines.
+      - name: Start Postgres and apply all migrations
+        run: npx supabase db start
+      - name: pgTAP tests
+        run: npm run test:db
+      - name: lib/database.types.ts matches the migrations
+        run: |
+          npm run db:types
+          git diff --exit-code lib/database.types.ts || {
+            echo "::error file=lib/database.types.ts::Out of date. Run 'npm run db:types' and commit the result."
+            exit 1
+          }
+
+  deploy-migrations:
+    name: Apply migrations to production
+    needs: [app, database]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    # Never two deploys at once, and never cancel one halfway.
+    concurrency:
+      group: deploy-migrations
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx supabase link --project-ref "$SUPABASE_PROJECT_ID"
+      - name: Migrations that will be applied
+        run: npx supabase db push --dry-run
+      - name: Apply them
+        run: npx supabase db push
+      - run: npx supabase migration list --linked

@@ -9,7 +9,7 @@ import { Card, TierBadge } from "@/components/admin/ui";
 import { ConfirmButton, useActionToast } from "@/components/admin/action-button";
 import { deleteReward, saveBirthdayDiscount, saveReward } from "@/app/admin/actions";
 import type { Settings } from "@/lib/admin-data";
-import type { DiscountKind, Reward } from "@/lib/rewards";
+import { cashBonusLine, type DiscountKind, type Reward } from "@/lib/rewards";
 import { cn } from "@/lib/utils";
 import { useFormSubmit } from "@/lib/use-form-submit";
 import { cleanNumber, numberInput } from "@/lib/number-input";
@@ -34,7 +34,8 @@ export function RewardsManager({ items }: { items: Item[] }) {
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        A reward&apos;s points are also the visits it takes.
+        A reward&apos;s points are also the visits it takes. Give it a cash discount to pay more to customers who pay cash for
+        those visits; the kiosk then asks &ldquo;Cash or card?&rdquo; at check-in.
       </p>
 
       {items.length === 0 && <p className="text-sm text-muted-foreground">No rewards yet.</p>}
@@ -45,6 +46,7 @@ export function RewardsManager({ items }: { items: Item[] }) {
           <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-background px-4 py-3.5">
             <div className="flex flex-col gap-0.5">
               <span className="text-base font-extrabold">{r.title}</span>
+              {cashBonusLine(amounts(r)) && <span className="text-sm font-semibold text-primary">{cashBonusLine(amounts(r))}</span>}
               <span className="text-sm text-muted-foreground">
                 {r.points_cost} points ({r.points_cost} visits) · redeemed {uses} time
                 {uses === 1 ? "" : "s"}
@@ -72,9 +74,17 @@ export function RewardsManager({ items }: { items: Item[] }) {
   );
 }
 
+function amounts(r: Reward) {
+  return { cost: r.points_cost, discountCents: r.discount_cents, cashDiscountCents: r.cash_discount_cents };
+}
+
+const centsToDollars = (cents: number | null | undefined) => (cents == null ? "" : String(cents / 100));
+
 function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => void }) {
   const [state, formAction, pending] = useActionState(saveReward, null);
   useActionToast(state, { errors: false, onSuccess: onDone });
+  const [discount, setDiscount] = useState(centsToDollars(r?.discount_cents));
+  const [cash, setCash] = useState(centsToDollars(r?.cash_discount_cents));
 
   const formSubmit = useFormSubmit(state, formAction);
   return (
@@ -83,12 +93,50 @@ function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => vo
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_160px]">
         <div className="flex flex-col gap-2">
           <Label htmlFor="title">Reward</Label>
-          <Input id="title" name="title" required maxLength={80} defaultValue={r?.title} placeholder="10% off" />
+          <Input
+            id="title"
+            name="title"
+            required={!discount}
+            maxLength={80}
+            defaultValue={r?.title}
+            placeholder={discount ? "Named from the discount" : "Free nail art"}
+          />
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="points_cost">Points needed</Label>
           <Input id="points_cost" name="points_cost" {...numberInput("digits")} maxLength={5} required defaultValue={r?.points_cost ?? 10} />
         </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="discount">Discount ($ off)</Label>
+          <Input
+            id="discount"
+            name="discount"
+            {...numberInput("money")}
+            maxLength={7}
+            value={discount}
+            onChange={(e) => setDiscount(cleanNumber("money", e.target.value))}
+            placeholder="10"
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="cash_discount">Cash discount ($ off)</Label>
+          <Input
+            id="cash_discount"
+            name="cash_discount"
+            {...numberInput("money")}
+            maxLength={7}
+            value={cash}
+            onChange={(e) => setCash(cleanNumber("money", e.target.value))}
+            placeholder={discount || "30"}
+            disabled={!discount}
+          />
+        </div>
+        <p className="text-[13px] text-muted-foreground sm:col-span-2">
+          The cash discount is given when at least the reward&apos;s points in visits since the customer&apos;s last reward were
+          paid in cash (e.g. 7 of 7); otherwise the discount. Leave both blank for a reward like &ldquo;Free nail art&rdquo;.
+        </p>
       </div>
       <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
         <input type="checkbox" name="is_active" defaultChecked={r?.is_active ?? true} className="size-5 accent-primary" />

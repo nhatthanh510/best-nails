@@ -40,9 +40,9 @@ export class Kiosk {
     await this.continueButton.click();
   }
 
-  async signUp(firstName: string, birthday?: { day: number; month: string }) {
+  async signUp(name: string, birthday?: { day: number; month: string }) {
     await expect(this.page.getByRole("heading", { name: "Nice to meet you!" })).toBeVisible();
-    await this.page.getByLabel("First name").fill(firstName);
+    await this.page.getByLabel("Your name").fill(name);
     if (birthday) {
       await this.page.getByLabel("Birthday month").selectOption({ label: birthday.month });
       await this.page.getByLabel("Birthday day").selectOption(String(birthday.day));
@@ -52,25 +52,31 @@ export class Kiosk {
   }
 
   /** Check in on the Found screen: the first service (one is required), no technician. */
-  async checkIn() {
-    await this.page.getByRole("button", { name: "Check in", exact: true }).click();
-    await this.skipVisitSteps();
+  /** A returning customer goes from the keypad straight to the visit steps: this goes through them. */
+  async checkIn(payment: "Cash" | "Card" = "Card") {
+    await this.skipVisitSteps(payment);
   }
 
   /**
-   * The services and staff steps after Check in, whichever the shop has turned on: picks the first
-   * service (one is required) and skips the technician.
+   * The steps after Check in, whichever the shop has turned on: picks the first service (one is
+   * required), skips the technician, and on the payment step (asked only when a reward gives more
+   * for cash) taps `payment`, which checks in.
    */
-  async skipVisitSteps() {
-    const step = this.page.getByRole("heading", { level: 1, name: /What are you in for today\?|Who's looking after you\?/ });
+  async skipVisitSteps(payment: "Cash" | "Card" = "Card") {
+    const step = this.page.getByRole("heading", {
+      level: 1,
+      name: /What are you in for today\?|Who's looking after you\?|How are you paying today\?/,
+    });
     const done = this.page.getByText(/You.re checked in|all checked in for today|Something went wrong/).first();
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       await expect(step.or(done).first()).toBeVisible();
       if (await done.isVisible()) return;
       const name = (await step.textContent()) ?? "";
       if (name.startsWith("What are you in")) {
         await this.page.getByRole("checkbox").first().click();
         await this.page.getByRole("button", { name: /^(Next|Check in)/ }).click();
+      } else if (name.startsWith("How are you paying")) {
+        await this.page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: new RegExp(`^${payment}`) }).click();
       } else {
         await this.page.getByRole("button", { name: /^Skip/ }).click();
       }

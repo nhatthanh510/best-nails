@@ -71,14 +71,14 @@ isOneToOne: false
                   ]
                 },"check_ins": {
                   Row: {
-                    "created_at": string,"created_by": string | null,"customer_id": string,"id": string,"points_awarded": number,"source": Database["public"]['Enums']["check_in_source"],"technician_id": string | null,"technician_name": string | null,"voided_at": string | null,"voided_by": string | null
+                    "created_at": string,"created_by": string | null,"customer_id": string,"id": string,"payment_method": Database["public"]['Enums']["payment_method"] | null,"points_awarded": number,"source": Database["public"]['Enums']["check_in_source"],"technician_id": string | null,"technician_name": string | null,"voided_at": string | null,"voided_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"created_by"?: string | null,"customer_id": string,"id"?: string,"points_awarded": number,"source": Database["public"]['Enums']["check_in_source"],"technician_id"?: string | null,"technician_name"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
+                    "created_at"?: string,"created_by"?: string | null,"customer_id": string,"id"?: string,"payment_method"?: Database["public"]['Enums']["payment_method"] | null,"points_awarded": number,"source": Database["public"]['Enums']["check_in_source"],"technician_id"?: string | null,"technician_name"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
                   }
                   Update: {
-                    "created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"id"?: string,"points_awarded"?: number,"source"?: Database["public"]['Enums']["check_in_source"],"technician_id"?: string | null,"technician_name"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
+                    "created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"id"?: string,"payment_method"?: Database["public"]['Enums']["payment_method"] | null,"points_awarded"?: number,"source"?: Database["public"]['Enums']["check_in_source"],"technician_id"?: string | null,"technician_name"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -163,14 +163,14 @@ isOneToOne: false
                   ]
                 },"point_transactions": {
                   Row: {
-                    "balance_after": number,"check_in_id": string | null,"created_at": string,"created_by": string | null,"customer_id": string,"delta": number,"id": string,"note": string | null,"promotion_id": string | null,"reason": Database["public"]['Enums']["point_reason"],"seq": number
+                    "balance_after": number,"check_in_id": string | null,"created_at": string,"created_by": string | null,"customer_id": string,"delta": number,"discount_cents": number | null,"id": string,"note": string | null,"payment_method": Database["public"]['Enums']["payment_method"] | null,"promotion_id": string | null,"reason": Database["public"]['Enums']["point_reason"],"seq": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "balance_after": number,"check_in_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id": string,"delta": number,"id"?: string,"note"?: string | null,"promotion_id"?: string | null,"reason": Database["public"]['Enums']["point_reason"],"seq"?: never
+                    "balance_after": number,"check_in_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id": string,"delta": number,"discount_cents"?: number | null,"id"?: string,"note"?: string | null,"payment_method"?: Database["public"]['Enums']["payment_method"] | null,"promotion_id"?: string | null,"reason": Database["public"]['Enums']["point_reason"],"seq"?: never
                   }
                   Update: {
-                    "balance_after"?: number,"check_in_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"delta"?: number,"id"?: string,"note"?: string | null,"promotion_id"?: string | null,"reason"?: Database["public"]['Enums']["point_reason"],"seq"?: never
+                    "balance_after"?: number,"check_in_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"delta"?: number,"discount_cents"?: number | null,"id"?: string,"note"?: string | null,"payment_method"?: Database["public"]['Enums']["payment_method"] | null,"promotion_id"?: string | null,"reason"?: Database["public"]['Enums']["point_reason"],"seq"?: never
                   }
                   Relationships: [
                     {
@@ -195,14 +195,14 @@ isOneToOne: false
                   ]
                 },"promotions": {
                   Row: {
-                    "created_at": string,"id": string,"is_active": boolean,"points_cost": number,"title": string,"type": Database["public"]['Enums']["promotion_type"],"updated_at": string
+                    "cash_discount_cents": number | null,"created_at": string,"discount_cents": number | null,"id": string,"is_active": boolean,"points_cost": number,"title": string,"type": Database["public"]['Enums']["promotion_type"],"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"points_cost": number,"title": string,"type"?: Database["public"]['Enums']["promotion_type"],"updated_at"?: string
+                    "cash_discount_cents"?: number | null,"created_at"?: string,"discount_cents"?: number | null,"id"?: string,"is_active"?: boolean,"points_cost": number,"title": string,"type"?: Database["public"]['Enums']["promotion_type"],"updated_at"?: string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"points_cost"?: number,"title"?: string,"type"?: Database["public"]['Enums']["promotion_type"],"updated_at"?: string
+                    "cash_discount_cents"?: number | null,"created_at"?: string,"discount_cents"?: number | null,"id"?: string,"is_active"?: boolean,"points_cost"?: number,"title"?: string,"type"?: Database["public"]['Enums']["promotion_type"],"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -303,6 +303,9 @@ isOneToOne: false
 "_birthday_status":
 { Args: { "p_customer_id": string }; Returns: Json
                            },
+"_cash_visits_since_reward":
+{ Args: { "p_customer_id": string }; Returns: number
+                           },
 "_checked_in_recently":
 { Args: { "p_customer_id": string }; Returns: boolean
                            },
@@ -322,10 +325,13 @@ isOneToOne: false
 { Args: { "p_customer_id"?: string,"p_delta_cents": number,"p_gift_voucher_id": string,"p_kind": Database["public"]['Enums']["gift_voucher_entry"],"p_note"?: string,"p_undoes"?: string }; Returns: number
                            },
 "_post_points":
-{ Args: { "p_actor"?: string,"p_check_in_id"?: string,"p_customer_id": string,"p_delta": number,"p_note"?: string,"p_promotion_id"?: string,"p_reason": Database["public"]['Enums']["point_reason"] }; Returns: number
+{ Args: { "p_actor"?: string,"p_check_in_id"?: string,"p_customer_id": string,"p_delta": number,"p_discount_cents"?: number,"p_note"?: string,"p_payment_method"?: Database["public"]['Enums']["payment_method"],"p_promotion_id"?: string,"p_reason": Database["public"]['Enums']["point_reason"] }; Returns: number
                            },
 "_redeem_birthday":
 { Args: { "p_actor": string,"p_customer_id": string,"p_source": Database["public"]['Enums']["check_in_source"] }; Returns: Json
+                           },
+"_reward_value":
+{ Args: { "p_customer_id": string,"p_promotion_id": string }; Returns: Json
                            },
 "_shop_today":
 { Args: Record<PropertyKey, never>; Returns: string
@@ -334,7 +340,7 @@ isOneToOne: false
 { Args: { "p_delta_cents": number,"p_gift_voucher_id": string,"p_note": string }; Returns: number
                            },
 "adjust_points":
-{ Args: { "p_customer_id": string,"p_delta": number,"p_note": string }; Returns: number
+{ Args: { "p_customer_id": string,"p_delta": number,"p_note": string,"p_payment_method"?: Database["public"]['Enums']["payment_method"] }; Returns: number
                            },
 "assert_signed_in":
 { Args: Record<PropertyKey, never>; Returns: undefined
@@ -350,6 +356,9 @@ isOneToOne: false
                            },
 "block_gift_voucher":
 { Args: { "p_gift_voucher_id": string,"p_reason": string }; Returns: undefined
+                           },
+"cash_visits_since_reward":
+{ Args: { "p_customer_id": string }; Returns: number
                            },
 "check_gift_voucher":
 { Args: { "p_code": string }; Returns: Json
@@ -370,7 +379,7 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
 "kiosk_check_in":
-{ Args: { "p_birthday_day"?: number,"p_birthday_month"?: number,"p_first_name"?: string,"p_last_name"?: string,"p_phone": string,"p_service_ids"?: (string)[],"p_technician_id"?: string }; Returns: Json
+{ Args: { "p_birthday_day"?: number,"p_birthday_month"?: number,"p_first_name"?: string,"p_last_name"?: string,"p_payment_method"?: Database["public"]['Enums']["payment_method"],"p_phone": string,"p_service_ids"?: (string)[],"p_technician_id"?: string }; Returns: Json
                            },
 "kiosk_lookup":
 { Args: { "p_phone": string }; Returns: Json
@@ -397,10 +406,13 @@ isOneToOne: false
 { Args: { "p_customer_id": string }; Returns: Json
                            },
 "redeem_reward":
-{ Args: { "p_customer_id": string,"p_promotion_id": string }; Returns: number
+{ Args: { "p_customer_id": string,"p_promotion_id": string }; Returns: Json
                            },
 "sell_gift_voucher":
 { Args: { "p_amount_cents": number,"p_code"?: string,"p_customer_id"?: string,"p_expires_on"?: string,"p_notes"?: string }; Returns: Json
+                           },
+"set_check_in_payment":
+{ Args: { "p_check_in_id": string,"p_payment_method": Database["public"]['Enums']["payment_method"] }; Returns: undefined
                            },
 "shop_day_start":
 { Args: { "p_days_ago"?: number }; Returns: string
@@ -421,7 +433,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "check_in_source": "kiosk"|"admin","discount_kind": "percent"|"amount","gift_voucher_entry": "sale"|"spend"|"undo"|"adjust"|"top_up","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "admin"|"staff"
+            "check_in_source": "kiosk"|"admin","discount_kind": "percent"|"amount","gift_voucher_entry": "sale"|"spend"|"undo"|"adjust"|"top_up","payment_method": "cash"|"card","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "admin"|"staff"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -541,7 +553,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "check_in_source": ["kiosk", "admin"],"discount_kind": ["percent", "amount"],"gift_voucher_entry": ["sale", "spend", "undo", "adjust", "top_up"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["admin", "staff"]
+            "check_in_source": ["kiosk", "admin"],"discount_kind": ["percent", "amount"],"gift_voucher_entry": ["sale", "spend", "undo", "adjust", "top_up"],"payment_method": ["cash", "card"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["admin", "staff"]
           }
         }
 } as const

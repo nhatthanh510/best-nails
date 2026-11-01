@@ -5,10 +5,12 @@ import { getStaff } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPhone, maskPhone, normalizePhone } from "@/lib/phone";
 import { discountLabel, type BirthdayStatus } from "@/lib/rewards";
+import type { Database } from "@/lib/database.types";
 import { isValidBirthday } from "@/lib/birthday";
 
 // Everything returned from here reaches a public screen, so it carries only what the
-// kiosk shows: first name, masked phone, points, visit count and birthday-discount state.
+// kiosk shows: first name, masked phone, points, visit count, cash visits towards the reward and
+// birthday-discount state.
 
 export type KioskBirthday = {
   /** Can use the birthday discount today. */
@@ -24,6 +26,8 @@ export type KioskCustomer = {
   maskedPhone: string;
   points: number;
   visits: number;
+  /** Visits paid in cash since their last points reward: a reward with a cash bonus pays more at its points in cash visits. */
+  cashVisits: number;
   birthday: KioskBirthday;
   /** When they checked in today (shop timezone), or null: someone coming back to redeem. */
   checkedInAt: string | null;
@@ -43,6 +47,7 @@ export type CheckInResult =
       firstName: string;
       pointsAwarded: number;
       points: number;
+      cashVisits: number;
       birthday: KioskBirthday;
       discountUsedToday: boolean;
     }
@@ -51,6 +56,7 @@ export type CheckInResult =
       firstName: string;
       lastCheckInAt: string;
       points: number;
+      cashVisits: number;
       birthday: KioskBirthday;
       discountUsedToday: boolean;
     }
@@ -60,7 +66,15 @@ export type CheckInResult =
 export type RedeemTarget = { kind: "reward"; rewardId: string } | { kind: "birthday" };
 
 export type RedeemResult =
-  | { status: "redeemed"; title: string; pointsSpent: number; points: number; redeemedAt: string }
+  | {
+      status: "redeemed";
+      title: string;
+      /** Why it's worth what it is, e.g. "For paying cash on 7 visits". */
+      note?: string;
+      pointsSpent: number;
+      points: number;
+      redeemedAt: string;
+    }
   | { status: "error"; message: string };
 
 const SIGNED_OUT = "This screen has been signed out. Ask the front desk for help.";
@@ -119,6 +133,7 @@ export async function lookupPhone(digits: string): Promise<LookupResult> {
     phone: string;
     points_balance: number;
     visit_count: number;
+    cash_visits: number;
     birthday: BirthdayStatus | null;
     today: TodayStatus | null;
   };
@@ -129,27 +144,41 @@ export async function lookupPhone(digits: string): Promise<LookupResult> {
       maskedPhone: maskPhone(c.phone),
       points: c.points_balance,
       visits: c.visit_count,
+      cashVisits: c.cash_visits ?? 0,
       birthday: kioskBirthday(c.birthday),
       ...kioskToday(c.today),
     },
   };
 }
 
+// The kiosk asks for one name ("What should we call you?"), as check-in kiosks do. The first
+// word is stored as the first name (the only part the kiosk ever shows) and the rest as the last
+// name, so the admin keeps both fields for staff to tidy up.
 const signupSchema = z.object({
-  firstName: z.string().trim().min(1, "Please enter your first name.").max(50),
-  lastName: z.string().trim().max(50).optional(),
+  name: z
+    .string()
+    .transform((v) => v.trim().split(/\s+/).filter(Boolean))
+    .refine((words) => words.length > 0, { message: "Please enter your name.", abort: true })
+    .refine((words) => words[0].length <= 50 && words.slice(1).join(" ").length <= 50, "Please use a shorter name.")
+    .transform(([first, ...rest]) => ({ firstName: first, lastName: rest.join(" ") || undefined })),
   birthdayMonth: z.coerce.number().int().min(1).max(12).optional(),
   birthdayDay: z.coerce.number().int().min(1).max(31).optional(),
 });
 
 export type SignupInput = z.input<typeof signupSchema>;
 
-/** What the customer picked on the services (at least one, when the shop has any on) and staff (can be skipped) steps. */
-export type VisitPicks = { serviceIds: string[]; technicianId: string | null };
+export type PaymentMethod = Database["public"]["Enums"]["payment_method"];
+
+/**
+ * What the customer picked on the services (at least one, when the shop has any on), staff (can be
+ * skipped) and payment (when a reward pays more for cash) steps.
+ */
+export type VisitPicks = { serviceIds: string[]; technicianId: string | null; paymentMethod?: PaymentMethod | null };
 
 const picksSchema = z.object({
   serviceIds: z.array(z.string().uuid()).max(50),
   technicianId: z.string().uuid().nullable(),
+  paymentMethod: z.enum(["cash", "card"]).nullish(),
 });
 
 export async function checkIn(digits: string, signup?: SignupInput, picks?: VisitPicks): Promise<CheckInResult> {
@@ -181,12 +210,13 @@ export async function checkIn(digits: string, signup?: SignupInput, picks?: Visi
   const supabase = createAdminClient();
   const { data, error } = await supabase.rpc("kiosk_check_in", {
     p_phone: phone,
-    p_first_name: profile?.firstName,
-    p_last_name: profile?.lastName || undefined,
+    p_first_name: profile?.name.firstName,
+    p_last_name: profile?.name.lastName,
     p_birthday_month: profile?.birthdayMonth,
     p_birthday_day: profile?.birthdayDay,
     p_service_ids: parsedPicks?.data.serviceIds.length ? parsedPicks.data.serviceIds : undefined,
     p_technician_id: parsedPicks?.data.technicianId ?? undefined,
+    p_payment_method: parsedPicks?.data.paymentMethod ?? undefined,
   });
   if (error || !data) return { status: "error", message: OFFLINE };
 
@@ -205,6 +235,7 @@ export async function checkIn(digits: string, signup?: SignupInput, picks?: Visi
       firstName,
       lastCheckInAt: result.last_check_in_at as string,
       points: result.points_balance as number,
+      cashVisits: (result.cash_visits as number) ?? 0,
       birthday,
       discountUsedToday,
     };
@@ -215,6 +246,7 @@ export async function checkIn(digits: string, signup?: SignupInput, picks?: Visi
     firstName,
     pointsAwarded: result.points_awarded as number,
     points: result.points_balance as number,
+    cashVisits: (result.cash_visits as number) ?? 0,
     birthday,
     discountUsedToday,
   };
@@ -265,10 +297,14 @@ export async function redeemAtKiosk(digits: string, target: RedeemTarget): Promi
       redeemedAt: result.redeemed_at as string,
     };
   }
+  // A reward with amounts is named by what it gave ("$30 off"), with why when it's the cash amount.
+  const cents = result.discount_cents as number | null;
+  const spent = result.points_spent as number;
   return {
     status: "redeemed",
-    title: result.reward_title as string,
-    pointsSpent: result.points_spent as number,
+    title: cents ? (discountLabel({ amount_cents: cents }) ?? (result.reward_title as string)) : (result.reward_title as string),
+    note: result.cash_qualified ? `For paying cash on ${spent} visit${spent === 1 ? "" : "s"}` : undefined,
+    pointsSpent: spent,
     points: result.points_balance as number,
     redeemedAt: result.redeemed_at as string,
   };

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/admin/sidebar";
-import { RESTORE_SIDEBAR } from "@/lib/sidebar";
 import { Avatar } from "@/components/admin/ui";
 import { NavProgress } from "@/components/admin/nav-progress";
 import { getStaff } from "@/lib/auth";
@@ -15,8 +14,6 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
   // height so the panel can take what's left, and scrolls only if the screen is too short.
   return (
     <div data-admin className="flex min-h-dvh flex-1 flex-col bg-background md:flex-row md:has-[[data-list-panel]]:max-h-dvh">
-      {/* Runs as the page is read, before the sidebar paints: puts it back collapsed if it was. */}
-      <script dangerouslySetInnerHTML={{ __html: RESTORE_SIDEBAR }} />
       <Sidebar
         account={
           <Suspense fallback={<div className="h-11" />}>

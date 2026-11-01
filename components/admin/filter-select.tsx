@@ -2,7 +2,6 @@
 
 import { useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { startNavProgress } from "./nav-progress";
 
@@ -48,7 +47,6 @@ export function FilterSelect({
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute top-3.5 right-3 size-4 text-muted-foreground" aria-hidden="true" />
     </label>
   );
 }

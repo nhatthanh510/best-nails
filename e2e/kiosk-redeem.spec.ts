@@ -13,8 +13,7 @@ test.describe("Kiosk: points reward", () => {
     await seedCustomer({ phone: testPhone(10), firstName: "Gina", points: 9 });
     await kiosk.goto();
     await kiosk.enter(testPhone(10));
-    // 9 points: not ready until today's visit is added.
-    await expect(page.getByText(`1 more visit to ${REWARD}`)).toBeVisible();
+    // 9 points: ready once today's visit is added.
     await kiosk.checkIn();
 
     await expect(page.getByText("You're checked in, Gina!")).toBeVisible();
@@ -87,7 +86,8 @@ test.describe("Kiosk: birthday discount", () => {
     await seedCustomer({ phone: testPhone(14), firstName: "Kim", birthday: { month, day }, points: 2 });
     await kiosk.goto();
     await kiosk.enter(testPhone(14));
-    await expect(page.getByText("Happy birthday! 10% off is waiting.")).toBeVisible();
+    // The first visit step greets them with it.
+    await expect(page.getByText(/Happy birthday! 10% off is waiting\./)).toBeVisible();
     await kiosk.checkIn();
 
     await expect(redeemList(page).getByText("Our gift to you. No points needed")).toBeVisible();

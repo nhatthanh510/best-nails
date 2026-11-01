@@ -22,19 +22,22 @@ import {
   ErrorScreen,
   FoundScreen,
   KioskHeader,
+  PaymentScreen,
   RedeemedScreen,
   ServicesScreen,
   SignupScreen,
   StaffScreen,
   SuccessScreen,
+  type VisitSummary,
 } from "./screens";
 import { cn } from "@/lib/utils";
 import { isCompleteNumber, MAX_KIOSK_DIGITS } from "@/lib/phone-mask";
+import { hasCashBonus } from "@/lib/rewards";
 
 
 /**
- * A check-in on its way: after Check in (or Join) the customer picks services, then a technician,
- * before it's sent. `from` is the screen Back returns to; `signup` is what a new customer typed.
+ * A check-in on its way: after Check in (or Join) the customer picks services, then (optionally) a
+ * technician, then taps Cash or Card (when a reward gives more for cash), which sends it. `from` is the screen Back returns to; `signup` is what a new customer typed.
  */
 type Visit = { from: Extract<Screen, { name: "found" | "signup" }>; signup?: SignupInput } & VisitPicks;
 
@@ -44,7 +47,8 @@ export type Screen =
   | { name: "signup"; formattedPhone: string; nonStandard: boolean; initial?: SignupInput }
   | { name: "services"; visit: Visit }
   | { name: "staff"; visit: Visit }
-  | { name: "success"; result: Extract<CheckInResult, { status: "checked_in" }>; technician?: string }
+  | { name: "payment"; visit: Visit }
+  | { name: "success"; result: Extract<CheckInResult, { status: "checked_in" }>; summary: VisitSummary }
   | { name: "already"; result: Extract<CheckInResult, { status: "already_checked_in" }> }
   | { name: "redeemed"; result: Extract<RedeemResult, { status: "redeemed" }> }
   | { name: "error"; message: string };
@@ -111,19 +115,26 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     };
   }, [screen.name, digits, content.idleSeconds, reset, voucherOpen]);
 
-  const handleResult = (result: CheckInResult, technician?: string) => {
-    if (result.status === "checked_in") setScreen({ name: "success", result, technician });
+  const handleResult = (result: CheckInResult, summary: VisitSummary) => {
+    if (result.status === "checked_in") setScreen({ name: "success", result, summary });
     else if (result.status === "already_checked_in") setScreen({ name: "already", result });
     else if (result.status === "error") setScreen({ name: "error", message: result.message });
     else setScreen({ name: "error", message: "We couldn't find that number. Please try again." });
   };
+
 
   const submitPhone = () => {
     if (!isCompleteNumber(digits) || pending) return;
     startTransition(async () => {
       try {
         const result = await lookupPhone(digits);
-        if (result.status === "found") setScreen({ name: "found", customer: result.customer });
+        // Checked in today already: the redeem screen. Otherwise straight into the visit steps
+        // (the first one greets them by name, with "Not you? Start over").
+        if (result.status === "found") {
+          const found = { name: "found", customer: result.customer } as const;
+          if (result.customer.checkedInAt) setScreen(found);
+          else startVisit(found);
+        }
         else if (result.status === "not_found")
           setScreen({ name: "signup", formattedPhone: result.formattedPhone, nonStandard: result.nonStandard });
         else if (result.status === "invalid_phone") setPhoneError(result.message);
@@ -136,34 +147,69 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
 
   const submitCheckIn = (visit: Visit) => {
     if (pending) return;
-    const technician = content.technicians.find((t) => t.id === visit.technicianId)?.name;
+    const summary: VisitSummary = {
+      services: content.services.flatMap((c) => c.services).filter((sv) => visit.serviceIds.includes(sv.id)).map((sv) => sv.name),
+      technician: content.technicians.find((t) => t.id === visit.technicianId)?.name,
+      payment: visit.paymentMethod,
+    };
     startTransition(async () => {
       try {
-        handleResult(await checkIn(digits, visit.signup, { serviceIds: visit.serviceIds, technicianId: visit.technicianId }), technician);
+        handleResult(
+          await checkIn(digits, visit.signup, {
+            serviceIds: visit.serviceIds,
+            technicianId: visit.technicianId,
+            paymentMethod: visit.paymentMethod,
+          }),
+          summary,
+        );
       } catch {
         setScreen({ name: "error", message: "We can't reach rewards right now." });
       }
     });
   };
 
-  // Check in → services → staff → checked in. Services need at least one pick; staff can be
-  // skipped. A step with nothing turned on in the admin is left out.
+  // Check in → services → staff → Cash or Card (the tap checks in) → checked in. Services need at
+  // least one pick; staff can be skipped; payment is asked only when a reward gives more for cash.
+  // A step with nothing turned on in the admin is left out.
   const hasServices = content.services.length > 0;
   const hasStaff = content.technicians.length > 0;
+  const hasPayment = content.rewards.some(hasCashBonus);
+  const cashReward = content.rewards.find(hasCashBonus) ?? null;
   const startVisit = (from: Visit["from"], signup?: SignupInput) => {
-    const visit: Visit = { from, signup, serviceIds: [], technicianId: null };
+    const visit: Visit = { from, signup, serviceIds: [], technicianId: null, paymentMethod: null };
     if (hasServices) setScreen({ name: "services", visit });
-    else if (hasStaff) setScreen({ name: "staff", visit });
-    else submitCheckIn(visit);
+    else afterServices(visit);
   };
   const afterServices = (visit: Visit) => {
     if (hasStaff) setScreen({ name: "staff", visit });
+    else afterStaff(visit);
+  };
+  const afterStaff = (visit: Visit) => {
+    if (hasPayment) setScreen({ name: "payment", visit });
     else submitCheckIn(visit);
   };
-  const backFrom = (step: "services" | "staff", visit: Visit) => {
-    if (step === "staff" && hasServices) setScreen({ name: "services", visit });
+  const backFrom = (step: "services" | "staff" | "payment", visit: Visit) => {
+    if (step === "payment" && hasStaff) setScreen({ name: "staff", visit });
+    else if (step !== "services" && hasServices) setScreen({ name: "services", visit });
     else if (visit.from.name === "signup") setScreen({ ...visit.from, initial: visit.signup });
-    else setScreen(visit.from);
+    else reset();
+  };
+
+  // The first step of a returning customer's visit says who they are, with "Not you? Start over".
+  const introFor = (step: "services" | "staff" | "payment", visit: Visit) => {
+    if (visit.from.name !== "found") return {};
+    const c = visit.from.customer;
+    const first = step === "services" || (step === "staff" && !hasServices) || (step === "payment" && !hasServices && !hasStaff);
+    return {
+      greeting: (
+        <>
+          Welcome back, <span className="font-bold text-kiosk-ink">{c.firstName}</span> ·{" "}
+          <span className="tabular-nums">{c.maskedPhone}</span>
+          {c.birthday.eligible && c.birthday.label && ` · Happy birthday! ${c.birthday.label} is waiting.`}
+        </>
+      ),
+      backLabel: first ? "Not you? Start over" : "Back",
+    };
   };
 
   const redeem = (target: RedeemTarget) => {
@@ -206,7 +252,10 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
 
   // Once the customer has typed their number (and they exist), a voucher sold or used here is
   // linked to them. Before that, and on sign-up, it opens without a customer.
-  const picking = (screen.name === "services" || screen.name === "staff") && screen.visit.from.name === "found" ? screen.visit.from : null;
+  const picking =
+    (screen.name === "services" || screen.name === "staff" || screen.name === "payment") && screen.visit.from.name === "found"
+      ? screen.visit.from
+      : null;
   const customerName =
     screen.name === "found"
       ? screen.customer.firstName
@@ -220,7 +269,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
 
   return (
     // The number screen fits the screen exactly in landscape, so its keypad can fill the height.
-    <div className={cn("flex min-h-dvh w-full flex-col bg-kiosk-bg", screen.name === "enter" && "lg:h-dvh lg:min-h-[600px]")}>
+    <div data-kiosk className={cn("flex min-h-dvh w-full flex-col bg-kiosk-bg", screen.name === "enter" && "lg:h-dvh lg:min-h-[600px]")}>
       <KioskHeader
         isAdmin={isAdmin}
         onSignOut={() => setSigningOut(true)}
@@ -254,11 +303,9 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
         );
       case "found":
         return (
-<FoundScreen
+          <FoundScreen
             customer={screen.customer}
             content={content}
-            pending={pending}
-            onCheckIn={() => startVisit(screen)}
             onStartOver={reset}
             onDone={reset}
             redeem={redeemProps}
@@ -269,7 +316,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
           <SignupScreen
             formattedPhone={screen.formattedPhone}
             nonStandard={screen.nonStandard}
-            content={content}
+            birthday={content.birthday}
             pending={pending}
             initial={screen.initial}
             onSubmit={(signup) => startVisit({ ...screen, initial: undefined }, signup)}
@@ -282,7 +329,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
           <ServicesScreen
             categories={content.services}
             selected={visit.serviceIds}
-            isLast={!hasStaff}
+            isLast={!hasStaff && !hasPayment}
             pending={pending}
             onToggle={(id) =>
               setScreen({
@@ -294,6 +341,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
               })
             }
             onBack={() => backFrom("services", visit)}
+            {...introFor("services", visit)}
             onNext={() => afterServices(visit)}
           />
         );
@@ -304,11 +352,29 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
           <StaffScreen
             technicians={content.technicians}
             selected={visit.technicianId}
+            isLast={!hasPayment}
             pending={pending}
             onSelect={(id) => setScreen({ name: "staff", visit: { ...visit, technicianId: id } })}
             onBack={() => backFrom("staff", visit)}
-            onSkip={() => submitCheckIn({ ...visit, technicianId: null })}
-            onNext={() => submitCheckIn(visit)}
+            {...introFor("staff", visit)}
+            onSkip={() => afterStaff({ ...visit, technicianId: null })}
+            onNext={() => afterStaff(visit)}
+          />
+        );
+      }
+      case "payment": {
+        const { visit } = screen;
+        return (
+          <PaymentScreen
+            reward={cashReward}
+            pending={pending}
+            onPick={(method) => {
+              const next = { ...visit, paymentMethod: method };
+              setScreen({ name: "payment", visit: next });
+              submitCheckIn(next);
+            }}
+            onBack={() => backFrom("payment", visit)}
+            {...introFor("payment", visit)}
           />
         );
       }
@@ -316,7 +382,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
         return (
           <SuccessScreen
             result={screen.result}
-            technician={screen.technician}
+            summary={screen.summary}
             seconds={SUCCESS_SECONDS}
             onDone={reset}
             paused={voucherOpen}

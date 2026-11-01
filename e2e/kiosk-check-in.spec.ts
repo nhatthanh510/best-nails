@@ -86,12 +86,12 @@ test.describe("Kiosk: joining and checking in", () => {
     expect(customer).toMatchObject({ first_name: "Alice", points_balance: 1, lifetime_points: 1, visit_count: 1 });
   });
 
-  test("K-05 an empty first name is flagged by the field", async ({ kiosk, page }) => {
+  test("K-05 an empty name is flagged by the field", async ({ kiosk, page }) => {
     await kiosk.goto();
     await kiosk.enter(testPhone(2));
     await page.getByRole("button", { name: "Join & check in" }).click();
-    await expect(alert(page, "Please enter your first name.")).toBeVisible();
-    await expect(page.getByLabel("First name")).toHaveAttribute("aria-invalid", "true");
+    await expect(alert(page, "Please enter your name.")).toBeVisible();
+    await expect(page.getByLabel("Your name")).toHaveAttribute("aria-invalid", "true");
     expect(await findCustomer(testPhone(2))).toBeNull();
   });
 
@@ -111,7 +111,7 @@ test.describe("Kiosk: joining and checking in", () => {
     await month.selectOption({ label: "April" });
     await expect(day).toHaveValue("");
 
-    await page.getByLabel("First name").fill("Bea");
+    await page.getByLabel("Your name").fill("Bea");
     await page.getByRole("button", { name: "Join & check in" }).click();
     await expect(alert(page, "Please pick both the day and the month of your birthday, or leave both blank.")).toBeVisible();
 
@@ -123,21 +123,23 @@ test.describe("Kiosk: joining and checking in", () => {
     await expect(page.getByText("You're checked in, Bea!")).toBeVisible();
   });
 
-  test("K-09 a returning customer sees a masked number, their points and Check in", async ({ kiosk, page }) => {
+  test("K-09 a returning customer goes straight to the visit steps, greeted by name with a masked number", async ({ kiosk, page }) => {
     await createReward("E2E 10% off", 10);
     await seedCustomer({ phone: testPhone(4), firstName: "Cara", points: 6 });
     await kiosk.goto();
     await kiosk.enter(testPhone(4));
 
-    await expect(page.getByRole("heading", { name: "Welcome back, Cara!" })).toBeVisible();
-    await expect(page.getByText("04•• ••• 104")).toBeVisible();
+    // No Welcome back → Check in step: the first visit step says who they are.
+    await expect(page.getByRole("heading", { name: "What are you in for today?" })).toBeVisible();
+    await expect(page.getByText(/Welcome back, Cara · 04•• ••• 104/)).toBeVisible();
     await expect(page.getByText("0491 570 104")).toHaveCount(0);
-    await expect(page.getByRole("img", { name: "6 of 10 stamps" })).toBeVisible();
-    await expect(page.getByText("4 more visits to E2E 10% off")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Not you? Start over" })).toBeVisible();
 
     await kiosk.checkIn();
     await expect(page.getByText("You're checked in, Cara!")).toBeVisible();
     await expect(page.locator("p").filter({ hasText: "you now have" })).toHaveText("+1 point · you now have 7");
+    await expect(page.getByRole("img", { name: "7 of 10 stamps" })).toBeVisible();
+    await expect(page.getByText("3 more visits to E2E 10% off")).toBeVisible();
   });
 
   test("K-10 after Check in the customer picks services and their technician", async ({ kiosk, page }) => {
@@ -145,7 +147,6 @@ test.describe("Kiosk: joining and checking in", () => {
     await seedCustomer({ phone: testPhone(8), firstName: "Fay" });
     await kiosk.goto();
     await kiosk.enter(testPhone(8));
-    await page.getByRole("button", { name: "Check in", exact: true }).click();
 
     await expect(page.getByRole("heading", { name: "What are you in for today?" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Waxing" })).toBeVisible();
@@ -168,6 +169,9 @@ test.describe("Kiosk: joining and checking in", () => {
 
     await expect(page.getByText("You're checked in, Fay!")).toBeVisible();
     await expect(page.getByText("Have a seat. E2E Linh will be with you shortly.")).toBeVisible();
+    // The done screen lists what was recorded.
+    await expect(page.getByText("Full set · Deluxe pedicure")).toBeVisible();
+    await expect(page.getByText("With E2E Linh")).toBeVisible();
     expect(await lastVisit(testPhone(8))).toEqual({
       technician: "E2E Linh",
       services: ["Full set (Acrylic / Gel)", "Deluxe pedicure (Pedicure)"],

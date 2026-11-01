@@ -59,7 +59,8 @@ select set_config('request.jwt.claims', '{"sub":"cccccccc-0000-4000-8000-0000000
 select is((select count(*)::int from services), 0, 'a staff account cannot read the menu');
 update technicians set is_active = false;
 select set_config('request.jwt.claims', '{"sub":"cccccccc-0000-4000-8000-000000000001","role":"authenticated"}', true);
-select is((select count(*)::int from technicians where is_active), 1, '...nor change technicians');
+-- Only this test's technician: the shop may have its own.
+select is((select is_active from technicians where id = 'cccccccc-1111-4000-8000-000000000001'), true, '...nor change technicians');
 update services set is_active = false where name = 'Bikini';
 select is((select is_active from services where name = 'Bikini'), false, 'an admin can hide a service from the kiosk');
 -- top_services counts the history copies, so the deleted Deluxe pedicure above still counts.

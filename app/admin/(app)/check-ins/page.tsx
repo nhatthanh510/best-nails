@@ -7,7 +7,7 @@ import { FilterSelect } from "@/components/admin/filter-select";
 import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { tierFor } from "@/lib/tiers";
 import { CHECK_IN_RANGES, CHECK_INS_PAGE_SIZE, getSettings, listCheckIns, type CheckInRange, type VisitUse } from "@/lib/admin-data";
-import { VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
+import { VisitPayment, VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import { formatMoney } from "@/lib/gift-vouchers";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatTime, fullName } from "@/lib/format";
@@ -48,6 +48,9 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
   };
   // A stale or hand-typed page number past the end starts again from the first page.
   if (pastEnd || (page > 1 && rows.length === 0)) redirect(href({ page: 1 }));
+  // The kiosk asks how they're paying only while a reward pays more for cash, so a shop without one
+  // never sees an empty Paid column.
+  const showPayment = rows.some((r) => r.payment_method);
   const ranges = (Object.keys(CHECK_IN_RANGES) as CheckInRange[]).map((r) => ({ value: r, label: RANGE_LABELS[r], href: href({ range: r }) }));
   return (
     <>
@@ -89,13 +92,14 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
               <th className={th}>Customer</th>
               <th className={`${th} hidden lg:table-cell`}>Services</th>
               <th className={`${th} hidden lg:table-cell`}>Staff</th>
+              {showPayment && <th className={`${th} hidden w-20 lg:table-cell`}>Paid</th>}
               <th className={`${th} hidden md:table-cell`}>Redeemed</th>
               <th className={`${th} w-20 text-right sm:w-24`}>Points</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <EmptyRow colSpan={6}>{q ? `No check-ins in this period match “${q}”.` : "No check-ins in this period."}</EmptyRow>
+              <EmptyRow colSpan={showPayment ? 7 : 6}>{q ? `No check-ins in this period match “${q}”.` : "No check-ins in this period."}</EmptyRow>
             )}
             {rows.map((r) => (
               <tr key={r.id}>
@@ -123,7 +127,7 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
                     </>
                   )}
                   <div className="mt-1 lg:hidden">
-                    <VisitSummary services={r.services} staff={r.technician_name} />
+                    <VisitSummary services={r.services} staff={r.technician_name} payment={r.payment_method} />
                   </div>
                   {r.used.length > 0 && (
                     <div className="mt-1.5 md:hidden">
@@ -137,6 +141,11 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
                 <td className={`${td} hidden whitespace-nowrap lg:table-cell`}>
                   <VisitStaff name={r.technician_name} />
                 </td>
+                {showPayment && (
+                  <td className={`${td} hidden lg:table-cell`}>
+                    <VisitPayment method={r.payment_method} />
+                  </td>
+                )}
                 <td className={`${td} hidden md:table-cell`}>
                   <UsedPills used={r.used} />
                 </td>

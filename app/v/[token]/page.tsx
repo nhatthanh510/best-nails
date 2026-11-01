@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatMoney, type GiftVoucherStatus } from "@/lib/gift-vouchers";
 
 // A customer's own balance page, opened from the QR code on a printed gift voucher. Public: the
-// link's token is the secret (see the 20261101000000 migration). Keep it out of search engines
+// link's token is the secret (see public_token in the initial migration). Keep it out of search engines
 // and don't pass the link on to other sites.
 export const metadata: Metadata = {
   title: "Gift voucher balance",
