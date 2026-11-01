@@ -6,6 +6,7 @@ test.describe("Admin: rewards", () => {
     await page.goto("/admin/rewards");
     await page.getByRole("button", { name: "Add reward" }).click();
     await page.getByLabel("Reward", { exact: true }).fill("E2E Free nail art");
+    await page.getByLabel("Discount", { exact: true }).fill("10");
     await page.getByLabel("Points needed").fill("0");
     await page.getByRole("button", { name: "Create reward" }).click();
     await expect(alert(page, "It needs to cost at least 1 point.")).toBeVisible();

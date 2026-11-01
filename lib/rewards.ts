@@ -16,38 +16,74 @@ export function discountLabel(d: Discount): string | null {
 }
 
 /**
- * A points reward's amounts: `discountCents` (e.g. $10 off), and `cashDiscountCents` (e.g. $30 off)
- * when at least `cost` of the visits since the customer's last points reward were paid in cash.
- * Both null for a reward described only by its title ("Free nail art").
+ * A points reward's discounts, of one `kind` (`amount` in cents, or `percent`): `discount` (e.g.
+ * $10 off), and `cashDiscount` (e.g. $30 off) when at least `cost` of the visits since the
+ * customer's last points reward were paid in cash. Both null for an older reward described only by
+ * its title. A cash-only reward has `cashDiscount` without `discount`: nothing for card, so it waits
+ * for the cash visits.
  */
-export type RewardAmounts = { cost: number; discountCents: number | null; cashDiscountCents: number | null };
+export type RewardAmounts = { cost: number; kind: DiscountKind; discount: number | null; cashDiscount: number | null };
 
-/** The reward pays more for cash visits (both amounts set, cash bigger). */
+type RewardRow = Pick<Reward, "points_cost" | "discount_cents" | "cash_discount_cents" | "discount_percent" | "cash_discount_percent">;
+
+/** A `promotions` row's discounts: percentages when it has them, otherwise amounts. */
+export function rewardAmounts(r: RewardRow): RewardAmounts {
+  return r.cash_discount_percent != null
+    ? { cost: r.points_cost, kind: "percent", discount: r.discount_percent, cashDiscount: r.cash_discount_percent }
+    : { cost: r.points_cost, kind: "amount", discount: r.discount_cents, cashDiscount: r.cash_discount_cents };
+}
+
+/** "10% off" or "$10 off" for one of a reward's values. */
+function valueLabel(kind: DiscountKind, value: number): string {
+  return discountLabel(kind === "percent" ? { percent: value } : { amount_cents: value })!;
+}
+
+/** The reward pays more for cash visits: a bigger cash discount, or a cash discount only. */
 export function hasCashBonus(r: RewardAmounts): boolean {
-  return r.discountCents != null && r.cashDiscountCents != null && r.cashDiscountCents > r.discountCents;
+  return r.cashDiscount != null && (r.discount == null || r.cashDiscount > r.discount);
 }
 
-/** What the reward is worth to a customer with `cashVisits` cash visits since their last points reward (cents), or null for a title-only reward. Mirrors `_reward_value` in SQL. */
-export function rewardValueCents(r: RewardAmounts, cashVisits: number): number | null {
-  if (r.discountCents == null) return null;
-  return r.cashDiscountCents != null && cashVisits >= r.cost ? r.cashDiscountCents : r.discountCents;
+/** A discount only for cash visits (none for card). */
+export function isCashOnly(r: RewardAmounts): boolean {
+  return r.cashDiscount != null && r.discount == null;
 }
 
-/** The reward's name for a customer: "$30 off" / "$10 off" from its amounts, or its title. */
+/** Enough points, and for a cash-only reward enough cash visits. Mirrors the redeem functions in SQL. */
+export function canRedeem(r: RewardAmounts, points: number, cashVisits: number): boolean {
+  return points >= r.cost && (!isCashOnly(r) || cashVisits >= r.cost);
+}
+
+/** What the reward gives a customer with `cashVisits` cash visits since their last points reward, or null (title-only, or a cash-only one not yet reached). Mirrors `_reward_value` in SQL. */
+export function rewardValue(r: RewardAmounts, cashVisits: number): Discount | null {
+  const v = r.cashDiscount != null && cashVisits >= r.cost ? r.cashDiscount : r.discount;
+  if (v == null) return null;
+  return r.kind === "percent" ? { percent: v } : { amount_cents: v };
+}
+
+/** The reward's name for a customer: "$30 off" / "10% off" from its discounts, or its title. */
 export function rewardName(r: RewardAmounts & { title: string }, cashVisits: number): string {
-  const cents = rewardValueCents(r, cashVisits);
-  return cents ? `${dollars(cents)} off` : r.title;
+  const value = rewardValue(r, cashVisits);
+  return (value && discountLabel(value)) ?? r.title;
+}
+
+/** The cash discount's name, e.g. "$30 off". Null without one. */
+export function cashRewardName(r: RewardAmounts): string | null {
+  return r.cashDiscount != null ? valueLabel(r.kind, r.cashDiscount) : null;
 }
 
 /**
  * The cash rule in one line, stated as information rather than a push to pay cash, e.g. "$10 off
- * after 7 visits, or $30 off when all 7 are paid in cash". Null when the reward doesn't pay more
- * for cash.
+ * after 7 visits, or $30 off when all 7 are paid in cash", or for a cash-only reward "$30 off when
+ * 7 visits are paid in cash". Null when the reward doesn't pay more for cash.
  */
 export function cashBonusLine(r: RewardAmounts): string | null {
   if (!hasCashBonus(r)) return null;
+  const cash = valueLabel(r.kind, r.cashDiscount!);
+  if (r.discount == null) {
+    return `${cash} when ${r.cost} visit${r.cost === 1 ? " is" : "s are"} paid in cash`;
+  }
   const all = r.cost === 1 ? "it's" : `all ${r.cost} are`;
-  return `${dollars(r.discountCents!)} off after ${r.cost} visit${r.cost === 1 ? "" : "s"}, or ${dollars(r.cashDiscountCents!)} off when ${all} paid in cash`;
+  return `${valueLabel(r.kind, r.discount)} after ${r.cost} visit${r.cost === 1 ? "" : "s"}, or ${cash} when ${all} paid in cash`;
 }
 
 function dollars(cents: number) {

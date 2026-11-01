@@ -171,7 +171,7 @@ export type PaymentMethod = Database["public"]["Enums"]["payment_method"];
 
 /**
  * What the customer picked on the services (at least one, when the shop has any on), staff (can be
- * skipped) and payment (when a reward pays more for cash) steps.
+ * skipped) and payment (always asked) steps.
  */
 export type VisitPicks = { serviceIds: string[]; technicianId: string | null; paymentMethod?: PaymentMethod | null };
 
@@ -257,6 +257,7 @@ const REDEEM_ERRORS: Record<string, string> = {
   reward_unavailable: "That reward isn't available any more. Please ask the front desk.",
   check_in_required: "Please check in first, then you can redeem.",
   insufficient_points: "You don't have enough points for that reward yet.",
+  cash_visits_required: "That reward is for visits paid in cash, and you don't have enough of them yet.",
   already_used: "Your birthday discount has already been used this year.",
   not_eligible: "Your birthday discount isn't available today.",
   discount_used_today: "You've already had a discount today. It's one per visit, so save your points for next time.",
@@ -298,11 +299,11 @@ export async function redeemAtKiosk(digits: string, target: RedeemTarget): Promi
     };
   }
   // A reward with amounts is named by what it gave ("$30 off"), with why when it's the cash amount.
-  const cents = result.discount_cents as number | null;
+  const label = discountLabel({ amount_cents: result.discount_cents as number | null, percent: result.discount_percent as number | null });
   const spent = result.points_spent as number;
   return {
     status: "redeemed",
-    title: cents ? (discountLabel({ amount_cents: cents }) ?? (result.reward_title as string)) : (result.reward_title as string),
+    title: label ?? (result.reward_title as string),
     note: result.cash_qualified ? `For paying cash on ${spent} visit${spent === 1 ? "" : "s"}` : undefined,
     pointsSpent: spent,
     points: result.points_balance as number,

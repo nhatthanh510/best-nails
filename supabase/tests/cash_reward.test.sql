@@ -3,7 +3,7 @@
 -- taken back by hand carry the adjust row's payment_method. Runs in one transaction and rolls back.
 begin;
 set search_path = public, extensions;
-select plan(22);
+select plan(31);
 
 insert into auth.users (id, email) values
   ('ffffffff-0000-4000-8000-000000000001', 'cash-admin@example.test'),
@@ -15,7 +15,10 @@ insert into public.staff (user_id, display_name, role) values
 update public.promotions set is_active = false;
 insert into public.promotions (id, title, type, points_cost, discount_cents, cash_discount_cents) values
   ('ffffffff-1111-4000-8000-000000000001', '$10 off, $30 with cash', 'reward', 7, 1000, 3000),
-  ('ffffffff-1111-4000-8000-000000000002', 'Free nail art', 'reward', 7, null, null);
+  ('ffffffff-1111-4000-8000-000000000002', 'Free nail art', 'reward', 7, null, null),
+  ('ffffffff-1111-4000-8000-000000000003', '$30 off with cash', 'reward', 7, null, 3000);
+insert into public.promotions (id, title, type, points_cost, discount_percent, cash_discount_percent) values
+  ('ffffffff-1111-4000-8000-000000000004', '10% off, 20% with cash', 'reward', 7, 10, 20);
 
 -- One kiosk visit per day: each new check-in pushes the customer's earlier ones a day back, so the
 -- last one is today (redeeming needs a check-in in the last 12 hours).
@@ -111,6 +114,34 @@ update public.check_ins set voided_at = now()
               where u.phone = '+61400007005' and c.payment_method = 'cash' order by c.created_at limit 1);
 select is(pg_temp.cash('+61400007005'), 4, 'an undone visit does not count');
 
+-- A cash-only reward waits for its cash visits ------------------------------------------------
+select pg_temp.visits('+61400007006', array['cash','cash','cash','card','cash','cash','cash']::public.payment_method[]);
+insert into r values ('d', public.kiosk_redeem('+61400007006', 'ffffffff-1111-4000-8000-000000000003'));
+select is((select v->>'status' from r where k = 'd'), 'cash_visits_required', 'a cash-only reward needs its cash visits');
+select is((select points_balance from public.customers where phone = '+61400007006'), 7, '...and spends no points');
+select pg_temp.visits('+61400007006', array['cash']::public.payment_method[]);
+insert into r values ('e', public.kiosk_redeem('+61400007006', 'ffffffff-1111-4000-8000-000000000003'));
+select is((select v->>'discount_cents' from r where k = 'e'), '3000', '...then gives the cash discount');
+
+select pg_temp.visits('+61400007007', array['card','card','card','card','card','card','card']::public.payment_method[]);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"ffffffff-0000-4000-8000-000000000001","role":"authenticated"}', true);
+select throws_ok(
+  format($$ select public.redeem_reward(%L, 'ffffffff-1111-4000-8000-000000000003') $$,
+         (select id from public.customers where phone = '+61400007007')),
+  '22023', null, 'the admin cannot redeem a cash-only reward without the cash visits');
+reset role;
+select is((select points_balance from public.customers where phone = '+61400007007'), 7, '...and no points are spent');
+
+-- A percentage reward ------------------------------------------------------------------------
+select pg_temp.visits('+61400007008', array['cash','cash','cash','cash','cash','cash','cash']::public.payment_method[]);
+insert into r values ('f', public.kiosk_redeem('+61400007008', 'ffffffff-1111-4000-8000-000000000004'));
+select is((select v->>'discount_percent' from r where k = 'f'), '20', 'a percentage reward gives its cash percent');
+select is(
+  (select array[discount_percent, discount_cents] from public.point_transactions t join public.customers u on u.id = t.customer_id
+    where u.phone = '+61400007008' and t.reason = 'redeem'),
+  array[20, null]::integer[], '...and the redemption records the percent, not cents');
+
 -- Guards ---------------------------------------------------------------------------------------
 select throws_ok(
   $$ insert into public.promotions (title, type, points_cost, discount_cents, cash_discount_cents) values ('Bad', 'reward', 7, 3000, 1000) $$,
@@ -118,6 +149,13 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.promotions (title, type, points_cost, discount_cents) values ('Half', 'reward', 7, 1000) $$,
   '23514', null, 'a reward has both amounts or neither');
+
+select throws_ok(
+  $$ insert into public.promotions (title, type, points_cost, cash_discount_cents, cash_discount_percent) values ('Both', 'reward', 7, 1000, 10) $$,
+  '23514', null, 'a reward is amounts or percentages, not both');
+select throws_ok(
+  $$ insert into public.promotions (title, type, points_cost, cash_discount_percent) values ('Too much', 'reward', 7, 120) $$,
+  '23514', null, 'a percentage is at most 100');
 
 select * from finish();
 rollback;

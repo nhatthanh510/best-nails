@@ -48,8 +48,8 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
   };
   // A stale or hand-typed page number past the end starts again from the first page.
   if (pastEnd || (page > 1 && rows.length === 0)) redirect(href({ page: 1 }));
-  // The kiosk asks how they're paying only while a reward pays more for cash, so a shop without one
-  // never sees an empty Paid column.
+  // The kiosk asks every visit how they're paying; a period of only older visits (from before it
+  // asked) has no Paid column rather than an empty one.
   const showPayment = rows.some((r) => r.payment_method);
   const ranges = (Object.keys(CHECK_IN_RANGES) as CheckInRange[]).map((r) => ({ value: r, label: RANGE_LABELS[r], href: href({ range: r }) }));
   return (

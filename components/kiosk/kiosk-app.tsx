@@ -169,11 +169,11 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   };
 
   // Check in → services → staff → Cash or Card (the tap checks in) → checked in. Services need at
-  // least one pick; staff can be skipped; payment is asked only when a reward gives more for cash.
-  // A step with nothing turned on in the admin is left out.
+  // least one pick; staff can be skipped; payment is always asked (the shop records how every visit
+  // was paid, and a reward may give more for cash). Services or staff with nothing turned on in the
+  // admin are left out.
   const hasServices = content.services.length > 0;
   const hasStaff = content.technicians.length > 0;
-  const hasPayment = content.rewards.some(hasCashBonus);
   const cashReward = content.rewards.find(hasCashBonus) ?? null;
   const startVisit = (from: Visit["from"], signup?: SignupInput) => {
     const visit: Visit = { from, signup, serviceIds: [], technicianId: null, paymentMethod: null };
@@ -185,8 +185,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     else afterStaff(visit);
   };
   const afterStaff = (visit: Visit) => {
-    if (hasPayment) setScreen({ name: "payment", visit });
-    else submitCheckIn(visit);
+    setScreen({ name: "payment", visit });
   };
   const backFrom = (step: "services" | "staff" | "payment", visit: Visit) => {
     if (step === "payment" && hasStaff) setScreen({ name: "staff", visit });
@@ -329,7 +328,6 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
           <ServicesScreen
             categories={content.services}
             selected={visit.serviceIds}
-            isLast={!hasStaff && !hasPayment}
             pending={pending}
             onToggle={(id) =>
               setScreen({
@@ -352,7 +350,6 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
           <StaffScreen
             technicians={content.technicians}
             selected={visit.technicianId}
-            isLast={!hasPayment}
             pending={pending}
             onSelect={(id) => setScreen({ name: "staff", visit: { ...visit, technicianId: id } })}
             onBack={() => backFrom("staff", visit)}

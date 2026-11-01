@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { birthdayOffer, birthdayPitch, birthdayWindowLabel, cashBonusLine, discountLabel, hasCashBonus, rewardName, rewardValueCents } from "./rewards";
+import { birthdayOffer, birthdayPitch, birthdayWindowLabel, canRedeem, cashBonusLine, discountLabel, hasCashBonus, isCashOnly, rewardAmounts, rewardName, rewardValue } from "./rewards";
 
 describe("birthdayWindowLabel", () => {
   it("names the window the way the kiosk says it", () => {
@@ -84,19 +84,24 @@ describe("birthdayPitch", () => {
 });
 
 describe("cash bonus reward", () => {
-  const cash = { title: "Loyalty reward", cost: 7, discountCents: 1000, cashDiscountCents: 3000 };
-  const titleOnly = { title: "Free nail art", cost: 7, discountCents: null, cashDiscountCents: null };
+  const cash = { title: "Loyalty reward", cost: 7, kind: "amount" as const, discount: 1000, cashDiscount: 3000 };
+  const titleOnly = { title: "Free nail art", cost: 7, kind: "amount" as const, discount: null, cashDiscount: null };
+  const percent = { title: "Loyalty reward", cost: 10, kind: "percent" as const, discount: 10, cashDiscount: 20 };
 
-  it("gives the cash amount from the reward's points in cash visits, the other amount below that", () => {
-    expect(rewardValueCents(cash, 7)).toBe(3000);
-    expect(rewardValueCents(cash, 9)).toBe(3000);
-    expect(rewardValueCents(cash, 6)).toBe(1000);
-    expect(rewardValueCents(titleOnly, 7)).toBeNull();
+  it("gives the cash discount from the reward's points in cash visits, the other one below that", () => {
+    expect(rewardValue(cash, 7)).toEqual({ amount_cents: 3000 });
+    expect(rewardValue(cash, 9)).toEqual({ amount_cents: 3000 });
+    expect(rewardValue(cash, 6)).toEqual({ amount_cents: 1000 });
+    expect(rewardValue(percent, 10)).toEqual({ percent: 20 });
+    expect(rewardValue(percent, 3)).toEqual({ percent: 10 });
+    expect(rewardValue(titleOnly, 7)).toBeNull();
   });
 
   it("names the reward by what it's worth, or by its title", () => {
     expect(rewardName(cash, 7)).toBe("$30 off");
     expect(rewardName(cash, 0)).toBe("$10 off");
+    expect(rewardName(percent, 10)).toBe("20% off");
+    expect(rewardName(percent, 0)).toBe("10% off");
     expect(rewardName(titleOnly, 7)).toBe("Free nail art");
   });
 
@@ -104,7 +109,35 @@ describe("cash bonus reward", () => {
     expect(hasCashBonus(cash)).toBe(true);
     expect(cashBonusLine(cash)).toBe("$10 off after 7 visits, or $30 off when all 7 are paid in cash");
     expect(cashBonusLine({ ...cash, cost: 1 })).toBe("$10 off after 1 visit, or $30 off when it's paid in cash");
-    expect(hasCashBonus({ ...cash, cashDiscountCents: 1000 })).toBe(false);
+    expect(cashBonusLine(percent)).toBe("10% off after 10 visits, or 20% off when all 10 are paid in cash");
+    expect(hasCashBonus({ ...cash, cashDiscount: 1000 })).toBe(false);
     expect(cashBonusLine(titleOnly)).toBeNull();
+  });
+
+  it("handles a discount only for cash", () => {
+    const cashOnly = { title: "Cash reward", cost: 7, kind: "amount" as const, discount: null, cashDiscount: 3000 };
+    expect(hasCashBonus(cashOnly)).toBe(true);
+    expect(isCashOnly(cashOnly)).toBe(true);
+    expect(isCashOnly(cash)).toBe(false);
+    expect(rewardValue(cashOnly, 7)).toEqual({ amount_cents: 3000 });
+    expect(rewardValue(cashOnly, 6)).toBeNull();
+    expect(cashBonusLine(cashOnly)).toBe("$30 off when 7 visits are paid in cash");
+    expect(cashBonusLine({ ...cashOnly, cost: 1 })).toBe("$30 off when 1 visit is paid in cash");
+    expect(cashBonusLine({ ...cashOnly, kind: "percent", cashDiscount: 15 })).toBe("15% off when 7 visits are paid in cash");
+    expect(canRedeem(cashOnly, 7, 6)).toBe(false);
+    expect(canRedeem(cashOnly, 7, 7)).toBe(true);
+    expect(canRedeem(cash, 7, 0)).toBe(true);
+    expect(canRedeem(cash, 6, 7)).toBe(false);
+  });
+
+  it("reads a reward's row as amounts or percentages", () => {
+    const row = { points_cost: 7, discount_cents: 1000, cash_discount_cents: 3000, discount_percent: null, cash_discount_percent: null };
+    expect(rewardAmounts(row)).toEqual({ cost: 7, kind: "amount", discount: 1000, cashDiscount: 3000 });
+    expect(rewardAmounts({ ...row, discount_cents: null, cash_discount_cents: null, cash_discount_percent: 20 })).toEqual({
+      cost: 7,
+      kind: "percent",
+      discount: null,
+      cashDiscount: 20,
+    });
   });
 });

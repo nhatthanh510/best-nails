@@ -11,7 +11,7 @@ import { UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
 import { requireAdmin } from "@/lib/auth";
 import { deleteCustomer, redeemBirthday, redeemReward } from "@/app/admin/actions";
 import { formatPhone, isStandardPhone } from "@/lib/phone";
-import { discountLabel, hasCashBonus, rewardName, type BirthdayStatus, type Reward } from "@/lib/rewards";
+import { canRedeem, discountLabel, hasCashBonus, isCashOnly, rewardAmounts, rewardName, type BirthdayStatus, type Reward } from "@/lib/rewards";
 import { formatBirthday, formatDate, formatLastVisit, formatTime, fullName, initials, isShopToday, signed } from "@/lib/format";
 import { AdjustPointsForm, EditCustomerButton } from "./customer-actions";
 import { formatMoney } from "@/lib/gift-vouchers";
@@ -73,7 +73,6 @@ async function CustomerDetail({
   if (!data) notFound();
   const { customer: c, ledger, rewards, birthday: bday, birthdayHistory, cashVisits } = data;
   // A reward that gives more for cash: the kiosk asks how each visit is paid; Adjust points can count made-up visits as cash.
-  const cashRewards = rewards.some((r) => hasCashBonus(amounts(r)));
   const tz = settings.timezone;
   const birthday = formatBirthday(c.birthday_month, c.birthday_day);
   // Check-ins happen on the kiosk; the header just says whether they've had today's.
@@ -93,8 +92,8 @@ async function CustomerDetail({
   const historyHref = (p: number) => `/admin/customers/${c.id}${p > 1 ? `?page=${p}` : ""}`;
   if (page > 1 && (page - 1) * HISTORY_PAGE_SIZE >= history.length) redirect(historyHref(1));
   const historyPage = history.slice((page - 1) * HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE);
-  // A Paid column only when this page has visits the kiosk asked about (it asks while a reward pays
-  // more for cash), as on Check-ins.
+  // A Paid column only when this page has visits the kiosk asked about (every visit since it always
+  // asks; older ones may not have it), as on Check-ins.
   const showPayment = historyPage.some((h) => h.kind === "points" && h.row.visit?.payment_method);
   // Only what an admin did in the admin says who ("by Admin · Thu": a name on its own can read
   // like a day); check-ins and kiosk redemptions are always the kiosk.
@@ -172,22 +171,31 @@ async function CustomerDetail({
         {/* With one point per visit, lifetime points would just repeat Visits; what's next is more useful. */}
         <StatTile
           label="Next reward"
-          value={!reward ? "—" : c.points_balance >= reward.points_cost ? "Ready" : `${reward.points_cost - c.points_balance} to go`}
+          value={
+            !reward
+              ? "—"
+              : canRedeem(amounts(reward), c.points_balance, cashVisits)
+                ? "Ready"
+                : c.points_balance >= reward.points_cost
+                  ? "Needs cash visits"
+                  : `${reward.points_cost - c.points_balance} to go`
+          }
           hint={
             !reward ? (
               "No reward set up yet"
             ) : (
               <span className="flex flex-col gap-1.5">
                 <span>
-                  {c.points_balance >= reward.points_cost
+                  {canRedeem(amounts(reward), c.points_balance, cashVisits)
                     ? `${rewardName(named(reward), cashVisits)} can be redeemed`
+                    : c.points_balance >= reward.points_cost
+                    ? `Points ready · ${reward.title} is for ${reward.points_cost} visits paid in cash`
                     : `${Math.min(c.points_balance, reward.points_cost)} / ${reward.points_cost} points to ${reward.title}`}
                 </span>
-                {hasCashBonus(amounts(reward)) && (
-                  <span>
-                    {Math.min(cashVisits, reward.points_cost)} / {reward.points_cost} visits paid in cash
-                  </span>
-                )}
+                {/* Cash visits are tracked for every reward, not only one that pays more for cash. */}
+                <span>
+                  {Math.min(cashVisits, reward.points_cost)} / {reward.points_cost} visits paid in cash
+                </span>
                 <span className="h-1.5 overflow-hidden rounded-full bg-secondary" aria-hidden="true">
                   <span
                     className="block h-full rounded-full bg-gold"
@@ -229,7 +237,8 @@ async function CustomerDetail({
                       {h.row.note && (
                         <p className="text-[13px] text-muted-foreground">
                           {h.row.note}
-                          {h.row.discount_cents ? ` · ${discountLabel({ amount_cents: h.row.discount_cents })}` : ""}
+                          {discountLabel({ amount_cents: h.row.discount_cents, percent: h.row.discount_percent }) &&
+                            ` · ${discountLabel({ amount_cents: h.row.discount_cents, percent: h.row.discount_percent })}`}
                           {h.row.payment_method === "cash" ? " · cash visits" : ""}
                         </p>
                       )}
@@ -305,18 +314,22 @@ async function CustomerDetail({
             {rewards.map((r) => {
               const short = r.points_cost - c.points_balance;
               const cash = hasCashBonus(amounts(r));
+              // A cash-only reward also waits for its cash visits.
+              const cashShort = isCashOnly(amounts(r)) ? r.points_cost - cashVisits : 0;
+              const blocked = !canRedeem(amounts(r), c.points_balance, cashVisits);
               return (
                 <div key={r.id} className="flex items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-3">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[15px] font-bold">{cash ? rewardName(named(r), cashVisits) : r.title}</span>
                     <span className="text-[13px] text-muted-foreground">
-                      {r.points_cost} pts{short > 0 ? ` · needs ${short} more` : ""}
+                      {r.points_cost} pts
+                      {short > 0 ? ` · needs ${short} more` : cashShort > 0 ? ` · needs ${cashShort} more cash visit${cashShort === 1 ? "" : "s"}` : ""}
                     </span>
                   </div>
                   <ActionButton
                     size="sm"
-                    variant={short > 0 || discountToday ? "outline" : "default"}
-                    disabled={short > 0 || Boolean(discountToday)}
+                    variant={blocked || discountToday ? "outline" : "default"}
+                    disabled={blocked || Boolean(discountToday)}
                     action={redeemReward.bind(null, c.id, r.id)}
                   >
                     Redeem
@@ -349,7 +362,7 @@ async function CustomerDetail({
 
           <Card className="flex flex-col gap-3.5 p-5">
             <h2 className="text-lg font-extrabold">Adjust points</h2>
-            <AdjustPointsForm customerId={c.id} balance={c.points_balance} askPayment={cashRewards} />
+            <AdjustPointsForm customerId={c.id} balance={c.points_balance} />
           </Card>
 
 
@@ -372,9 +385,7 @@ async function CustomerDetail({
   );
 }
 
-function amounts(r: Reward) {
-  return { cost: r.points_cost, discountCents: r.discount_cents, cashDiscountCents: r.cash_discount_cents };
-}
+const amounts = rewardAmounts;
 
 function named(r: Reward) {
   return { ...amounts(r), title: r.title };

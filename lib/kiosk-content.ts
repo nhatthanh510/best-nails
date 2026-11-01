@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { birthdayOffer, birthdayPitch, type RewardAmounts, type TierDiscount } from "@/lib/rewards";
+import { birthdayOffer, birthdayPitch, rewardAmounts, type RewardAmounts, type TierDiscount } from "@/lib/rewards";
 
 /** An active reward. With amounts, it can pay more to customers who pay cash (`hasCashBonus`). */
 export type KioskReward = { id: string; title: string } & RewardAmounts;
@@ -29,7 +29,7 @@ export async function loadKioskContent(): Promise<KioskContent> {
   const supabase = createAdminClient();
   const [{ data: settings }, { data: rewards }, { data: categories }, { data: technicians }] = await Promise.all([
     supabase.from("settings").select("*").single(),
-    supabase.from("promotions").select("id, title, points_cost, discount_cents, cash_discount_cents").eq("is_active", true).order("points_cost"),
+    supabase.from("promotions").select("id, title, points_cost, discount_cents, cash_discount_cents, discount_percent, cash_discount_percent").eq("is_active", true).order("points_cost"),
     supabase
       .from("service_categories")
       .select("id, name, services(id, name, sort_order, is_active)")
@@ -52,9 +52,7 @@ export async function loadKioskContent(): Promise<KioskContent> {
     rewards: (rewards ?? []).map((r) => ({
       id: r.id,
       title: r.title,
-      cost: r.points_cost,
-      discountCents: r.discount_cents,
-      cashDiscountCents: r.cash_discount_cents,
+      ...rewardAmounts(r),
     })),
     birthday:
       settings?.birthday_discount_enabled && pitch

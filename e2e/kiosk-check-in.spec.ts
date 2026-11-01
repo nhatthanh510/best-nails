@@ -165,7 +165,10 @@ test.describe("Kiosk: joining and checking in", () => {
     await expect(pedicure.getByRole("checkbox", { name: "Deluxe pedicure" })).toBeChecked();
     await next.click();
     await page.getByRole("radio", { name: /E2E Linh/ }).click();
-    await page.getByRole("button", { name: "Check in", exact: true }).click();
+    await page.getByRole("button", { name: /^Next/ }).click();
+    // How they paid is always asked last, with or without a cash reward; the tap checks in.
+    await expect(page.getByRole("heading", { name: "How are you paying today?" })).toBeVisible();
+    await page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Card/ }).click();
 
     await expect(page.getByText("You're checked in, Fay!")).toBeVisible();
     await expect(page.getByText("Have a seat. E2E Linh will be with you shortly.")).toBeVisible();

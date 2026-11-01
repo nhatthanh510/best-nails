@@ -75,8 +75,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
     settingsPromise.then(getNotBackLately),
   ]);
   const tz = settings.timezone;
-  // A Paid column only when today has visits the kiosk asked about (it asks while a reward pays
-  // more for cash), as on Check-ins.
+  // A Paid column only when today has visits the kiosk asked about (it always asks now; visits from
+  // before that have none), as on Check-ins.
   const showPayment = stats.checkIns.some((c) => c.payment_method);
   const weekday = new Date().toLocaleDateString("en-AU", { weekday: "long", timeZone: tz });
   const change = stats.checkInsInPeriod - stats.checkInsBefore;

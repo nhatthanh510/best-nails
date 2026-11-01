@@ -9,7 +9,7 @@ import { Card, TierBadge } from "@/components/admin/ui";
 import { ConfirmButton, useActionToast } from "@/components/admin/action-button";
 import { deleteReward, saveBirthdayDiscount, saveReward } from "@/app/admin/actions";
 import type { Settings } from "@/lib/admin-data";
-import { cashBonusLine, type DiscountKind, type Reward } from "@/lib/rewards";
+import { cashBonusLine, rewardAmounts, type DiscountKind, type Reward } from "@/lib/rewards";
 import { cn } from "@/lib/utils";
 import { useFormSubmit } from "@/lib/use-form-submit";
 import { cleanNumber, numberInput } from "@/lib/number-input";
@@ -74,17 +74,20 @@ export function RewardsManager({ items }: { items: Item[] }) {
   );
 }
 
-function amounts(r: Reward) {
-  return { cost: r.points_cost, discountCents: r.discount_cents, cashDiscountCents: r.cash_discount_cents };
-}
+const amounts = rewardAmounts;
 
-const centsToDollars = (cents: number | null | undefined) => (cents == null ? "" : String(cents / 100));
+/** A saved value as typed in the form: dollars for an amount (stored in cents), the percent as is. */
+const typed = (kind: DiscountKind, v: number | null) => (v == null ? "" : kind === "amount" ? String(v / 100) : String(v));
 
 function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => void }) {
   const [state, formAction, pending] = useActionState(saveReward, null);
   useActionToast(state, { errors: false, onSuccess: onDone });
-  const [discount, setDiscount] = useState(centsToDollars(r?.discount_cents));
-  const [cash, setCash] = useState(centsToDollars(r?.cash_discount_cents));
+  const saved = r ? amounts(r) : null;
+  const [kind, setKind] = useState<DiscountKind>(saved?.kind ?? "amount");
+  const [discount, setDiscount] = useState(saved ? typed(saved.kind, saved.discount) : "");
+  const [cash, setCash] = useState(saved ? typed(saved.kind, saved.cashDiscount) : "");
+  const numberKind = kind === "amount" ? "money" : "digits";
+  const unit = kind === "amount" ? "$" : "%";
 
   const formSubmit = useFormSubmit(state, formAction);
   return (
@@ -96,10 +99,9 @@ function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => vo
           <Input
             id="title"
             name="title"
-            required={!discount}
             maxLength={80}
             defaultValue={r?.title}
-            placeholder={discount ? "Named from the discount" : "Free nail art"}
+            placeholder="Optional · named from the discount"
           />
         </div>
         <div className="flex flex-col gap-2">
@@ -107,35 +109,53 @@ function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => vo
           <Input id="points_cost" name="points_cost" {...numberInput("digits")} maxLength={5} required defaultValue={r?.points_cost ?? 10} />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[140px_1fr_1fr]">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="discount">Discount ($ off)</Label>
-          <Input
-            id="discount"
-            name="discount"
-            {...numberInput("money")}
-            maxLength={7}
-            value={discount}
-            onChange={(e) => setDiscount(cleanNumber("money", e.target.value))}
-            placeholder="10"
-          />
+          <Label htmlFor="discount_kind">Type</Label>
+          <select
+            id="discount_kind"
+            name="discount_kind"
+            value={kind}
+            onChange={(e) => {
+              const next = e.target.value as DiscountKind;
+              setKind(next);
+              // "7.50" isn't a percent: keep the whole number.
+              if (next === "percent") {
+                setDiscount((v) => v.split(".")[0]);
+                setCash((v) => v.split(".")[0]);
+              }
+            }}
+            className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px]"
+          >
+            <option value="amount">$ off</option>
+            <option value="percent">% off</option>
+          </select>
         </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="cash_discount">Cash discount ($ off)</Label>
-          <Input
-            id="cash_discount"
-            name="cash_discount"
-            {...numberInput("money")}
-            maxLength={7}
-            value={cash}
-            onChange={(e) => setCash(cleanNumber("money", e.target.value))}
-            placeholder={discount || "30"}
-            disabled={!discount}
-          />
-        </div>
-        <p className="text-[13px] text-muted-foreground sm:col-span-2">
-          The cash discount is given when at least the reward&apos;s points in visits since the customer&apos;s last reward were
-          paid in cash (e.g. 7 of 7); otherwise the discount. Leave both blank for a reward like &ldquo;Free nail art&rdquo;.
+        {/* At least one of the two: each is required while the other is empty. */}
+        <DiscountField
+          id="discount"
+          label="Discount"
+          unit={unit}
+          numberKind={numberKind}
+          required={!cash}
+          value={discount}
+          onChange={setDiscount}
+          placeholder={cash ? "None for card" : "e.g. 10"}
+        />
+        <DiscountField
+          id="cash_discount"
+          label="Cash discount"
+          unit={unit}
+          numberKind={numberKind}
+          required={!discount}
+          value={cash}
+          onChange={setCash}
+          placeholder={discount ? `Same as discount (${discount})` : kind === "amount" ? "e.g. 30" : "e.g. 20"}
+        />
+        <p className="text-[13px] text-muted-foreground sm:col-span-3">
+          A dollar amount or a percentage off. The cash discount is given when at least the reward&apos;s points in visits
+          since the customer&apos;s last reward were paid in cash (e.g. 7 of 7); otherwise the discount. Fill in at least
+          one: only the discount for the same for everyone, only the cash discount for a reward just for cash visits.
         </p>
       </div>
       <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
@@ -176,6 +196,54 @@ function RewardEditor({ reward: r, onDone }: { reward?: Reward; onDone: () => vo
 }
 
 const BIRTHDAY_TIERS = ["new", "regular", "vip"] as const satisfies readonly Tier[];
+
+/** A reward's discount input, with its unit inside: "$" before an amount, "%" after a percent. */
+function DiscountField({
+  id,
+  label,
+  unit,
+  numberKind,
+  required,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string;
+  label: string;
+  unit: "$" | "%";
+  numberKind: "money" | "digits";
+  required: boolean;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="relative">
+        <span
+          className={cn(
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground",
+            unit === "$" ? "left-3.5" : "right-3.5",
+          )}
+        >
+          {unit}
+        </span>
+        <Input
+          id={id}
+          name={id}
+          {...numberInput(numberKind)}
+          maxLength={numberKind === "money" ? 7 : 3}
+          required={required}
+          value={value}
+          onChange={(e) => onChange(cleanNumber(numberKind, e.target.value))}
+          placeholder={placeholder}
+          className={cn("tabular-nums", unit === "$" ? "pl-7" : "pr-8")}
+        />
+      </div>
+    </div>
+  );
+}
 
 /**
  * One tier's birthday discount: the badge and who's in it, then the amount with its unit (% off or

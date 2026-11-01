@@ -23,10 +23,11 @@ export function EditCustomerButton({ customer }: { customer: Customer }) {
 }
 
 /**
- * `askPayment` (a reward gives more for cash): a "Count as cash visits" box, so a forgotten cash
- * visit still counts towards the cash discount (and removing with it ticked takes cash visits back).
+ * Always with a "Count as cash visits" box, cash reward or not (the shop tracks how visits are
+ * paid): a forgotten cash visit still counts as cash, and removing with it ticked takes cash
+ * visits back.
  */
-export function AdjustPointsForm({ customerId, balance, askPayment = false }: { customerId: string; balance: number; askPayment?: boolean }) {
+export function AdjustPointsForm({ customerId, balance }: { customerId: string; balance: number }) {
   const [direction, setDirection] = useState<Direction>("add");
   const [amount, setAmount] = useState("");
   const [state, formAction, pending] = useActionState(async (prev: Parameters<typeof adjustPoints>[1], fd: FormData) => {
@@ -48,12 +49,10 @@ export function AdjustPointsForm({ customerId, balance, askPayment = false }: { 
         <Label htmlFor="amount">Points</Label>
         <Input id="amount" name="amount" {...numberInput("digits")} maxLength={6} required value={amount} onChange={(e) => setAmount(cleanNumber("digits", e.target.value))} />
       </div>
-      {askPayment && (
-        <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
-          <input type="checkbox" name="cash" className="size-5 accent-primary" />
-          Count as cash visits
-        </label>
-      )}
+      <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
+        <input type="checkbox" name="cash" className="size-5 accent-primary" />
+        Count as cash visits
+      </label>
       <div className="flex flex-col gap-2">
         <Label htmlFor="note">Reason</Label>
         <Textarea id="note" name="note" rows={2} maxLength={200} required placeholder="Saved to the history log" />

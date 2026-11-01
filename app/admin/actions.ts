@@ -10,7 +10,7 @@ import { normalizePhone } from "@/lib/phone";
 import { isValidBirthday } from "@/lib/birthday";
 import { safeRedirectPath } from "@/lib/safe-redirect";
 import { parseDollars } from "@/lib/gift-vouchers";
-import { discountLabel } from "@/lib/rewards";
+import { discountLabel, type DiscountKind } from "@/lib/rewards";
 import type { Database } from "@/lib/database.types";
 
 /** `href` asks the client to navigate after showing the message (used instead of redirect() so a warning can be shown). */
@@ -208,9 +208,10 @@ export async function redeemReward(customerId: string, promotionId: string): Pro
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("redeem_reward", { p_customer_id: customerId, p_promotion_id: promotionId });
   if (error) return dbError(error);
-  const r = data as { points_balance: number; discount_cents: number | null; cash_qualified: boolean };
+  const r = data as { points_balance: number; discount_cents: number | null; discount_percent?: number | null; cash_qualified: boolean };
   refresh();
-  const what = r.discount_cents ? `${discountLabel({ amount_cents: r.discount_cents })}${r.cash_qualified ? " (cash visits)" : ""} redeemed` : "Reward redeemed";
+  const label = discountLabel({ amount_cents: r.discount_cents, percent: r.discount_percent });
+  const what = label ? `${label}${r.cash_qualified ? " (cash visits)" : ""} redeemed` : "Reward redeemed";
   return { ok: true, message: `${what} · ${r.points_balance} pts left` };
 }
 
@@ -226,9 +227,11 @@ const rewardSchema = z.object({
 });
 
 /**
- * Saves a points reward. With amounts, it's "$10 off" (discount) and "$30 off" (cash discount) when
- * at least its points in visits since the last reward were paid in cash; leave both blank for a
- * reward described by its name ("Free nail art").
+ * Saves a points reward: a dollar amount or a percentage off (`discount_kind`), "$10 off"
+ * (discount) and "$30 off" (cash discount) when at least its points in visits since the last
+ * reward were paid in cash. At least one is needed. A cash discount alone gives nothing for card
+ * visits (it waits for the cash visits); a discount alone is the same for everyone. (Older rewards
+ * without amounts, named only by their title, still work.)
  */
 export async function saveReward(_: ActionState, formData: FormData): Promise<ActionState> {
   await requireAdmin();
@@ -241,27 +244,51 @@ export async function saveReward(_: ActionState, formData: FormData): Promise<Ac
   if (!parsed.success) return fail(parsed.error.issues[0].message);
   const { id, ...fields } = parsed.data;
 
+  const kind: DiscountKind = formData.get("discount_kind") === "percent" ? "percent" : "amount";
   const rawDiscount = String(formData.get("discount") ?? "").trim();
   const rawCash = String(formData.get("cash_discount") ?? "").trim();
+  if (!rawDiscount && !rawCash) return fail("Enter a discount, a cash discount, or both.");
+  // Cents for an amount, a whole percent for a percentage.
+  const parse = (raw: string) => {
+    if (kind === "percent") {
+      const v = /^\d{1,3}$/.test(raw) ? Number(raw) : NaN;
+      return v >= 1 && v <= 100 ? v : null;
+    }
+    const cents = parseDollars(raw);
+    return cents !== null && cents > 0 && cents <= 100000 ? cents : null;
+  };
+  const range = kind === "percent" ? "from 1% to 100%" : "from $0.01 to $1,000";
   let discount: number | null = null;
-  let cash: number | null = null;
-  if (rawDiscount || rawCash) {
-    discount = parseDollars(rawDiscount);
-    if (discount === null || discount <= 0 || discount > 100000) return fail("Enter the discount, from $0.01 to $1,000.");
-    // Blank cash discount: the same for everyone.
-    cash = rawCash ? parseDollars(rawCash) : discount;
-    if (cash === null || cash > 100000) return fail("Enter the cash discount, up to $1,000.");
-    if (cash < discount) return fail("The cash discount can't be less than the other discount.");
+  let cash: number | null;
+  if (rawDiscount) {
+    discount = parse(rawDiscount);
+    if (discount === null) return fail(`Enter the discount, ${range}.`);
   }
+  if (rawCash) {
+    cash = parse(rawCash);
+    if (cash === null) return fail(`Enter the cash discount, ${range}.`);
+    if (discount !== null && cash < discount) return fail("The cash discount can't be less than the other discount.");
+  } else {
+    // Blank cash discount: the same for everyone.
+    cash = discount;
+  }
+  const label = (v: number) => discountLabel(kind === "percent" ? { percent: v } : { amount_cents: v })!;
   const title =
     fields.title ||
-    (discount && cash
-      ? cash > discount
-        ? `${discountLabel({ amount_cents: discount })}, ${discountLabel({ amount_cents: cash })} with cash`
-        : discountLabel({ amount_cents: discount })!
-      : "");
-  if (!title) return fail("Give the reward a name, e.g. Free nail art, or enter a discount.");
-  const row = { ...fields, title, discount_cents: discount, cash_discount_cents: cash };
+    (discount === null
+      ? `${label(cash!)} with cash`
+      : cash! > discount
+        ? `${label(discount)}, ${label(cash!)} with cash`
+        : label(discount));
+  // One kind per reward: the other kind's columns are cleared.
+  const row = {
+    ...fields,
+    title,
+    discount_cents: kind === "amount" ? discount : null,
+    cash_discount_cents: kind === "amount" ? cash : null,
+    discount_percent: kind === "percent" ? discount : null,
+    cash_discount_percent: kind === "percent" ? cash : null,
+  };
 
   const supabase = await createClient();
   const { error } = id

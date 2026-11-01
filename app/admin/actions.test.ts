@@ -185,27 +185,36 @@ describe("saveSettings (AA-04)", () => {
 });
 
 describe("rewards and birthday (AA-05)", () => {
-  it("needs a name and at least one point", async () => {
-    expect(await actions.saveReward(null, form({ title: " ", points_cost: "10" }))).toEqual({ ok: false, message: "Give the reward a name, e.g. Free nail art, or enter a discount." });
-    expect(await actions.saveReward(null, form({ title: "10% off", points_cost: "0" }))).toEqual({ ok: false, message: "It needs to cost at least 1 point." });
+  it("needs at least one point", async () => {
+    expect(await actions.saveReward(null, form({ title: "Loyalty", points_cost: "0", discount: "10" }))).toEqual({ ok: false, message: "It needs to cost at least 1 point." });
   });
 
   it("creates new rewards as type reward, active only when ticked", async () => {
-    expect(await actions.saveReward(null, form({ title: "10% off", points_cost: "10" }))).toEqual({ ok: true, message: "Reward created." });
+    expect(await actions.saveReward(null, form({ title: "Loyalty", points_cost: "10", discount: "10" }))).toEqual({ ok: true, message: "Reward created." });
     expect(h.db.calls.find((c) => c.method === "insert")!.args[0]).toEqual({
-      title: "10% off",
+      title: "Loyalty",
       points_cost: 10,
       is_active: false,
-      discount_cents: null,
-      cash_discount_cents: null,
+      discount_cents: 1000,
+      cash_discount_cents: 1000,
+      discount_percent: null,
+      cash_discount_percent: null,
       type: "reward",
     });
   });
 
   it("updates an existing reward by id", async () => {
     const id = "0f8e6d2c-1b3a-4c5d-8e9f-a1b2c3d4e5f6";
-    expect(await actions.saveReward(null, form({ id, title: "15% off", points_cost: "12", is_active: "on" }))).toEqual({ ok: true, message: "Reward saved." });
-    expect(h.db.calls.find((c) => c.method === "update")!.args[0]).toEqual({ title: "15% off", points_cost: 12, is_active: true, discount_cents: null, cash_discount_cents: null });
+    expect(await actions.saveReward(null, form({ id, title: "", points_cost: "12", discount: "15", is_active: "on" }))).toEqual({ ok: true, message: "Reward saved." });
+    expect(h.db.calls.find((c) => c.method === "update")!.args[0]).toEqual({
+      title: "$15 off",
+      points_cost: 12,
+      is_active: true,
+      discount_cents: 1500,
+      cash_discount_cents: 1500,
+      discount_percent: null,
+      cash_discount_percent: null,
+    });
     expect(h.db.calls.find((c) => c.method === "eq")!.args).toEqual(["id", id]);
   });
 
@@ -218,6 +227,46 @@ describe("rewards and birthday (AA-05)", () => {
       title: "$10 off, $30 off with cash",
       points_cost: 7,
       discount_cents: 1000,
+      cash_discount_cents: 3000,
+    });
+  });
+
+  it("saves a percentage, clearing the amounts", async () => {
+    expect(await actions.saveReward(null, form({ title: "", points_cost: "10", discount_kind: "percent", discount: "10", cash_discount: "20" }))).toEqual({
+      ok: true,
+      message: "Reward created.",
+    });
+    expect(h.db.calls.find((c) => c.method === "insert")!.args[0]).toMatchObject({
+      title: "10% off, 20% off with cash",
+      discount_cents: null,
+      cash_discount_cents: null,
+      discount_percent: 10,
+      cash_discount_percent: 20,
+    });
+  });
+
+  it("refuses a percentage over 100", async () => {
+    expect(await actions.saveReward(null, form({ title: "", points_cost: "10", discount_kind: "percent", discount: "120" }))).toEqual({
+      ok: false,
+      message: "Enter the discount, from 1% to 100%.",
+    });
+  });
+
+  it("needs at least one discount", async () => {
+    expect(await actions.saveReward(null, form({ title: "Free nail art", points_cost: "7", discount: "", cash_discount: "" }))).toEqual({
+      ok: false,
+      message: "Enter a discount, a cash discount, or both.",
+    });
+  });
+
+  it("saves a discount only for cash", async () => {
+    expect(await actions.saveReward(null, form({ title: "", points_cost: "7", discount: "", cash_discount: "30", is_active: "on" }))).toEqual({
+      ok: true,
+      message: "Reward created.",
+    });
+    expect(h.db.calls.find((c) => c.method === "insert")!.args[0]).toMatchObject({
+      title: "$30 off with cash",
+      discount_cents: null,
       cash_discount_cents: 3000,
     });
   });

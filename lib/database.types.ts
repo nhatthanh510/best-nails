@@ -163,14 +163,14 @@ isOneToOne: false
                   ]
                 },"point_transactions": {
                   Row: {
-                    "balance_after": number,"check_in_id": string | null,"created_at": string,"created_by": string | null,"customer_id": string,"delta": number,"discount_cents": number | null,"id": string,"note": string | null,"payment_method": Database["public"]['Enums']["payment_method"] | null,"promotion_id": string | null,"reason": Database["public"]['Enums']["point_reason"],"seq": number
+                    "balance_after": number,"check_in_id": string | null,"created_at": string,"created_by": string | null,"customer_id": string,"delta": number,"discount_cents": number | null,"discount_percent": number | null,"id": string,"note": string | null,"payment_method": Database["public"]['Enums']["payment_method"] | null,"promotion_id": string | null,"reason": Database["public"]['Enums']["point_reason"],"seq": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "balance_after": number,"check_in_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id": string,"delta": number,"discount_cents"?: number | null,"id"?: string,"note"?: string | null,"payment_method"?: Database["public"]['Enums']["payment_method"] | null,"promotion_id"?: string | null,"reason": Database["public"]['Enums']["point_reason"],"seq"?: never
+                    "balance_after": number,"check_in_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id": string,"delta": number,"discount_cents"?: number | null,"discount_percent"?: number | null,"id"?: string,"note"?: string | null,"payment_method"?: Database["public"]['Enums']["payment_method"] | null,"promotion_id"?: string | null,"reason": Database["public"]['Enums']["point_reason"],"seq"?: never
                   }
                   Update: {
-                    "balance_after"?: number,"check_in_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"delta"?: number,"discount_cents"?: number | null,"id"?: string,"note"?: string | null,"payment_method"?: Database["public"]['Enums']["payment_method"] | null,"promotion_id"?: string | null,"reason"?: Database["public"]['Enums']["point_reason"],"seq"?: never
+                    "balance_after"?: number,"check_in_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string,"delta"?: number,"discount_cents"?: number | null,"discount_percent"?: number | null,"id"?: string,"note"?: string | null,"payment_method"?: Database["public"]['Enums']["payment_method"] | null,"promotion_id"?: string | null,"reason"?: Database["public"]['Enums']["point_reason"],"seq"?: never
                   }
                   Relationships: [
                     {
@@ -195,14 +195,14 @@ isOneToOne: false
                   ]
                 },"promotions": {
                   Row: {
-                    "cash_discount_cents": number | null,"created_at": string,"discount_cents": number | null,"id": string,"is_active": boolean,"points_cost": number,"title": string,"type": Database["public"]['Enums']["promotion_type"],"updated_at": string
+                    "cash_discount_cents": number | null,"cash_discount_percent": number | null,"created_at": string,"discount_cents": number | null,"discount_percent": number | null,"id": string,"is_active": boolean,"points_cost": number,"title": string,"type": Database["public"]['Enums']["promotion_type"],"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "cash_discount_cents"?: number | null,"created_at"?: string,"discount_cents"?: number | null,"id"?: string,"is_active"?: boolean,"points_cost": number,"title": string,"type"?: Database["public"]['Enums']["promotion_type"],"updated_at"?: string
+                    "cash_discount_cents"?: number | null,"cash_discount_percent"?: number | null,"created_at"?: string,"discount_cents"?: number | null,"discount_percent"?: number | null,"id"?: string,"is_active"?: boolean,"points_cost": number,"title": string,"type"?: Database["public"]['Enums']["promotion_type"],"updated_at"?: string
                   }
                   Update: {
-                    "cash_discount_cents"?: number | null,"created_at"?: string,"discount_cents"?: number | null,"id"?: string,"is_active"?: boolean,"points_cost"?: number,"title"?: string,"type"?: Database["public"]['Enums']["promotion_type"],"updated_at"?: string
+                    "cash_discount_cents"?: number | null,"cash_discount_percent"?: number | null,"created_at"?: string,"discount_cents"?: number | null,"discount_percent"?: number | null,"id"?: string,"is_active"?: boolean,"points_cost"?: number,"title"?: string,"type"?: Database["public"]['Enums']["promotion_type"],"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -318,6 +318,9 @@ isOneToOne: false
 "_luhn_check_digit":
 { Args: { "p_digits": string }; Returns: number
                            },
+"_needs_cash_visits":
+{ Args: { "p_reward": Omit<Database["public"]['Tables']["promotions"]['Row'], Database["public"]['Tables']["promotions"]['ComputedFields']>,"p_value": Json }; Returns: boolean
+                           },
 "_new_gift_voucher_code":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
@@ -325,7 +328,7 @@ isOneToOne: false
 { Args: { "p_customer_id"?: string,"p_delta_cents": number,"p_gift_voucher_id": string,"p_kind": Database["public"]['Enums']["gift_voucher_entry"],"p_note"?: string,"p_undoes"?: string }; Returns: number
                            },
 "_post_points":
-{ Args: { "p_actor"?: string,"p_check_in_id"?: string,"p_customer_id": string,"p_delta": number,"p_discount_cents"?: number,"p_note"?: string,"p_payment_method"?: Database["public"]['Enums']["payment_method"],"p_promotion_id"?: string,"p_reason": Database["public"]['Enums']["point_reason"] }; Returns: number
+{ Args: { "p_actor"?: string,"p_check_in_id"?: string,"p_customer_id": string,"p_delta": number,"p_discount_cents"?: number,"p_discount_percent"?: number,"p_note"?: string,"p_payment_method"?: Database["public"]['Enums']["payment_method"],"p_promotion_id"?: string,"p_reason": Database["public"]['Enums']["point_reason"] }; Returns: number
                            },
 "_redeem_birthday":
 { Args: { "p_actor": string,"p_customer_id": string,"p_source": Database["public"]['Enums']["check_in_source"] }; Returns: Json

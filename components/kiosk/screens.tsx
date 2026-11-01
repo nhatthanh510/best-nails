@@ -33,7 +33,14 @@ import type {
   KioskTechnician,
 } from '@/lib/kiosk-content';
 import { daysInMonth } from '@/lib/birthday';
-import { cashBonusLine, hasCashBonus, rewardName } from '@/lib/rewards';
+import {
+  canRedeem as rewardRedeemable,
+  cashBonusLine,
+  cashRewardName,
+  hasCashBonus,
+  isCashOnly,
+  rewardName,
+} from '@/lib/rewards';
 import {
   fillPhoneMask,
   isCompleteNumber,
@@ -143,6 +150,8 @@ function mainReward(rewards: KioskReward[]) {
 
 function visitsToGo(points: number, reward: KioskReward) {
   const n = reward.cost - points;
+  // Points there, but a cash-only reward waits for its cash visits (CashProgress counts them).
+  if (n <= 0) return `Your points are ready · the reward is for ${reward.cost} visits paid in cash`;
   // A cash-bonus reward's amount depends on how they pay, so CashProgress says what it'll be.
   const to = hasCashBonus(reward) ? 'your reward' : reward.title;
   return `${n} more visit${n === 1 ? '' : 's'} to ${to}`;
@@ -208,7 +217,9 @@ function CashProgress({
   const n = Math.min(cashVisits, reward.cost);
   const done = cashVisits >= reward.cost;
   // Visits left this round (before the points are spent) can't make up the cash visits.
+  // A cash-only reward has no other amount: the cash visits just keep counting until it's reached.
   const reachable =
+    isCashOnly(reward) ||
     cashVisits + Math.max(0, reward.cost - points) >= reward.cost;
   const cash = rewardName(reward, reward.cost);
   const other = rewardName(reward, 0);
@@ -986,7 +997,6 @@ function ServiceMenu({
 export function ServicesScreen({
   categories,
   selected,
-  isLast,
   pending,
   onToggle,
   onBack,
@@ -995,8 +1005,6 @@ export function ServicesScreen({
 }: StepIntro & {
   categories: KioskServiceCategory[];
   selected: string[];
-  /** No staff or payment step follows, so the main button checks in. */
-  isLast: boolean;
   pending: boolean;
   onToggle: (id: string) => void;
   onBack: () => void;
@@ -1011,7 +1019,7 @@ export function ServicesScreen({
       {...intro}
       nextLabel={
         <>
-          {isLast ? 'Check in' : 'Next'}
+          Next
           {count > 0 && (
             <>
               <span aria-hidden='true' className='font-bold opacity-75'>
@@ -1038,7 +1046,6 @@ export function ServicesScreen({
 export function StaffScreen({
   technicians,
   selected,
-  isLast = true,
   pending,
   onSelect,
   onBack,
@@ -1048,8 +1055,6 @@ export function StaffScreen({
 }: StepIntro & {
   technicians: KioskTechnician[];
   selected: string | null;
-  /** No payment step follows, so the buttons check in. */
-  isLast?: boolean;
   pending: boolean;
   onSelect: (id: string | null) => void;
   onBack: () => void;
@@ -1062,8 +1067,8 @@ export function StaffScreen({
       subtitle="Pick your nail technician, or skip if you don't mind."
       onBack={onBack}
       {...intro}
-      skipLabel={isLast ? 'Skip & check in' : 'Skip'}
-      nextLabel={isLast ? 'Check in' : 'Next'}
+      skipLabel='Skip'
+      nextLabel='Next'
       canNext={selected !== null}
       pending={pending}
       onSkip={onSkip}
@@ -1116,9 +1121,10 @@ const PAYMENT_CHOICES: {
 // no "pay cash" prompts, and neither button is highlighted or picked in advance.
 
 /**
- * How they're paying today: the last step, asked when a reward gives more for cash. Tapping Cash or
- * Card checks in (Back keeps everything picked); the done screen lists it back. One line under the
- * heading states the rule. Staff fix a wrong tap with Adjust points ("Count as cash visits").
+ * How they're paying today: the last step of every check-in. Tapping Cash or Card checks in (Back
+ * keeps everything picked); the done screen lists it back. When a reward gives more for cash, one
+ * line under the heading states the rule. Staff fix a wrong tap with Adjust points ("Count as cash
+ * visits").
  */
 export function PaymentScreen({
   reward,
@@ -1128,7 +1134,7 @@ export function PaymentScreen({
   greeting,
   backLabel = 'Back',
 }: StepIntro & {
-  /** The reward that gives more for cash. */
+  /** The reward that gives more for cash, if any. */
   reward: KioskReward | null;
   pending: boolean;
   onPick: (method: PaymentMethod) => void;
@@ -1144,14 +1150,23 @@ export function PaymentScreen({
           How are you paying today?
         </h1>
         {/* The rule, once: the amount stands out, and nothing tells them which to pick. */}
-        {reward && (
+        {reward && isCashOnly(reward) ? (
           <p className='text-xl text-kiosk-muted'>
-            After {reward.cost} visits:{' '}
             <span className='font-extrabold text-kiosk-accent'>
-              {rewardName(reward, reward.cost)}
+              {cashRewardName(reward)}
             </span>{' '}
-            if all are paid in cash, {rewardName(reward, 0)} otherwise.
+            after {reward.cost} visits paid in cash.
           </p>
+        ) : (
+          reward && (
+            <p className='text-xl text-kiosk-muted'>
+              After {reward.cost} visits:{' '}
+              <span className='font-extrabold text-kiosk-accent'>
+                {rewardName(reward, reward.cost)}
+              </span>{' '}
+              if all are paid in cash, {rewardName(reward, 0)} otherwise.
+            </p>
+          )
         )}
       </div>
 
@@ -1245,7 +1260,7 @@ function redeemOptions(
       birthday: true,
     });
   }
-  for (const r of rewards.filter((r) => r.cost <= points)) {
+  for (const r of rewards.filter((r) => rewardRedeemable(r, points, cashVisits))) {
     const uses = `Uses ${r.cost} of your ${points} points`;
     const cash = hasCashBonus(r) && cashVisits >= r.cost;
     options.push({
@@ -1432,7 +1447,7 @@ export function SuccessScreen({
           <span className='text-kiosk-muted'> · you now have </span>
           <span className='font-extrabold tabular-nums'>{result.points}</span>
         </p>
-        {reward && result.points < reward.cost && (
+        {reward && !rewardRedeemable(reward, result.points, result.cashVisits) && (
           <>
             <PunchCard points={result.points} cost={reward.cost} size='md' />
             <p className='text-lg text-kiosk-muted'>
