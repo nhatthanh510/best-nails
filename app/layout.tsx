@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Plus_Jakarta_Sans } from "next/font/google";
+import { Cormorant_Garamond, Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { RESTORE_SIDEBAR } from "@/lib/sidebar";
 
@@ -13,6 +13,14 @@ const cormorant = Cormorant_Garamond({
   variable: "--font-display",
   subsets: ["latin"],
   weight: ["500", "600", "700"],
+  // Italic for the printed gift card's "Gift Card".
+  style: ["normal", "italic"],
+});
+
+// Codes (gift card codes, links): `font-mono` in globals.css.
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -39,7 +47,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // suppressHydrationWarning: the admin sets data-nav-collapsed on <html> before React hydrates.
-    <html lang="en" className={`${jakarta.variable} ${cormorant.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="en" className={`${jakarta.variable} ${cormorant.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         {/* Runs as the first page is read, before the admin sidebar paints: puts it back collapsed
             if it was. Here, not in the admin layout: React never runs a <script> it renders in the

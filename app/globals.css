@@ -269,8 +269,11 @@
 }
 
 
-/* Printing a gift card (PrintGiftCardButton in components/admin/printed-gift-card.tsx): a copy of the
-   card goes into #print-root, and only that prints, at about the size of a gift card holder. */
+/* Printing gift cards (printGiftCardNodes in components/admin/printed-gift-card.tsx): copies of the
+   cards go into #print-root, and only that prints. Each [data-page] is one A4 sheet: credit-card-size
+   cards placed at their mm positions from lib/gift-card-sheet.ts (the PDF uses the same), touching,
+   with crop marks drawn by its SVG. The page has no margin, since the positions are from the
+   paper's edge; the cards and marks stay at least 6 mm in. */
 @media screen {
   #print-root {
     display: none;
@@ -278,33 +281,46 @@
 }
 @media print {
   @page {
-    margin: 12mm;
+    size: A4;
+    margin: 0;
   }
   body:has(> #print-root) > :not(#print-root) {
     display: none !important;
   }
   body:has(> #print-root) {
+    margin: 0;
     background: #fff;
   }
-  #print-root {
-    width: 140mm;
-    margin: 0 auto;
+  /* A hair under 297 mm, so rounding never spills a sheet onto an extra blank page. */
+  #print-root > [data-page] {
+    position: relative;
+    width: 210mm;
+    height: 296mm;
+    overflow: hidden;
+    break-after: page;
+  }
+  #print-root > [data-page]:last-child {
+    break-after: auto;
+  }
+  #print-root > [data-page] > svg {
+    position: absolute;
+    inset: 0;
+    width: 210mm;
+    height: 297mm;
+    stroke: #000;
+    stroke-width: 0.2;
+  }
+  #print-root > [data-page] > div {
+    position: absolute;
   }
 }
-/* Blank cards printed ahead of time (components/admin/blank-gift-cards.tsx): 2 × 5 cards on an A4
-   page with a gap to cut between. 80 mm wide at the card's 1.7 ratio is 47 mm tall. Keep in step
-   with SHEET in lib/gift-card-pdf.ts, which lays out the PDF the same way. */
-@media print {
-  #print-root[data-sheet] {
-    display: grid;
-    width: auto;
-    grid-template-columns: repeat(2, 80mm);
-    justify-content: center;
-    gap: 8mm 12mm;
-  }
-  #print-root[data-sheet] > * {
-    break-inside: avoid;
-  }
+/* The printed edge of a gift card: square corners and no outline, so the cuts along the crop marks
+   are straight and a cut slightly off shows only more ivory. Printing and the PDF capture
+   (data-capture, lib/gift-card-pdf.ts) use it; on screen the card keeps a card's rounded corners. */
+#print-root [data-printed-gift-card],
+[data-capture] [data-printed-gift-card] {
+  border-color: transparent;
+  border-radius: 0;
 }
 
 /* Native dropdowns: one clean chevron instead of the browser's own arrow, the same everywhere
