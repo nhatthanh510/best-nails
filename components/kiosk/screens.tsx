@@ -47,6 +47,7 @@ import {
   looksStandard,
 } from '@/lib/phone-mask';
 import Link from 'next/link';
+import { LinkPending } from '@/components/link-pending';
 import { KioskBrand } from './brand';
 import { Numpad } from './numpad';
 
@@ -104,7 +105,9 @@ export function KioskHeader({
               href='/admin'
               className={`${headerButton} border border-kiosk-line font-bold text-kiosk-muted hover:text-kiosk-ink`}
             >
-              <LayoutGrid className='size-5' aria-hidden='true' />
+              <LinkPending>
+                <LayoutGrid className='size-5' aria-hidden='true' />
+              </LinkPending>
               <span className='max-sm:sr-only'>Admin</span>
             </Link>
           )}
