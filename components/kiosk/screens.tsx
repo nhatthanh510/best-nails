@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ArrowRight,
   Banknote,
@@ -515,7 +515,7 @@ export function FoundScreen({
                 <p className='text-lg text-kiosk-muted'>
                   {customer.points > 0
                     ? `${customer.points} point${customer.points === 1 ? '' : 's'} saved for your next visit · one discount per visit`
-                    : 'One discount per visit. See you next time!'}
+                    : 'One discount per visit.'}
                 </p>
               </div>
               <button
@@ -546,7 +546,7 @@ export function FoundScreen({
                 </div>
               )}
               <p className='text-xl text-kiosk-muted'>
-                You&apos;re all checked in for today. See you next time!
+                You&apos;re all checked in for today.
               </p>
               <button
                 type='button'
@@ -1063,8 +1063,8 @@ export function StaffScreen({
 }) {
   return (
     <PickStep
-      title="Who's looking after you?"
-      subtitle="Pick your nail technician, or skip if you don't mind."
+      title="Who's your nail technician today?"
+      subtitle="Pick one, or skip if you're not sure."
       onBack={onBack}
       {...intro}
       skipLabel='Skip'
@@ -1211,21 +1211,6 @@ export function PaymentScreen({
 
 // ---------------------------------------------------------------------------
 
-/** Counts down and calls onDone at zero. Pass null to pause (e.g. while something can be redeemed). */
-function useCountdown(seconds: number | null, onDone: () => void) {
-  const [left, setLeft] = useState(seconds ?? 0);
-  useEffect(() => {
-    if (seconds === null) return;
-    if (left <= 0) {
-      onDone();
-      return;
-    }
-    const t = setTimeout(() => setLeft((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left, seconds, onDone]);
-  return left;
-}
-
 export type RedeemProps = {
   rewards: KioskReward[];
   pending: boolean;
@@ -1361,21 +1346,33 @@ function RedeemList({
   );
 }
 
+/**
+ * Stays until Done, like every step: the kiosk's idle timeout (with its "Still there?" warning)
+ * takes it back to the start, so there's no countdown of its own.
+ */
+/**
+ * The result screens' big icon circle and heading scale with the screen (the smaller of its width
+ * and height), between a phone-sized minimum and the size that fits a landscape iPad, so the card
+ * and Done below stay on screen on a short or narrow display. The icon is half the circle.
+ */
+const resultIcon = 'size-[clamp(4.5rem,min(15vh,11vw),7.5rem)]';
+const resultIconSmall = 'size-[clamp(3.5rem,min(10vh,8vw),5rem)]';
+const resultHeading =
+  'text-[clamp(2rem,min(7vh,5.2vw),3.75rem)] leading-[1.05] font-extrabold tracking-[-0.03em]';
+const resultHeadingSmall =
+  'text-[clamp(1.875rem,min(5.5vh,4.2vw),3rem)] leading-[1.05] font-extrabold tracking-[-0.03em]';
+const resultSubtitle = 'text-[clamp(1.125rem,min(3vh,2.2vw),1.5rem)] text-kiosk-muted';
+
 export function SuccessScreen({
   result,
-  seconds,
   onDone,
   summary,
-  paused = false,
   ...redeem
 }: RedeemProps & {
   result: Extract<CheckInResult, { status: 'checked_in' }>;
-  seconds: number;
   onDone: () => void;
   /** What they picked, listed back so they can see what was recorded. */
   summary: VisitSummary;
-  /** Hold the countdown, e.g. while staff use the Gift card dialog. */
-  paused?: boolean;
 }) {
   const options = redeemOptions(
     result.points,
@@ -1385,34 +1382,30 @@ export function SuccessScreen({
     result.discountUsedToday,
   );
   const canRedeem = options.length > 0;
-  // Don't rush someone who is about to redeem; the idle timeout still applies.
-  const left = useCountdown(canRedeem || paused ? null : seconds, onDone);
   const reward = mainReward(redeem.rewards);
   const earned = result.pointsAwarded;
 
   return (
     <Shell centered>
       <div
-        className={`flex items-center justify-center rounded-full bg-kiosk-accent ${canRedeem ? 'size-20' : 'size-30'}`}
+        className={`flex flex-none items-center justify-center rounded-full bg-kiosk-accent ${canRedeem ? resultIconSmall : resultIcon}`}
       >
         <Check
-          className={`text-kiosk-bg ${canRedeem ? 'size-10' : 'size-15'}`}
+          className='size-1/2 text-kiosk-bg'
           strokeWidth={2.6}
           aria-hidden='true'
         />
       </div>
       <div className='flex flex-col items-center gap-3'>
         <h1
-          className={`leading-[1.05] font-extrabold tracking-[-0.03em] ${canRedeem ? 'text-[34px] sm:text-[48px]' : 'text-[38px] sm:text-[48px] lg:text-[60px]'}`}
+          className={canRedeem ? resultHeadingSmall : resultHeading}
           role='status'
         >
           You&apos;re checked in, {result.firstName}!
         </h1>
         {!canRedeem && (
-          <p className='text-xl text-kiosk-muted sm:text-2xl'>
-            Have a seat.{' '}
-            {summary.technician ? `${summary.technician} will` : "We'll"} be
-            with you shortly.
+          <p className={resultSubtitle}>
+            Thanks for visiting Best Nails!
           </p>
         )}
       </div>
@@ -1475,11 +1468,6 @@ export function SuccessScreen({
         className={`${outlineButton} min-h-16 px-9 text-xl text-kiosk-ink`}
       >
         {canRedeem ? "No thanks, I'm done" : 'Done'}
-        {!canRedeem && (
-          <span className='font-medium text-kiosk-muted'>
-            · closing in {left}s
-          </span>
-        )}
       </button>
     </Shell>
   );
@@ -1560,19 +1548,19 @@ export function AlreadyScreen({
   );
 }
 
+/**
+ * Stays up until Done, so the customer can take the iPad to the front desk however long that
+ * takes; the idle timeout (with "Still there?") still clears it if it's left.
+ */
 export function RedeemedScreen({
   result,
   timezone,
   onDone,
-  paused = false,
 }: {
   result: Extract<RedeemResult, { status: 'redeemed' }>;
   timezone: string;
   onDone: () => void;
-  paused?: boolean;
 }) {
-  // Long enough to walk the iPad over or call someone to the desk.
-  const left = useCountdown(paused ? null : 60, onDone);
   const at = new Date(result.redeemedAt).toLocaleString('en-AU', {
     weekday: 'short',
     day: 'numeric',
@@ -1585,16 +1573,16 @@ export function RedeemedScreen({
 
   return (
     <Shell centered>
-      <div className='flex size-30 items-center justify-center rounded-full bg-kiosk-ready'>
+      <div className={`flex flex-none items-center justify-center rounded-full bg-kiosk-ready ${resultIcon}`}>
         {birthday ? (
           <Cake
-            className='size-15 text-kiosk-bg'
+            className='size-1/2 text-kiosk-bg'
             strokeWidth={2.2}
             aria-hidden='true'
           />
         ) : (
           <Gift
-            className='size-15 text-kiosk-bg'
+            className='size-1/2 text-kiosk-bg'
             strokeWidth={2.2}
             aria-hidden='true'
           />
@@ -1605,7 +1593,7 @@ export function RedeemedScreen({
           Redeemed
         </p>
         <h1
-          className='text-[38px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[48px] lg:text-[60px]'
+          className={resultHeading}
           role='status'
         >
           {result.title}
@@ -1616,7 +1604,7 @@ export function RedeemedScreen({
             {result.note}
           </p>
         )}
-        <p className='text-xl text-kiosk-muted sm:text-2xl'>
+        <p className={resultSubtitle}>
           Show this screen to the front desk when you pay.
         </p>
       </div>
@@ -1647,9 +1635,6 @@ export function RedeemedScreen({
         className={`${outlineButton} min-h-16 px-9 text-xl text-kiosk-ink`}
       >
         Done
-        <span className='font-medium text-kiosk-muted'>
-          · closing in {left}s
-        </span>
       </button>
     </Shell>
   );

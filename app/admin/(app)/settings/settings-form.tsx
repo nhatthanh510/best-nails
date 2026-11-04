@@ -14,7 +14,8 @@ import { useFormSubmit } from "@/lib/use-form-submit";
 import { cleanNumber, numberInput } from "@/lib/number-input";
 
 const selectClass = "h-11 rounded-[10px] border border-input bg-card px-3 text-[15px] disabled:opacity-60";
-const IDLE = [30, 60, 90, 120];
+const IDLE = [30, 60, 90, 120, 180, 300];
+const idleLabel = (n: number) => (n % 60 === 0 && n >= 120 ? `${n / 60} minutes idle` : `${n} seconds idle`);
 const TIMEZONES = ["Australia/Hobart", "Australia/Melbourne", "Australia/Sydney", "Australia/Brisbane", "Australia/Adelaide", "Australia/Darwin", "Australia/Perth"];
 
 function Hint({ children }: { children: React.ReactNode }) {
@@ -158,14 +159,14 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
             <div className="flex flex-col gap-2">
               <Label htmlFor="kiosk_idle_seconds">Return to start after</Label>
               <select id="kiosk_idle_seconds" name="kiosk_idle_seconds" defaultValue={s.kiosk_idle_seconds} className={selectClass}>
-                {!IDLE.includes(s.kiosk_idle_seconds) && <option value={s.kiosk_idle_seconds}>{s.kiosk_idle_seconds} seconds idle</option>}
+                {!IDLE.includes(s.kiosk_idle_seconds) && <option value={s.kiosk_idle_seconds}>{idleLabel(s.kiosk_idle_seconds)}</option>}
                 {IDLE.map((n) => (
                   <option key={n} value={n}>
-                    {n} seconds idle
+                    {idleLabel(n)}
                   </option>
                 ))}
               </select>
-              <Hint>Clears the phone number so the next person can&apos;t see it.</Hint>
+              <Hint>Clears the phone number so the next person can&apos;t see it. A &ldquo;Still there?&rdquo; countdown shows 15 seconds before.</Hint>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="timezone">Shop timezone</Label>
