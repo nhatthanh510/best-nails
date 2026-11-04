@@ -6,6 +6,7 @@ import { BrandMark } from "@/components/kiosk/brand";
 import { ActiveNavLinks, NavLinks } from "./nav-links";
 import { PhoneMenu } from "./phone-menu";
 import { SidebarToggle } from "./sidebar-toggle";
+import { SubmitButton } from "@/components/submit-button";
 import { signOut } from "@/app/admin/actions";
 
 const drawerItem = "flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 text-[15px] font-semibold hover:bg-muted";
@@ -57,10 +58,13 @@ export function Sidebar({ account, phoneProfile }: { account: React.ReactNode; p
                 Open kiosk
               </Link>
               <form action={signOut}>
-                <button type="submit" className={drawerItem}>
-                  <LogOut className="size-5 flex-none" aria-hidden="true" />
+                <SubmitButton
+                  className={drawerItem}
+                  icon={<LogOut className="size-5 flex-none" aria-hidden="true" />}
+                  iconClassName="size-5 flex-none"
+                >
                   Sign out
-                </button>
+                </SubmitButton>
               </form>
             </div>
           }

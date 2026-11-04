@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, TierBadge } from "@/components/admin/ui";
 import { useActionToast } from "@/components/admin/action-button";
+import { startNavProgress } from "@/components/admin/nav-progress";
 import { saveSettings, type ActionState } from "@/app/admin/actions";
 import type { Settings } from "@/lib/admin-data";
 import { useFormSubmit } from "@/lib/use-form-submit";
@@ -242,7 +243,10 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
                 const to = leaveTo;
                 setDirty(false);
                 setLeaveTo(null);
-                if (to) router.push(to);
+                if (to) {
+                  startNavProgress();
+                  router.push(to);
+                }
               }}
             >
               Leave

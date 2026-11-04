@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/admin/sidebar";
 import { Avatar } from "@/components/admin/ui";
 import { NavProgress } from "@/components/admin/nav-progress";
+import { SubmitButton } from "@/components/submit-button";
 import { getStaff } from "@/lib/auth";
 import { signOut } from "../actions";
 
@@ -50,14 +51,13 @@ async function Account() {
         <span className="font-bold">{staff.displayName}</span>
         <span className="text-muted-foreground"> · {staff.role === "admin" ? "Admin" : "Staff"}</span>
       </Link>
-      <button
-        type="submit"
+      <SubmitButton
         aria-label="Sign out"
         title="Sign out"
         className={iconButton}
-      >
-        <LogOut className="size-4.5" aria-hidden="true" />
-      </button>
+        icon={<LogOut className="size-4.5" aria-hidden="true" />}
+        iconClassName="size-4.5"
+      />
     </form>
   );
 }

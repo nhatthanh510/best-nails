@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
+import { LinkPending } from "@/components/link-pending";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { BrandMark } from "@/components/kiosk/brand";
@@ -41,7 +42,7 @@ async function Account() {
       {!me.mustChangePassword && (
         <Link href={home} className="mx-auto flex min-h-11 items-center gap-2 text-sm font-bold text-primary hover:underline">
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Back to {home === "/admin" ? "the admin" : "the kiosk"}
+          <LinkPending>Back to {home === "/admin" ? "the admin" : "the kiosk"}</LinkPending>
         </Link>
       )}
     </>

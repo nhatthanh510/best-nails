@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
+import { LinkPending } from "@/components/link-pending";
 import { redirect } from "next/navigation";
 import { getStaff } from "@/lib/auth";
 import { loadKioskContent } from "@/lib/kiosk-content";
@@ -59,7 +60,7 @@ function SignedOut() {
         href="/admin/login?next=/kiosk"
         className="bg-gold-sheen flex min-h-16 items-center rounded-2xl bg-kiosk-accent px-9 text-xl font-extrabold text-kiosk-bg"
       >
-        Staff sign in
+        <LinkPending>Staff sign in</LinkPending>
       </Link>
     </main>
   );

@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { signOut } from "@/app/admin/actions";
+import { SubmitButton } from "@/components/submit-button";
+import { LinkPending } from "@/components/link-pending";
 
 const button = "flex min-h-16 flex-1 items-center justify-center rounded-2xl px-8 text-xl font-extrabold";
 
@@ -35,14 +37,14 @@ export function SignOutConfirm({ onClose }: { onClose: () => void }) {
             Cancel
           </button>
           <form action={signOut} className="flex flex-1">
-            <button type="submit" className={`${button} bg-gold-sheen bg-kiosk-accent text-kiosk-bg`}>
+            <SubmitButton iconClassName="mr-2.5 size-6" className={`${button} bg-gold-sheen bg-kiosk-accent text-kiosk-bg disabled:opacity-80`}>
               Sign out
-            </button>
+            </SubmitButton>
           </form>
         </div>
         {/* The signed-in account's own settings live behind this staff-only dialog, not on the customer-facing screen. */}
         <Link href="/account" className="mx-auto flex min-h-11 items-center text-base font-semibold text-kiosk-muted underline-offset-4 hover:underline">
-          Change password
+          <LinkPending>Change password</LinkPending>
         </Link>
       </div>
     </div>

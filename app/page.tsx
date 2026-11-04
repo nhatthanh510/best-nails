@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/kiosk/brand";
+import { LinkPending } from "@/components/link-pending";
 
 export default function Home() {
   return (
@@ -10,10 +11,10 @@ export default function Home() {
       </div>
       <div className="flex flex-wrap justify-center gap-3">
         <Link href="/kiosk" className="flex min-h-12 items-center rounded-xl bg-primary px-6 font-bold text-primary-foreground">
-          Open kiosk
+          <LinkPending>Open kiosk</LinkPending>
         </Link>
         <Link href="/admin" className="flex min-h-12 items-center rounded-xl border border-input bg-card px-6 font-bold">
-          Staff admin
+          <LinkPending>Staff admin</LinkPending>
         </Link>
       </div>
     </main>

@@ -77,7 +77,7 @@ export function GiftCardRowActions({ giftCard: v }: { giftCard: Row }) {
       {/* modal={false}: a dialog opened from an item would otherwise fight the menu for focus. */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label={`Actions for ${v.code}`} className="-my-2 text-muted-foreground">
+          <Button variant="ghost" size="icon" aria-label={`Actions for ${v.code}`} pending={pending} className="-my-2 text-muted-foreground">
             <Ellipsis aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
