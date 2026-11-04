@@ -118,7 +118,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
     });
 
   useEffect(() => {
-    if (printRequest && sheet.current) printGiftCardNodes([...sheet.current.children], true);
+    if (printRequest && sheet.current) printGiftCardNodes([...sheet.current.children]);
   }, [printRequest]);
 
   const [saveKind, setSaveKind] = useState<"pdf" | "print">("print");

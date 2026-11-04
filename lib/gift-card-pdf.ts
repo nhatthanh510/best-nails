@@ -1,42 +1,39 @@
 /**
  * Gift cards as a PDF, for a shop without a printer: download it and print it elsewhere. Each
  * card (a PrintedGiftCard on the page, so the PDF matches the screen exactly) becomes a sharp image,
- * laid out on A4 like the printed sheet (globals.css, #print-root[data-sheet]): 2 × 5 cards with a
- * gap to cut between. A single gift card is one larger card at the top of the page. The libraries
- * load only when someone downloads.
+ * laid out on A4 like the printed sheet (`lib/gift-card-sheet.ts`): credit-card size, 2 × 5 to a
+ * page, touching, with crop marks. One gift card goes in the first slot, the same size. The
+ * libraries load only when someone downloads.
  */
 
-// Shared with the print layout in globals.css: keep them in step.
-export const SHEET = { cardMm: 80, ratio: 1.7, colGapMm: 12, rowGapMm: 8, cols: 2, rows: 5 };
-const SINGLE_MM = 120;
-const A4 = { w: 210, h: 297 };
+import { A4, CARD, cardSlot, cropMarks, sheetPages } from "@/lib/gift-card-sheet";
 
 export async function downloadGiftCardPdf(cards: HTMLElement[], filename: string) {
   const [{ toJpeg }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
-  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const pdf = new jsPDF({ unit: "mm", format: [A4.w, A4.h], compress: true });
 
-  // About 400 dpi at the printed size, so the QR codes scan. The card's wrapper is captured, so the
-  // white background only fills behind its rounded corners (JPEG has no transparency).
-  const image = (card: HTMLElement) => {
+  // About 400 dpi at the printed size, so the QR codes scan. The card's wrapper is captured;
+  // `data-capture` gives the card its printed edge (square corners, no outline; globals.css).
+  const image = async (card: HTMLElement) => {
     const el = card.parentElement ?? card;
-    return toJpeg(el, { quality: 0.95, pixelRatio: Math.max(2, 1400 / el.offsetWidth), backgroundColor: "#ffffff" });
+    el.dataset.capture = "";
+    try {
+      return await toJpeg(el, { quality: 0.95, pixelRatio: Math.max(2, 1400 / el.offsetWidth), backgroundColor: "#ffffff" });
+    } finally {
+      delete el.dataset.capture;
+    }
   };
 
-  if (cards.length === 1) {
-    const h = SINGLE_MM / SHEET.ratio;
-    pdf.addImage(await image(cards[0]), "JPEG", (A4.w - SINGLE_MM) / 2, 25, SINGLE_MM, h);
-  } else {
-    const h = SHEET.cardMm / SHEET.ratio;
-    const perPage = SHEET.cols * SHEET.rows;
-    const left = (A4.w - (SHEET.cols * SHEET.cardMm + (SHEET.cols - 1) * SHEET.colGapMm)) / 2;
-    const top = (A4.h - (SHEET.rows * h + (SHEET.rows - 1) * SHEET.rowGapMm)) / 2;
-    for (const [i, card] of cards.entries()) {
-      if (i > 0 && i % perPage === 0) pdf.addPage();
-      const slot = i % perPage;
-      const x = left + (slot % SHEET.cols) * (SHEET.cardMm + SHEET.colGapMm);
-      const y = top + Math.floor(slot / SHEET.cols) * (h + SHEET.rowGapMm);
-      pdf.addImage(await image(card), "JPEG", x, y, SHEET.cardMm, h);
+  let index = 0;
+  for (const [p, page] of sheetPages(cards).entries()) {
+    if (p > 0) pdf.addPage();
+    for (const card of page) {
+      const { x, y } = cardSlot(index++);
+      pdf.addImage(await image(card), "JPEG", x, y, CARD.w, CARD.h);
     }
+    pdf.setDrawColor(0);
+    pdf.setLineWidth(0.2);
+    for (const m of cropMarks(page.length)) pdf.line(m.x1, m.y1, m.x2, m.y2);
   }
   pdf.save(filename);
 }
