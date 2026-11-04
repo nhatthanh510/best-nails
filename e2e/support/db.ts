@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
 // Seeding and clean-up for the E2E suite, with the service-role key. Everything here touches only
-// tagged test data: customers in the fictional range 0491 570 1xx, vouchers whose code starts
+// tagged test data: customers in the fictional range 0491 570 1xx, gift cards whose code starts
 // with QA (or that belong to a test customer), rewards named "E2E …" and accounts e2e-…@bestnails.test.
 
 export const ADMIN = { email: "owner@bestnails.test", password: "bestnails-dev" };
@@ -72,9 +72,9 @@ export async function resetTestData() {
   const sb = db();
   const customers = must(await sb.from("customers").select("id").like("phone", `${TEST_PHONE_PREFIX}%`), "list test customers");
   const ids = customers.map((c) => c.id);
-  check(await sb.from("gift_vouchers").delete().like("code", "QA%"), "delete QA vouchers");
+  check(await sb.from("gift_cards").delete().like("code", "QA%"), "delete QA gift cards");
   if (ids.length) {
-    check(await sb.from("gift_vouchers").delete().in("customer_id", ids), "delete test customers' vouchers");
+    check(await sb.from("gift_cards").delete().in("customer_id", ids), "delete test customers' gift cards");
     check(await sb.from("customers").delete().in("id", ids), "delete test customers");
   }
   check(await sb.from("promotions").delete().like("title", "E2E%"), "delete test rewards");
@@ -223,39 +223,39 @@ export async function lastVisit(phone: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Gift vouchers
+// Gift cards
 // ---------------------------------------------------------------------------
 
-export async function seedVoucher(v: { code: string; amountCents: number; customerId?: string; expired?: boolean }) {
-  if (!v.code.startsWith("QA")) throw new Error("Test voucher codes must start with QA so they get cleaned up.");
+export async function seedGiftCard(v: { code: string; amountCents: number; customerId?: string; expired?: boolean }) {
+  if (!v.code.startsWith("QA")) throw new Error("Test gift card codes must start with QA so they get cleaned up.");
   const sb = db();
   const today = shopToday().iso;
   const plus3 = `${Number(today.slice(0, 4)) + 3}${today.slice(4)}`;
-  // An expired voucher has to have been sold more than 3 years ago (the legal minimum).
+  // An expired gift card has to have been sold more than 3 years ago (the legal minimum).
   const dates = v.expired ? { sold_on: "2022-01-03", expires_on: "2025-01-03" } : { sold_on: today, expires_on: plus3 };
   const id = must(
     await sb
-      .from("gift_vouchers")
+      .from("gift_cards")
       .insert({ code: v.code, amount_cents: v.amountCents, balance_cents: 0, customer_id: v.customerId ?? null, ...dates })
       .select("id")
       .single(),
-    "insert voucher",
+    "insert gift card",
   ).id;
   check(
-    await sb.rpc("_post_gift_voucher", { p_gift_voucher_id: id, p_kind: "sale", p_delta_cents: v.amountCents, p_customer_id: v.customerId }),
-    "post voucher sale",
+    await sb.rpc("_post_gift_card", { p_gift_card_id: id, p_kind: "sale", p_delta_cents: v.amountCents, p_customer_id: v.customerId }),
+    "post gift card sale",
   );
   return id;
 }
 
-/** A voucher printed ahead of time (Print vouchers) and not sold yet: inactive, no amount or expiry. */
-export async function seedInactiveVoucher(code: string) {
-  if (!code.startsWith("QA")) throw new Error("Test voucher codes must start with QA so they get cleaned up.");
-  return must(await db().from("gift_vouchers").insert({ code, balance_cents: 0 }).select("id, code, public_token").single(), "insert inactive voucher");
+/** A gift card printed ahead of time (Print gift cards) and not sold yet: inactive, no amount or expiry. */
+export async function seedInactiveGiftCard(code: string) {
+  if (!code.startsWith("QA")) throw new Error("Test gift card codes must start with QA so they get cleaned up.");
+  return must(await db().from("gift_cards").insert({ code, balance_cents: 0 }).select("id, code, public_token").single(), "insert inactive gift card");
 }
 
-export async function findVoucher(code: string) {
-  return check(await db().from("gift_vouchers").select("id, code, balance_cents, customer_id, public_token").eq("code", code).maybeSingle(), "find voucher");
+export async function findGiftCard(code: string) {
+  return check(await db().from("gift_cards").select("id, code, balance_cents, customer_id, public_token").eq("code", code).maybeSingle(), "find gift card");
 }
 
 // ---------------------------------------------------------------------------

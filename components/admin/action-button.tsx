@@ -60,7 +60,7 @@ export function ConfirmButton({
   title: string;
   description: string;
   confirmLabel: string;
-  /** Something extra they should know first, e.g. what happens to a customer's gift vouchers. */
+  /** Something extra they should know first, e.g. what happens to a customer's gift cards. */
   notice?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);

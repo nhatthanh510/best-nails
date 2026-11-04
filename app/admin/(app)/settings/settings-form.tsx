@@ -184,8 +184,8 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
 
         <Card className="flex flex-col gap-5 p-6">
           <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-extrabold">Gift voucher codes</h2>
-            <Hint>Shows which business a gift voucher belongs to, if you run more than one.</Hint>
+            <h2 className="text-lg font-extrabold">Gift card codes</h2>
+            <Hint>Shows which business a gift card belongs to, if you run more than one.</Hint>
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="code_prefix">Business code prefix</Label>
@@ -206,8 +206,8 @@ export function SettingsForm({ settings: s, canEdit }: { settings: Settings; can
             <Hint>
               {preview ? (
                 <>
-                  New gift vouchers will look like <span className="font-mono font-bold text-foreground">{preview}</span>: your prefix
-                  and 8 digits, easy to copy from paper. Vouchers already created keep their code.
+                  New gift cards will look like <span className="font-mono font-bold text-foreground">{preview}</span>: your prefix
+                  and 8 digits, easy to copy from paper. Gift cards already created keep their code.
                 </>
               ) : (
                 "2 to 4 letters, e.g. BN for Best Nails."

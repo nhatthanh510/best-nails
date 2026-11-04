@@ -16,15 +16,15 @@ This turns the manual plan in `TEST_PLAN.md` into automated suites. Each case ke
 | End to end | Playwright | `e2e/*.spec.ts` | Real browser against the dev server and local Supabase: kiosk journeys, admin journeys, access control, layout at iPad and phone widths. |
 
 **What gets tested first (by risk)**
-1. **Money and points:** gift voucher balances, over-balance spends, one discount per visit, one check-in per day. A bug here costs the shop money or annoys customers.
+1. **Money and points:** gift card balances, over-balance spends, one discount per visit, one check-in per day. A bug here costs the shop money or annoys customers.
 2. **Privacy on the shared iPad:** masked phone numbers, idle reset, staff accounts kept out of the admin.
-3. **Main daily journeys:** kiosk check-in, sign-up and redeem; adding customers; creating and using vouchers.
+3. **Main daily journeys:** kiosk check-in, sign-up and redeem; adding customers; creating and using gift cards.
 4. **Everything else:** settings, rewards editor, accounts, layout.
 
 **Test data rules (E2E)**
-- Customers only use the fictional range **0491 570 1xx** (`+614915701xx`). Gift voucher codes typed by tests start with **QA**, rewards are named **E2E …**, and accounts are `e2e-…@bestnails.test`.
+- Customers only use the fictional range **0491 570 1xx** (`+614915701xx`). Gift card codes typed by tests start with **QA**, rewards are named **E2E …**, and accounts are `e2e-…@bestnails.test`.
 - Before each test, `e2e/support/db.ts` deletes only that tagged data, puts the settings back to their defaults and pauses the shop's own rewards (otherwise a real "10% OFF" would be the kiosk's main reward). When the run ends, the teardown restores the settings and turns back on exactly the rewards that were active. No other untagged data is touched. If a run is killed before its teardown, run it again to restore them.
-- Seeding uses the service-role key from `.env.local` and the same SQL functions the app uses (`kiosk_check_in`, `_post_points`, `_post_gift_voucher`), so the ledger and cached totals stay consistent.
+- Seeding uses the service-role key from `.env.local` and the same SQL functions the app uses (`kiosk_check_in`, `_post_points`, `_post_gift_card`), so the ledger and cached totals stay consistent.
 - Settings and rewards are shared by the whole app, so E2E runs on **one worker**. The suite is small enough that this keeps it quick.
 - Sign-out revokes every session of that account, so tests that sign out or remove an account use their own throwaway account and never the shared admin or staff login.
 
@@ -61,7 +61,7 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 | T-01 | Tier boundaries are inclusive at the thresholds; custom thresholds work | U |
 | T-02 | `tierRange` agrees with `tierFor` for every point total | U |
 | M-01 | Dollar strings become exact cents (no floating-point drift), and junk is rejected | U |
-| M-02 | Voucher codes normalise to upper-case letters and digits | U |
+| M-02 | Gift card codes normalise to upper-case letters and digits | U |
 | M-03 | The Luhn check catches every single-digit error and adjacent swap in a generated code | U |
 | M-04 | Status: expired beats used up, which beats active | U |
 | R-01 | `safeRedirectPath` keeps same-site paths and rejects anything that could leave the site | U |
@@ -79,7 +79,7 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 | KA-05 | Every redeem status maps to its message; an unknown status gets the fallback | SA |
 | KA-06 | A malformed reward id is refused without calling the database | SA |
 
-### Admin Server Actions (`app/admin/actions.ts`, `gift-voucher-actions.ts`)
+### Admin Server Actions (`app/admin/actions.ts`, `gift-card-actions.ts`)
 | ID | Case | Layer |
 |---|---|---|
 | AA-01 | Sign-in routing: temporary password → `/account`, admin → `next` (only if same-site), staff → kiosk | SA |
@@ -87,10 +87,10 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 | AA-03 | Adjust points: at least 1, a reason required, Remove sends a negative delta | SA |
 | AA-04 | Settings: VIP above Regular, prefix 2–4 letters (upper-cased), known timezone | SA |
 | AA-05 | Rewards: a name and at least 1 point; new rewards are always `type = reward` | SA |
-| GA-01 | Create voucher: amount at least $1, a code required, unknown customer phone refused | SA |
+| GA-01 | Create gift card: amount at least $1, a code required, unknown customer phone refused | SA |
 | GA-02 | Spend: over balance gives the "only $X left" message; a not-found code with a bad check digit says "looks mistyped" | SA |
 | GA-03 | Adjust: a non-zero amount and a reason; Remove is negative | SA |
-| GA-04 | A voucher that has been spent from can't be deleted | SA, E2E |
+| GA-04 | A gift card that has been spent from can't be deleted | SA, E2E |
 
 ### Kiosk journeys (E2E, iPad landscape 1180×820)
 | ID | Case |
@@ -108,7 +108,7 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 | R-04 | 10 points and checked in → Redeem → confirm → "Show this screen" with −10 points |
 | R-06 | After today's discount, the kiosk says "You've had today's discount" and offers nothing more |
 | B-02 | In the birthday window with the discount on, the birthday discount can be redeemed with no points |
-| G-15 | The Gift voucher header button opens Create with the customer linked; the code is shown in large type |
+| G-15 | The Gift card header button opens Create with the customer linked; the code is shown in large type |
 | KS-01 | Sign out asks first; Cancel keeps the kiosk running |
 
 ### Admin journeys (E2E)
@@ -131,12 +131,12 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 | RW-02 | Turning the birthday discount on shows it on the kiosk |
 | ST-01 | Leaving Settings with unsaved changes asks first |
 | ST-02 | VIP at or below Regular shows the error and disables Save |
-| G-07 | Use part of a voucher (typed in lower case with spaces) and see the new balance |
+| G-07 | Use part of a gift card (typed in lower case with spaces) and see the new balance |
 | G-08 | An amount above the balance is blocked inline; "Use all" fills the balance and says what to take at the till |
 | G-12 | Correct balance needs a reason and changes the balance |
-| G-14 | An expired voucher is refused |
+| G-14 | An expired gift card is refused |
 | G-16 | A code with two digits swapped says it looks mistyped |
-| G-17 | An unspent voucher can be deleted; a spent one has no Delete |
+| G-17 | An unspent gift card can be deleted; a spent one has no Delete |
 | S-01 | Signed out, the kiosk asks for a staff member to sign in |
 | L-01/02 | No sideways scrolling at 375 px on the admin dashboard, customers page and kiosk |
 | L-04 | The kiosk number screen fits the iPad landscape screen without scrolling |
@@ -145,7 +145,7 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 
 | # | Finding | Fix | Test |
 |---|---|---|---|
-| F-1 | No confirmation after creating or saving a reward: `RewardEditor` called `onDone()` inside its action, which unmounted the editor before `useActionToast` could show "Reward created." / "Reward saved.". | `useActionToast(state, { onSuccess })` closes the form right after the toast; the five forms that closed themselves inside their action (reward, add/edit account, reset password, customer, use gift voucher) now use it. | RW-01 |
+| F-1 | No confirmation after creating or saving a reward: `RewardEditor` called `onDone()` inside its action, which unmounted the editor before `useActionToast` could show "Reward created." / "Reward saved.". | `useActionToast(state, { onSuccess })` closes the form right after the toast; the five forms that closed themselves inside their action (reward, add/edit account, reset password, customer, use gift card) now use it. | RW-01 |
 | F-2 | The "can sign in now" toast after adding an account showed only sometimes (same cause, racing the dialog's close animation). | As F-1. | AC-01 |
 | F-3 | `signed(0)` returned "−0" and `birthdayWindowLabel(1)` "within 1 days" (not reachable from the UI yet). | Both corrected. | `lib/format.test.ts`, `lib/rewards.test.ts` |
 | F-4 | In dev, a very fast first tap can land before React hydrates the page. Not a problem for people, but tests must wait for it. | `hydrated()` helper in the E2E fixtures. | — |

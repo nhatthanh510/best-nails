@@ -1,8 +1,8 @@
 /**
- * Gift vouchers as a PDF, for a shop without a printer: download it and print it elsewhere. Each
- * card (a VoucherCard on the page, so the PDF matches the screen exactly) becomes a sharp image,
+ * Gift cards as a PDF, for a shop without a printer: download it and print it elsewhere. Each
+ * card (a PrintedGiftCard on the page, so the PDF matches the screen exactly) becomes a sharp image,
  * laid out on A4 like the printed sheet (globals.css, #print-root[data-sheet]): 2 × 5 cards with a
- * gap to cut between. A single voucher is one larger card at the top of the page. The libraries
+ * gap to cut between. A single gift card is one larger card at the top of the page. The libraries
  * load only when someone downloads.
  */
 
@@ -11,7 +11,7 @@ export const SHEET = { cardMm: 80, ratio: 1.7, colGapMm: 12, rowGapMm: 8, cols: 
 const SINGLE_MM = 120;
 const A4 = { w: 210, h: 297 };
 
-export async function downloadVoucherPdf(cards: HTMLElement[], filename: string) {
+export async function downloadGiftCardPdf(cards: HTMLElement[], filename: string) {
   const [{ toJpeg }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
   const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
 

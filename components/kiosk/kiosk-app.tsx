@@ -15,7 +15,7 @@ import {
 } from "@/app/kiosk/actions";
 import type { KioskContent } from "@/lib/kiosk-content";
 import { SignOutConfirm } from "./sign-out-confirm";
-import { GiftVoucherMenu } from "./gift-voucher-menu";
+import { GiftCardMenu } from "./gift-card-menu";
 import {
   AlreadyScreen,
   EnterScreen,
@@ -59,8 +59,8 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>({ name: "enter" });
   const [signingOut, setSigningOut] = useState(false);
-  // While the Gift voucher dialog is open, the idle reset and screen countdowns wait.
-  const [voucherOpen, setVoucherOpen] = useState(false);
+  // While the Gift card dialog is open, the idle reset and screen countdowns wait.
+  const [giftCardOpen, setGiftCardOpen] = useState(false);
   const [digits, setDigitsRaw] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [redeemError, setRedeemError] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   const reset = useCallback(() => {
     setDigits("");
     setRedeemError(null);
-    setVoucherOpen(false);
+    setGiftCardOpen(false);
     setScreen({ name: "enter" });
     // Pick up promotions or settings changed in the admin since the last visit.
     router.refresh();
@@ -91,7 +91,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
       setDigitsRaw("");
       setPhoneError(null);
       setRedeemError(null);
-      setVoucherOpen(false);
+      setGiftCardOpen(false);
       setSigningOut(false);
       setScreen({ name: "enter" });
     };
@@ -103,7 +103,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     const atRest = screen.name === "enter" && digits === "";
     const arm = () => {
       clearTimeout(idleTimer.current);
-      if (!atRest && !voucherOpen) idleTimer.current = setTimeout(reset, content.idleSeconds * 1000);
+      if (!atRest && !giftCardOpen) idleTimer.current = setTimeout(reset, content.idleSeconds * 1000);
     };
     arm();
     window.addEventListener("pointerdown", arm);
@@ -113,7 +113,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
       window.removeEventListener("pointerdown", arm);
       window.removeEventListener("keydown", arm);
     };
-  }, [screen.name, digits, content.idleSeconds, reset, voucherOpen]);
+  }, [screen.name, digits, content.idleSeconds, reset, giftCardOpen]);
 
   const handleResult = (result: CheckInResult, summary: VisitSummary) => {
     if (result.status === "checked_in") setScreen({ name: "success", result, summary });
@@ -226,7 +226,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   };
 
   // A physical or Bluetooth keyboard works on the number screen too, except while typing into
-  // a field or a dialog (e.g. a gift voucher code from the header).
+  // a field or a dialog (e.g. a gift card code from the header).
   // An Effect Event sees the latest digits (for Enter) without re-subscribing on every keypress.
   const onKeyboard = useEffectEvent((e: KeyboardEvent) => {
     if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable], [role=dialog], [role=alertdialog]")) return;
@@ -249,7 +249,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     onRedeem: redeem,
   };
 
-  // Once the customer has typed their number (and they exist), a voucher sold or used here is
+  // Once the customer has typed their number (and they exist), a gift card sold or used here is
   // linked to them. Before that, and on sign-up, it opens without a customer.
   const picking =
     (screen.name === "services" || screen.name === "staff" || screen.name === "payment") && screen.visit.from.name === "found"
@@ -272,11 +272,11 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
       <KioskHeader
         isAdmin={isAdmin}
         onSignOut={() => setSigningOut(true)}
-        voucher={
-          <GiftVoucherMenu
+        giftCard={
+          <GiftCardMenu
             phone={linked ? digits : ""}
             name={customerName}
-            onOpenChange={setVoucherOpen}
+            onOpenChange={setGiftCardOpen}
           />
         }
       />
@@ -382,14 +382,14 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
             summary={screen.summary}
             seconds={SUCCESS_SECONDS}
             onDone={reset}
-            paused={voucherOpen}
+            paused={giftCardOpen}
             {...redeemProps}
           />
         );
       case "already":
         return <AlreadyScreen result={screen.result} timezone={content.timezone} onDone={reset} {...redeemProps} />;
       case "redeemed":
-        return <RedeemedScreen result={screen.result} timezone={content.timezone} onDone={reset} paused={voucherOpen} />;
+        return <RedeemedScreen result={screen.result} timezone={content.timezone} onDone={reset} paused={giftCardOpen} />;
       case "error":
         return <ErrorScreen message={screen.message} onDone={reset} />;
     }

@@ -60,7 +60,7 @@ export async function requireAdmin(): Promise<Staff> {
 }
 
 /**
- * For the few actions any account may take from the kiosk (selling and using gift vouchers):
+ * For the few actions any account may take from the kiosk (selling and using gift cards):
  * signed-out visitors go to the login page; admins and staff both pass.
  */
 export async function requireSignedIn(): Promise<Staff> {

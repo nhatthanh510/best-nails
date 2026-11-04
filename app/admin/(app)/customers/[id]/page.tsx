@@ -5,16 +5,16 @@ import { Cake, Check, ChevronLeft, NotebookPen } from "lucide-react";
 import { Avatar, BirthdayBadge, Card, DataTable, EmptyRow, Pager, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
 import { TIER_LABELS, nextTier, tierFor } from "@/lib/tiers";
 import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
-import { customerGiftVouchers, customerTitle, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
+import { customerGiftCards, customerTitle, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
 import { VisitPayment, VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
-import { UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
+import { UseGiftCard } from "@/components/admin/gift-card-forms";
 import { requireAdmin } from "@/lib/auth";
 import { deleteCustomer, redeemBirthday, redeemReward } from "@/app/admin/actions";
 import { formatPhone, isStandardPhone } from "@/lib/phone";
 import { canRedeem, discountLabel, hasCashBonus, isCashOnly, rewardAmounts, rewardName, type BirthdayStatus, type Reward } from "@/lib/rewards";
 import { formatBirthday, formatDate, formatLastVisit, formatTime, fullName, initials, isShopToday, signed } from "@/lib/format";
 import { AdjustPointsForm, EditCustomerButton } from "./customer-actions";
-import { formatMoney } from "@/lib/gift-vouchers";
+import { formatMoney } from "@/lib/gift-cards";
 
 const REASON_LABELS = {
   check_in: "Check-in",
@@ -63,12 +63,12 @@ async function CustomerDetail({
   const page = Math.max(1, Number(sp.page) || 1);
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
-  const [data, settings, names, staff, giftVouchers] = await Promise.all([
+  const [data, settings, names, staff, giftCards] = await Promise.all([
     getCustomer(id),
     getSettings(),
     staffNames(),
     requireAdmin(),
-    customerGiftVouchers(id),
+    customerGiftCards(id),
   ]);
   if (!data) notFound();
   const { customer: c, ledger, rewards, birthday: bday, birthdayHistory, cashVisits } = data;
@@ -341,16 +341,16 @@ async function CustomerDetail({
 
           <Card className="flex flex-col gap-3.5 p-5">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-extrabold">Gift vouchers</h2>
-              <Link href="/admin/gift-vouchers" className="text-sm font-bold text-primary hover:underline">
-                All gift vouchers
+              <h2 className="text-lg font-extrabold">Gift cards</h2>
+              <Link href="/admin/gift-cards" className="text-sm font-bold text-primary hover:underline">
+                All gift cards
               </Link>
             </div>
-            {/* Their own vouchers are one tap; any other (e.g. a present) by typing its code. */}
-            <UseGiftVoucher
+            {/* Their own gift cards are one tap; any other (e.g. a present) by typing its code. */}
+            <UseGiftCard
               customerId={c.id}
               compact
-              vouchers={giftVouchers.map((g) => ({
+              giftCards={giftCards.map((g) => ({
                 id: g.id,
                 code: g.code,
                 amountCents: g.amount_cents ?? 0,
@@ -372,7 +372,7 @@ async function CustomerDetail({
               className="w-full"
               title={`Delete ${fullName(c)}?`}
               description="This removes the customer, their visits and their points history. It can't be undone."
-              notice={unlinkedVoucherNotice(giftVouchers)}
+              notice={unlinkedGiftCardNotice(giftCards)}
               confirmLabel="Delete customer"
               action={deleteCustomer.bind(null, c.id)}
             >
@@ -409,12 +409,12 @@ function tierHint(lifetimePoints: number, tiers: Parameters<typeof nextTier>[1])
   return `${earned} · ${next.pointsToGo} more to ${TIER_LABELS[next.tier]}`;
 }
 
-/** Deleting a customer keeps their gift vouchers (they're money the shop owes) but unlinks them. */
-function unlinkedVoucherNotice(vouchers: { status: string; balance_cents: number }[]) {
-  const open = vouchers.filter((g) => g.status === "active" && g.balance_cents > 0);
+/** Deleting a customer keeps their gift cards (they're money the shop owes) but unlinks them. */
+function unlinkedGiftCardNotice(giftCards: { status: string; balance_cents: number }[]) {
+  const open = giftCards.filter((g) => g.status === "active" && g.balance_cents > 0);
   if (open.length === 0) return undefined;
   const left = formatMoney(open.reduce((sum, g) => sum + g.balance_cents, 0));
   return open.length === 1
-    ? `They have 1 gift voucher with ${left} left. It stays valid, but won't be linked to anyone.`
-    : `They have ${open.length} gift vouchers with ${left} left in all. They stay valid, but won't be linked to anyone.`;
+    ? `They have 1 gift card with ${left} left. It stays valid, but won't be linked to anyone.`
+    : `They have ${open.length} gift cards with ${left} left in all. They stay valid, but won't be linked to anyone.`;
 }

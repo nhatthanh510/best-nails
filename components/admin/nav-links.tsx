@@ -15,7 +15,7 @@ const NAV: { label: string | null; items: NavItem[] }[] = [
       { href: "/admin", label: "Dashboard", icon: LayoutGrid, exact: true },
       { href: "/admin/customers", label: "Customers", icon: Users },
       { href: "/admin/check-ins", label: "Check-ins", icon: CheckSquare },
-      { href: "/admin/gift-vouchers", label: "Gift vouchers", icon: WalletCards },
+      { href: "/admin/gift-cards", label: "Gift cards", icon: WalletCards },
     ],
   },
   {

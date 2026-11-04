@@ -7,7 +7,7 @@ import { requireAdmin, requireSignedIn } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { findCustomer } from "@/lib/customer-lookup";
-import { formatMoney, GIFT_VOUCHER_PROBLEMS, looksMistyped, normalizeGiftCode, parseDollars, type GiftVoucherStatus } from "@/lib/gift-vouchers";
+import { formatMoney, GIFT_CARD_PROBLEMS, looksMistyped, normalizeGiftCode, parseDollars, type GiftCardStatus } from "@/lib/gift-cards";
 import type { ActionState } from "./actions";
 
 function fail(message: string): ActionState {
@@ -17,7 +17,7 @@ function fail(message: string): ActionState {
 function dbError(error: PostgrestError): ActionState {
   if (error.code === "42501") return fail("You don't have permission to do that.");
   if (["22023", "P0002", "23514"].includes(error.code)) {
-    if (error.code === "23514") return fail("Gift vouchers must stay valid for at least 3 years from when they're created.");
+    if (error.code === "23514") return fail("Gift cards must stay valid for at least 3 years from when they're created.");
     return fail(error.message.charAt(0).toUpperCase() + error.message.slice(1) + ".");
   }
   console.error(error);
@@ -27,7 +27,7 @@ function dbError(error: PostgrestError): ActionState {
 /** Why a code can't be used. An unknown code with a wrong check digit is called out as a typo. */
 function problem(status: string, code: string) {
   const key = status === "not_found" && looksMistyped(code) ? "mistyped" : status;
-  return GIFT_VOUCHER_PROBLEMS[key] ?? "This gift voucher can't be used.";
+  return GIFT_CARD_PROBLEMS[key] ?? "This gift card can't be used.";
 }
 
 const text = (max: number) =>
@@ -48,20 +48,20 @@ const sellSchema = z.object({
   notes: text(500),
 });
 
-/** What the "Voucher created" screen shows, so staff can copy the code onto the card. */
-export type CreatedVoucher = {
+/** What the "Gift card created" screen shows, so staff can copy the code onto the card. */
+export type CreatedGiftCard = {
   id: string;
   code: string;
   amountCents: number;
   expiresOn: string;
   publicToken: string | null;
-  /** Sold from a card printed ahead of time (Print blank vouchers), so it's already printed. */
+  /** Sold from a card printed ahead of time (Print blank gift cards), so it's already printed. */
   preprinted: boolean;
   customerName: string | null;
 };
-export type SellState = (ActionState & { voucher?: CreatedVoucher }) | null;
+export type SellState = (ActionState & { giftCard?: CreatedGiftCard }) | null;
 
-export async function sellGiftVoucher(_: SellState, formData: FormData): Promise<SellState> {
+export async function sellGiftCard(_: SellState, formData: FormData): Promise<SellState> {
   await requireSignedIn();
   const parsed = sellSchema.safeParse({
     amount: formData.get("amount") ?? "",
@@ -71,9 +71,9 @@ export async function sellGiftVoucher(_: SellState, formData: FormData): Promise
   });
   if (!parsed.success) return fail("Check the details and try again.");
   const cents = parseDollars(parsed.data.amount);
-  if (cents === null || cents < 100) return fail("Enter the voucher amount, e.g. 100.");
+  if (cents === null || cents < 100) return fail("Enter the gift card amount, e.g. 100.");
   // A code is always chosen on purpose: the number printed on the card, or one from Generate.
-  if (!parsed.data.code?.trim()) return fail("Enter the code on the voucher card, or press Generate.");
+  if (!parsed.data.code?.trim()) return fail("Enter the code on the gift card, or press Generate.");
 
   const supabase = await createClient();
   // Staff accounts can't read customers, so the phone lookup uses the service client (it only
@@ -81,7 +81,7 @@ export async function sellGiftVoucher(_: SellState, formData: FormData): Promise
   const customer = await findCustomer(createAdminClient(), parsed.data.phone, "");
   if (customer === "missing") return fail("No customer has that phone number. Leave it blank or add them first.");
 
-  const { data, error } = await supabase.rpc("sell_gift_voucher", {
+  const { data, error } = await supabase.rpc("sell_gift_card", {
     p_amount_cents: cents,
     p_code: parsed.data.code || undefined,
     p_customer_id: customer?.id,
@@ -89,15 +89,15 @@ export async function sellGiftVoucher(_: SellState, formData: FormData): Promise
   });
   if (error) return dbError(error);
   const r = data as { id: string; code: string; preprinted?: boolean };
-  // The expiry and QR token for the printable voucher; staff accounts can't read gift_vouchers themselves.
-  const { data: row } = await createAdminClient().from("gift_vouchers").select("expires_on, public_token").eq("id", r.id).single();
+  // The expiry and QR token for the printable gift card; staff accounts can't read gift_cards themselves.
+  const { data: row } = await createAdminClient().from("gift_cards").select("expires_on, public_token").eq("id", r.id).single();
   // Lists and totals behind the dialog update while it shows the new code.
   refresh();
   return {
     ok: true,
     message: `${r.preprinted ? "Activated" : "Created"} ${r.code} for ${formatMoney(cents)}. Take payment at the till.`,
-    href: `/admin/gift-vouchers/${r.id}`,
-    voucher: {
+    href: `/admin/gift-cards/${r.id}`,
+    giftCard: {
       id: r.id,
       code: r.code,
       amountCents: cents,
@@ -110,38 +110,38 @@ export async function sellGiftVoucher(_: SellState, formData: FormData): Promise
 }
 
 // ---------------------------------------------------------------------------
-// Printing ahead of time (admin): preview a batch of codes, then save them as inactive vouchers
+// Printing ahead of time (admin): preview a batch of codes, then save them as inactive gift cards
 // and print them. Selling one's code later sets its amount.
 // ---------------------------------------------------------------------------
 
-export type PrintedVoucher = { code: string; token: string };
+export type BlankGiftCard = { code: string; token: string };
 
 /** New codes for a batch, shown before anything is saved. */
-export async function previewGiftVoucherCodes(count: number): Promise<{ ok: true; codes: string[] } | { ok: false; message: string }> {
+export async function previewGiftCardCodes(count: number): Promise<{ ok: true; codes: string[] } | { ok: false; message: string }> {
   await requireAdmin();
   if (!Number.isInteger(count) || count < 1 || count > 100) return { ok: false, message: "Print between 1 and 100 blank cards at a time." };
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("preview_gift_voucher_codes", { p_count: count });
+  const { data, error } = await supabase.rpc("preview_gift_card_codes", { p_count: count });
   if (error) return dbError(error) as { ok: false; message: string };
   return { ok: true, codes: data };
 }
 
-/** Saves the previewed codes as inactive vouchers; their QR tokens come back for printing. */
-export async function createInactiveGiftVouchers(codes: string[]): Promise<{ ok: true; vouchers: PrintedVoucher[] } | { ok: false; message: string }> {
+/** Saves the previewed codes as inactive gift cards; their QR tokens come back for printing. */
+export async function createInactiveGiftCards(codes: string[]): Promise<{ ok: true; giftCards: BlankGiftCard[] } | { ok: false; message: string }> {
   await requireAdmin();
   if (!Array.isArray(codes) || codes.length < 1 || codes.length > 100) return { ok: false, message: "Print between 1 and 100 blank cards at a time." };
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_inactive_gift_vouchers", { p_codes: codes.map(String) });
+  const { data, error } = await supabase.rpc("create_inactive_gift_cards", { p_codes: codes.map(String) });
   if (error) return dbError(error) as { ok: false; message: string };
   refresh();
-  return { ok: true, vouchers: (data as { code: string; public_token: string }[]).map((v) => ({ code: v.code, token: v.public_token })) };
+  return { ok: true, giftCards: (data as { code: string; public_token: string }[]).map((v) => ({ code: v.code, token: v.public_token })) };
 }
 
 /** A fresh code with the business prefix, for the sell form's Generate button. */
-export async function generateGiftVoucherCode(): Promise<{ ok: true; code: string } | { ok: false; message: string }> {
+export async function generateGiftCardCode(): Promise<{ ok: true; code: string } | { ok: false; message: string }> {
   await requireSignedIn();
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("generate_gift_voucher_code");
+  const { data, error } = await supabase.rpc("generate_gift_card_code");
   if (error || !data) return { ok: false, message: "Couldn't make a code. Please try again." };
   return { ok: true, code: data };
 }
@@ -150,7 +150,7 @@ export async function generateGiftVoucherCode(): Promise<{ ok: true; code: strin
 // Front desk: check and spend. Like selling, open to any signed-in account (the kiosk header).
 // ---------------------------------------------------------------------------
 
-export type GiftVoucherCheck =
+export type GiftCardCheck =
   | {
       ok: true;
       id: string;
@@ -162,11 +162,11 @@ export type GiftVoucherCheck =
     }
   | { ok: false; message: string };
 
-/** A voucher found by its code at the front desk, with what's needed to choose what to do next. */
-export type FoundVoucher = {
+/** A gift card found by its code at the front desk, with what's needed to choose what to do next. */
+export type FoundGiftCard = {
   id: string;
   code: string;
-  status: GiftVoucherStatus;
+  status: GiftCardStatus;
   balanceCents: number;
   /** The sale plus top-ups; null before it's sold. */
   loadedCents: number | null;
@@ -174,37 +174,37 @@ export type FoundVoucher = {
   customerName: string | null;
   blockedReason: string | null;
 };
-export type FindResult = { ok: true; voucher: FoundVoucher } | { ok: false; message: string; canCreate: boolean };
+export type FindResult = { ok: true; giftCard: FoundGiftCard } | { ok: false; message: string; canCreate: boolean };
 
 /**
- * Find voucher: whatever state a code is in (not sold, active, used up, expired or blocked), so
+ * Find gift card: whatever state a code is in (not sold, active, used up, expired or blocked), so
  * the front desk can show only the actions that apply. An unknown code that isn't a typo can be
  * created (a number printed elsewhere). Open to any signed-in account, like checking a balance.
  */
-export async function findGiftVoucher(code: string): Promise<FindResult> {
+export async function findGiftCard(code: string): Promise<FindResult> {
   await requireSignedIn();
   const typed = normalizeGiftCode(String(code ?? "").slice(0, 40));
-  if (!typed) return { ok: false, message: "Type the code on the voucher.", canCreate: false };
+  if (!typed) return { ok: false, message: "Type the code on the gift card.", canCreate: false };
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("check_gift_voucher", { p_code: typed });
-  if (error || !data) return { ok: false, message: "Couldn't look the voucher up. Please try again.", canCreate: false };
+  const { data, error } = await supabase.rpc("check_gift_card", { p_code: typed });
+  if (error || !data) return { ok: false, message: "Couldn't look the gift card up. Please try again.", canCreate: false };
   const r = data as Record<string, unknown>;
   if (r.status === "not_found") {
     const mistyped = looksMistyped(typed);
     return { ok: false, message: problem("not_found", typed), canCreate: !mistyped && /^[A-Z0-9]{4,20}$/.test(typed) };
   }
   if (r.status === "not_sold" || r.status === "blocked") {
-    // check_gift_voucher says no more for these; staff accounts can't read gift_vouchers, so the
+    // check_gift_card says no more for these; staff accounts can't read gift_cards, so the
     // few details shown come from the service client, here on the server.
     const { data: v } = await createAdminClient()
-      .from("gift_vouchers")
+      .from("gift_cards")
       .select("balance_cents, expires_on, blocked_reason, customer:customers(first_name, last_name)")
       .eq("id", r.id as string)
       .single();
     const customer = v?.customer as { first_name: string; last_name: string | null } | null;
     return {
       ok: true,
-      voucher: {
+      giftCard: {
         id: r.id as string,
         code: r.code as string,
         status: r.status === "blocked" ? "blocked" : "inactive",
@@ -218,10 +218,10 @@ export async function findGiftVoucher(code: string): Promise<FindResult> {
   }
   return {
     ok: true,
-    voucher: {
+    giftCard: {
       id: r.id as string,
       code: r.code as string,
-      status: r.status === "valid" ? "active" : (r.status as GiftVoucherStatus),
+      status: r.status === "valid" ? "active" : (r.status as GiftCardStatus),
       balanceCents: r.balance_cents as number,
       loadedCents: r.amount_cents as number,
       expiresOn: r.expires_on as string,
@@ -232,11 +232,11 @@ export async function findGiftVoucher(code: string): Promise<FindResult> {
 }
 
 /** Look a code up first, so staff can tell the customer their balance. */
-export async function checkGiftVoucherCode(code: string): Promise<GiftVoucherCheck> {
+export async function checkGiftCardCode(code: string): Promise<GiftCardCheck> {
   await requireSignedIn();
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("check_gift_voucher", { p_code: code });
-  if (error || !data) return { ok: false, message: "Couldn't check the gift voucher. Please try again." };
+  const { data, error } = await supabase.rpc("check_gift_card", { p_code: code });
+  if (error || !data) return { ok: false, message: "Couldn't check the gift card. Please try again." };
   const r = data as Record<string, unknown>;
   if (r.status !== "valid") return { ok: false, message: problem(r.status as string, code) };
   return {
@@ -254,17 +254,17 @@ export async function checkGiftVoucherCode(code: string): Promise<GiftVoucherChe
 export type TopUpState = (ActionState & { topUp?: { code: string; addedCents: number; balanceCents: number; expiresOn: string } }) | null;
 
 /**
- * Top up a voucher a customer already has (any signed-in account, like creating one): payment
+ * Top up a gift card a customer already has (any signed-in account, like creating one): payment
  * is taken at the till. The expiry moves out to at least 3 years from today for the new money.
  */
-export async function topUpGiftVoucher(_: TopUpState, formData: FormData): Promise<TopUpState> {
+export async function topUpGiftCard(_: TopUpState, formData: FormData): Promise<TopUpState> {
   await requireSignedIn();
   const code = String(formData.get("code") ?? "").trim().slice(0, 40);
   const cents = parseDollars(String(formData.get("amount") ?? ""));
-  if (!code) return fail("Enter the voucher's code.");
+  if (!code) return fail("Enter the gift card's code.");
   if (cents === null || cents < 100) return fail("Enter the amount to add, e.g. 50.");
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("top_up_gift_voucher", { p_code: code, p_amount_cents: cents });
+  const { data, error } = await supabase.rpc("top_up_gift_card", { p_code: code, p_amount_cents: cents });
   if (error) return dbError(error);
   const r = data as { status: string; id?: string; code?: string; added_cents?: number; balance_cents?: number; expires_on?: string };
   if (r.status !== "topped_up") return fail(problem(r.status, code));
@@ -272,33 +272,33 @@ export async function topUpGiftVoucher(_: TopUpState, formData: FormData): Promi
   return {
     ok: true,
     message: `Topped up ${r.code} with ${formatMoney(r.added_cents!)}. Take payment at the till.`,
-    href: `/admin/gift-vouchers/${r.id}`,
+    href: `/admin/gift-cards/${r.id}`,
     topUp: { code: r.code!, addedCents: r.added_cents!, balanceCents: r.balance_cents!, expiresOn: r.expires_on! },
   };
 }
 
-/** Block a lost or stolen voucher (admin): nothing can be spent or added until it's unblocked. */
-export async function blockGiftVoucher(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
+/** Block a lost or stolen gift card (admin): nothing can be spent or added until it's unblocked. */
+export async function blockGiftCard(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
   await requireAdmin();
   const reason = String(formData.get("reason") ?? "").trim().slice(0, 200);
   if (!reason) return fail("Give a reason, e.g. lost by the customer.");
   const supabase = await createClient();
-  const { error } = await supabase.rpc("block_gift_voucher", { p_gift_voucher_id: id, p_reason: reason });
+  const { error } = await supabase.rpc("block_gift_card", { p_gift_card_id: id, p_reason: reason });
   if (error) return dbError(error);
   refresh();
-  return { ok: true, message: "Voucher blocked. Its balance is kept until it's unblocked." };
+  return { ok: true, message: "Gift card blocked. Its balance is kept until it's unblocked." };
 }
 
-export async function unblockGiftVoucher(id: string): Promise<ActionState> {
+export async function unblockGiftCard(id: string): Promise<ActionState> {
   await requireAdmin();
   const supabase = await createClient();
-  const { error } = await supabase.rpc("unblock_gift_voucher", { p_gift_voucher_id: id });
+  const { error } = await supabase.rpc("unblock_gift_card", { p_gift_card_id: id });
   if (error) return dbError(error);
   refresh();
-  return { ok: true, message: "Voucher unblocked. It can be used again." };
+  return { ok: true, message: "Gift card unblocked. It can be used again." };
 }
 
-export async function spendGiftVoucher(_: ActionState, formData: FormData): Promise<ActionState> {
+export async function spendGiftCard(_: ActionState, formData: FormData): Promise<ActionState> {
   await requireSignedIn();
   const code = String(formData.get("code") ?? "");
   const cents = parseDollars(String(formData.get("amount") ?? ""));
@@ -310,7 +310,7 @@ export async function spendGiftVoucher(_: ActionState, formData: FormData): Prom
   const customer = await findCustomer(createAdminClient(), String(formData.get("phone") ?? ""), String(formData.get("customer_id") ?? ""));
   if (customer === "missing") return fail("No customer has that phone number.");
 
-  const { data, error } = await supabase.rpc("spend_gift_voucher", {
+  const { data, error } = await supabase.rpc("spend_gift_card", {
     p_code: code,
     p_amount_cents: cents,
     p_customer_id: customer?.id,
@@ -320,7 +320,7 @@ export async function spendGiftVoucher(_: ActionState, formData: FormData): Prom
   const r = data as Record<string, unknown>;
   if (r.status === "over_balance") {
     const left = formatMoney(r.balance_cents as number);
-    return fail(`This voucher only has ${left} left. Enter ${left} or less and take the rest at the till.`);
+    return fail(`This gift card only has ${left} left. Enter ${left} or less and take the rest at the till.`);
   }
   if (r.status !== "spent") return fail(problem(r.status as string, code));
 
@@ -335,16 +335,16 @@ export async function spendGiftVoucher(_: ActionState, formData: FormData): Prom
 }
 
 // ---------------------------------------------------------------------------
-// Managing a voucher
+// Managing a gift card
 // ---------------------------------------------------------------------------
 
-export async function updateGiftVoucher(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
+export async function updateGiftCard(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const staff = await requireAdmin();
   const notes = text(500).safeParse(formData.get("notes") ?? "");
   if (!notes.success) return fail("Notes can be at most 500 characters.");
 
   const supabase = await createClient();
-  // A blank phone unlinks the voucher (e.g. it was bought as a present).
+  // A blank phone unlinks the gift card (e.g. it was bought as a present).
   const customer = await findCustomer(supabase, String(formData.get("phone") ?? ""), "");
   if (customer === "missing") return fail("No customer has that phone number.");
 
@@ -355,15 +355,15 @@ export async function updateGiftVoucher(id: string, _: ActionState, formData: Fo
   const expires = String(formData.get("expires_on") ?? "");
   if (staff.role === "admin" && /^\d{4}-\d{2}-\d{2}$/.test(expires)) update.expires_on = expires;
 
-  const { error } = await supabase.from("gift_vouchers").update(update).eq("id", id);
+  const { error } = await supabase.from("gift_cards").update(update).eq("id", id);
   if (error) return dbError(error);
   refresh();
-  return { ok: true, message: "Gift voucher saved." };
+  return { ok: true, message: "Gift card saved." };
 }
 
-export async function adjustGiftVoucher(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
+export async function adjustGiftCard(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const staff = await requireAdmin();
-  if (staff.role !== "admin") return fail("Only an admin can correct a voucher's balance.");
+  if (staff.role !== "admin") return fail("Only an admin can correct a gift card's balance.");
   const cents = parseDollars(String(formData.get("amount") ?? ""));
   if (cents === null || cents === 0) return fail("Enter an amount, e.g. 10.");
   const note = String(formData.get("note") ?? "").trim();
@@ -371,7 +371,7 @@ export async function adjustGiftVoucher(id: string, _: ActionState, formData: Fo
   const delta = formData.get("direction") === "remove" ? -cents : cents;
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("adjust_gift_voucher", { p_gift_voucher_id: id, p_delta_cents: delta, p_note: note.slice(0, 200) });
+  const { data, error } = await supabase.rpc("adjust_gift_card", { p_gift_card_id: id, p_delta_cents: delta, p_note: note.slice(0, 200) });
   if (error) return dbError(error);
   refresh();
   return { ok: true, message: `Balance is now ${formatMoney(data as number)}.` };
@@ -379,33 +379,33 @@ export async function adjustGiftVoucher(id: string, _: ActionState, formData: Fo
 
 /**
  * Delete several at once, e.g. a misprinted batch of blank cards. Like one at a time, only
- * vouchers nothing has been spent from (RLS); any others are kept and counted in the message.
+ * gift cards nothing has been spent from (RLS); any others are kept and counted in the message.
  */
-export async function deleteGiftVouchers(ids: string[]): Promise<ActionState> {
+export async function deleteGiftCards(ids: string[]): Promise<ActionState> {
   const staff = await requireAdmin();
-  if (staff.role !== "admin") return fail("Only an admin can delete gift vouchers.");
+  if (staff.role !== "admin") return fail("Only an admin can delete gift cards.");
   const valid = (Array.isArray(ids) ? ids : []).filter((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
-  if (!valid.length) return fail("Choose the vouchers to delete.");
+  if (!valid.length) return fail("Choose the gift cards to delete.");
   const supabase = await createClient();
-  const { data, error } = await supabase.from("gift_vouchers").delete().in("id", valid).select("id");
+  const { data, error } = await supabase.from("gift_cards").delete().in("id", valid).select("id");
   if (error) return dbError(error);
   refresh();
   const deleted = data?.length ?? 0;
   const kept = valid.length - deleted;
-  if (!deleted) return fail(kept === 1 ? "This voucher has been used, so it can't be deleted." : "These vouchers have been used, so they can't be deleted.");
+  if (!deleted) return fail(kept === 1 ? "This gift card has been used, so it can't be deleted." : "These gift cards have been used, so they can't be deleted.");
   return {
     ok: true,
-    message: `Deleted ${deleted} voucher${deleted === 1 ? "" : "s"}.${kept ? ` ${kept} ${kept === 1 ? "has" : "have"} been used, so ${kept === 1 ? "it was" : "they were"} kept.` : ""}`,
+    message: `Deleted ${deleted} gift card${deleted === 1 ? "" : "s"}.${kept ? ` ${kept} ${kept === 1 ? "has" : "have"} been used, so ${kept === 1 ? "it was" : "they were"} kept.` : ""}`,
   };
 }
 
-export async function deleteGiftVoucher(id: string): Promise<ActionState> {
+export async function deleteGiftCard(id: string): Promise<ActionState> {
   const staff = await requireAdmin();
-  if (staff.role !== "admin") return fail("Only an admin can delete a gift voucher.");
+  if (staff.role !== "admin") return fail("Only an admin can delete a gift card.");
   const supabase = await createClient();
-  // RLS only lets an admin delete a voucher nothing has been spent from.
-  const { data, error } = await supabase.from("gift_vouchers").delete().eq("id", id).select("id");
+  // RLS only lets an admin delete a gift card nothing has been spent from.
+  const { data, error } = await supabase.from("gift_cards").delete().eq("id", id).select("id");
   if (error) return dbError(error);
-  if (!data?.length) return fail("This voucher has been used, so it can't be deleted.");
-  return { ok: true, message: "Gift voucher deleted.", href: "/admin/gift-vouchers" };
+  if (!data?.length) return fail("This gift card has been used, so it can't be deleted.");
+  return { ok: true, message: "Gift card deleted.", href: "/admin/gift-cards" };
 }

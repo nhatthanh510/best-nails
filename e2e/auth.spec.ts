@@ -50,7 +50,7 @@ test.describe("Staff accounts", () => {
   test.use({ storageState: "e2e/.auth/staff.json" });
 
   test("A-04 a staff account is kept out of the admin", async ({ page }) => {
-    for (const path of ["/admin", "/admin/customers", "/admin/settings", "/admin/gift-vouchers"]) {
+    for (const path of ["/admin", "/admin/customers", "/admin/settings", "/admin/gift-cards"]) {
       await page.goto(path);
       await expect(page, `${path} should send staff to the kiosk`).toHaveURL(/\/kiosk$/);
     }

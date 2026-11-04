@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   CODE_PREFIX_PATTERN,
   formatMoney,
-  GIFT_VOUCHER_PROBLEMS,
-  giftVoucherStatus,
+  GIFT_CARD_PROBLEMS,
+  giftCardStatus,
   looksMistyped,
   normalizeGiftCode,
   parseDollars,
-} from "./gift-vouchers";
+} from "./gift-cards";
 
 /** Reference Luhn check digit (as `_luhn_check_digit` in SQL), to build valid codes in tests. */
 function luhnDigit(digits: string) {
@@ -105,23 +105,23 @@ describe("looksMistyped (M-03)", () => {
   });
 });
 
-describe("giftVoucherStatus (M-04)", () => {
+describe("giftCardStatus (M-04)", () => {
   it("is expired after the expiry date, used up at $0, otherwise active", () => {
-    expect(giftVoucherStatus({ balance_cents: 500, expires_on: "2026-10-23" }, "2026-10-24")).toBe("expired");
-    expect(giftVoucherStatus({ balance_cents: 0, expires_on: "2029-10-24" }, "2026-10-24")).toBe("used_up");
-    expect(giftVoucherStatus({ balance_cents: 500, expires_on: "2026-10-24" }, "2026-10-24")).toBe("active");
+    expect(giftCardStatus({ balance_cents: 500, expires_on: "2026-10-23" }, "2026-10-24")).toBe("expired");
+    expect(giftCardStatus({ balance_cents: 0, expires_on: "2029-10-24" }, "2026-10-24")).toBe("used_up");
+    expect(giftCardStatus({ balance_cents: 500, expires_on: "2026-10-24" }, "2026-10-24")).toBe("active");
   });
 
   it("is blocked while an admin has blocked it, whatever its balance", () => {
-    expect(giftVoucherStatus({ balance_cents: 500, expires_on: "2029-10-24", blocked_at: "2026-10-24T01:00:00Z" }, "2026-10-24")).toBe("blocked");
+    expect(giftCardStatus({ balance_cents: 500, expires_on: "2029-10-24", blocked_at: "2026-10-24T01:00:00Z" }, "2026-10-24")).toBe("blocked");
   });
 
   it("is inactive while printed and not sold (no expiry yet)", () => {
-    expect(giftVoucherStatus({ balance_cents: 0, expires_on: null }, "2026-10-24")).toBe("inactive");
+    expect(giftCardStatus({ balance_cents: 0, expires_on: null }, "2026-10-24")).toBe("inactive");
   });
 
-  it("calls a voucher expired even when it's also used up", () => {
-    expect(giftVoucherStatus({ balance_cents: 0, expires_on: "2026-10-23" }, "2026-10-24")).toBe("expired");
+  it("calls a gift card expired even when it's also used up", () => {
+    expect(giftCardStatus({ balance_cents: 0, expires_on: "2026-10-23" }, "2026-10-24")).toBe("expired");
   });
 });
 
@@ -131,7 +131,7 @@ describe("constants", () => {
     for (const bad of ["B", "ABCDE", "bn", "B1", ""]) expect(CODE_PREFIX_PATTERN.test(bad)).toBe(false);
   });
 
-  it("has a message for every reason a voucher can't be used", () => {
-    expect(Object.keys(GIFT_VOUCHER_PROBLEMS).sort()).toEqual(["blocked", "expired", "mistyped", "not_found", "not_sold", "used_up"]);
+  it("has a message for every reason a gift card can't be used", () => {
+    expect(Object.keys(GIFT_CARD_PROBLEMS).sort()).toEqual(["blocked", "expired", "mistyped", "not_found", "not_sold", "used_up"]);
   });
 });

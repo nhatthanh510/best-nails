@@ -4,36 +4,36 @@ import { notFound } from "next/navigation";
 import { Ban, ChevronDown, ChevronLeft } from "lucide-react";
 import { Card, DataTable, EmptyRow, td, th } from "@/components/admin/ui";
 import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
-import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
+import { GiftCardStatusPill } from "@/components/admin/gift-card-status";
 import {
-  AdjustGiftVoucherForm,
-  BlockGiftVoucherForm,
-  GiftVoucherSettingsForm,
-  SellGiftVoucherButton,
+  AdjustGiftCardForm,
+  BlockGiftCardForm,
+  GiftCardSettingsForm,
+  SellGiftCardButton,
   TopUpButton,
-  UseThisVoucherButton,
-} from "@/components/admin/gift-voucher-forms";
-import { deleteGiftVoucher, unblockGiftVoucher } from "@/app/admin/gift-voucher-actions";
-import { PrintableVoucher } from "@/components/admin/voucher-card";
+  UseThisGiftCardButton,
+} from "@/components/admin/gift-card-forms";
+import { deleteGiftCard, unblockGiftCard } from "@/app/admin/gift-card-actions";
+import { PrintableGiftCard } from "@/components/admin/printed-gift-card";
 import { requireAdmin } from "@/lib/auth";
-import { getGiftVoucher, getSettings, giftVoucherCode, staffNames, type GiftVoucherRow, type GiftVoucherTransaction } from "@/lib/admin-data";
-import { formatMoney } from "@/lib/gift-vouchers";
+import { getGiftCard, getSettings, giftCardCode, staffNames, type GiftCardRow, type GiftCardTransaction } from "@/lib/admin-data";
+import { formatMoney } from "@/lib/gift-cards";
 import { formatDate, formatTime, fullName } from "@/lib/format";
 
 // The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
 // the current page still up (and the sidebar's loading line) rather than showing a skeleton.
 export const instant = false;
 
-export async function generateMetadata({ params }: PageProps<"/admin/gift-vouchers/[id]">) {
+export async function generateMetadata({ params }: PageProps<"/admin/gift-cards/[id]">) {
   const { id } = await params;
   // The title reads the session, so a link prefetch mustn't prerender it (see CLAUDE.md).
   await connection();
-  const code = /^[0-9a-f-]{36}$/i.test(id) ? await giftVoucherCode(id) : null;
-  return { title: code ? `Gift voucher ${code}` : "Gift voucher" };
+  const code = /^[0-9a-f-]{36}$/i.test(id) ? await giftCardCode(id) : null;
+  return { title: code ? `Gift card ${code}` : "Gift card" };
 }
 
 // The same words as the buttons that make them: Create, Top up, Use, Correct balance.
-const ENTRY_LABELS: Record<GiftVoucherTransaction["kind"], string> = {
+const ENTRY_LABELS: Record<GiftCardTransaction["kind"], string> = {
   sale: "Created",
   top_up: "Topped up",
   spend: "Used",
@@ -50,21 +50,21 @@ function threeYearsAfter(d: string) {
   return `${Number(y) + 3}-${m}-${m === "02" && dd === "29" ? "28" : dd}`;
 }
 
-export default function GiftVoucherPage({ params }: PageProps<"/admin/gift-vouchers/[id]">) {
+export default function GiftCardPage({ params }: PageProps<"/admin/gift-cards/[id]">) {
   return (
     <>
-      <Link href="/admin/gift-vouchers" className="flex min-h-8 w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline">
+      <Link href="/admin/gift-cards" className="flex min-h-8 w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline">
         <ChevronLeft className="size-4" strokeWidth={2.4} aria-hidden="true" />
-        All gift vouchers
+        All gift cards
       </Link>
-      <GiftVoucherDetail params={params} />
+      <GiftCardDetail params={params} />
     </>
   );
 }
 
 /**
  * Two columns from lg (a landscape iPad included): on the left what staff need at the till (the balance, the actions
- * that fit the voucher's state, and the card to print); on the right its history, then the
+ * that fit the gift card's state, and the card to print); on the right its history, then the
  * details and admin tools, folded away as they're rarely needed. One column on phones, same order.
  */
 const columns = "grid items-start gap-5 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]";
@@ -94,20 +94,20 @@ function Section({ title, hint, children, divided = false }: { title: string; hi
   );
 }
 
-async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vouchers/[id]">["params"] }) {
+async function GiftCardDetail({ params }: { params: PageProps<"/admin/gift-cards/[id]">["params"] }) {
   // Request time only: a link prefetch prerenders the page with the cookies, and it reads the clock.
   await connection();
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
-  const [data, settings, names, staff] = await Promise.all([getGiftVoucher(id), getSettings(), staffNames(), requireAdmin()]);
+  const [data, settings, names, staff] = await Promise.all([getGiftCard(id), getSettings(), staffNames(), requireAdmin()]);
   if (!data) notFound();
-  const { voucher: v, transactions } = data;
+  const { giftCard: v, transactions } = data;
   const tz = settings.timezone;
   const isAdmin = staff.role === "admin";
   // Who did something: their name (a deleted account shows as Staff).
   const by = (userId: string | null) => (userId && names.get(userId)) || "Staff";
-  if (v.status === "inactive") return <NotSoldVoucher voucher={v} printedBy={by(v.sold_by)} tz={tz} isAdmin={isAdmin} />;
+  if (v.status === "inactive") return <NotSoldGiftCard giftCard={v} printedBy={by(v.sold_by)} tz={tz} isAdmin={isAdmin} />;
   // Sold, so it has a sale date and an expiry.
   const soldOn = v.sold_on!;
   const expiresOn = v.expires_on!;
@@ -135,7 +135,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
         <Card className="flex flex-col gap-5 p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-mono text-[24px] font-extrabold tracking-wider">{v.code}</h1>
-            <GiftVoucherStatusPill status={v.status} />
+            <GiftCardStatusPill status={v.status} />
           </div>
 
           <div className="flex flex-col gap-1">
@@ -179,7 +179,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
                 </span>
               </p>
               {isAdmin && (
-                <ActionButton variant="outline" size="sm" className="w-fit" action={unblockGiftVoucher.bind(null, v.id)}>
+                <ActionButton variant="outline" size="sm" className="w-fit" action={unblockGiftCard.bind(null, v.id)}>
                   Unblock
                 </ActionButton>
               )}
@@ -187,10 +187,10 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
           )}
           {v.status === "expired" && <p className="text-sm text-muted-foreground">It has expired, so it can&apos;t be used or topped up.</p>}
 
-          {/* Only the till actions that fit: Use needs a balance; Top up works on an active or used-up voucher. */}
+          {/* Only the till actions that fit: Use needs a balance; Top up works on an active or used-up gift card. */}
           {(v.status === "active" || v.status === "used_up") && (
             <div className="grid grid-cols-2 gap-2">
-              {v.status === "active" && <UseThisVoucherButton code={v.code} />}
+              {v.status === "active" && <UseThisGiftCardButton code={v.code} />}
               <TopUpButton
                 code={v.code}
                 size="lg"
@@ -203,10 +203,10 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
 
         <Card className="@container flex flex-col gap-4 p-5">
           <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-extrabold">Printed voucher</h2>
+            <h2 className="text-lg font-extrabold">Printed gift card</h2>
             <p className="text-[13px] text-muted-foreground">The customer scans the QR code to see the balance left.</p>
           </div>
-          <PrintableVoucher code={v.code} expiresOn={expiresOn} token={v.public_token} />
+          <PrintableGiftCard code={v.code} expiresOn={expiresOn} token={v.public_token} />
         </Card>
       </div>
 
@@ -259,7 +259,7 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
         </Card>
 
         <Fold title="Details">
-          <GiftVoucherSettingsForm
+          <GiftCardSettingsForm
             id={v.id}
             phone={v.customer?.phone ?? null}
             notes={v.notes}
@@ -276,14 +276,14 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
               title="Correct balance"
               hint="Only to fix a mistake, e.g. a use entered twice: put it back with the reason. When a customer pays for more credit, use Top up instead."
             >
-              <AdjustGiftVoucherForm id={v.id} balanceCents={v.balance_cents} />
+              <AdjustGiftCardForm id={v.id} balanceCents={v.balance_cents} />
             </Section>
             {!v.blocked_at && (
-              <Section divided title="Block voucher" hint="If it's lost or stolen, so nobody else can use it. The balance is kept, and you can unblock it later.">
-                <BlockGiftVoucherForm id={v.id} />
+              <Section divided title="Block gift card" hint="If it's lost or stolen, so nobody else can use it. The balance is kept, and you can unblock it later.">
+                <BlockGiftCardForm id={v.id} />
               </Section>
             )}
-            <Section divided title="Delete voucher">
+            <Section divided title="Delete gift card">
               {everUsed ? (
                 <p className="text-[13px] text-muted-foreground">It has been used, so it can&apos;t be deleted. To fix its balance, use Correct balance.</p>
               ) : (
@@ -291,11 +291,11 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
                   variant="danger"
                   className="w-full"
                   title={`Delete ${v.code}?`}
-                  description="Only for a voucher created by mistake. Refund the customer at the till. This can't be undone."
-                  confirmLabel="Delete voucher"
-                  action={deleteGiftVoucher.bind(null, v.id)}
+                  description="Only for a gift card created by mistake. Refund the customer at the till. This can't be undone."
+                  confirmLabel="Delete gift card"
+                  action={deleteGiftCard.bind(null, v.id)}
                 >
-                  Delete voucher
+                  Delete gift card
                 </ConfirmButton>
               )}
             </Section>
@@ -310,40 +310,40 @@ async function GiftVoucherDetail({ params }: { params: PageProps<"/admin/gift-vo
  * A blank card printed ahead of time and not sold yet: no balance, history or expiry until a
  * customer buys it. Its card can be printed again, and one that's lost or spoiled can be deleted.
  */
-function NotSoldVoucher({ voucher: v, printedBy, tz, isAdmin }: { voucher: GiftVoucherRow; printedBy: string; tz: string; isAdmin: boolean }) {
+function NotSoldGiftCard({ giftCard: v, printedBy, tz, isAdmin }: { giftCard: GiftCardRow; printedBy: string; tz: string; isAdmin: boolean }) {
   return (
     <div className={columns}>
       <div className="flex min-w-0 flex-col gap-5">
         <Card className="flex flex-col gap-5 p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-mono text-[24px] font-extrabold tracking-wider">{v.code}</h1>
-            <GiftVoucherStatusPill status={v.status} />
+            <GiftCardStatusPill status={v.status} />
           </div>
           <p className="text-sm text-muted-foreground">
             A blank card printed {formatDate(v.created_at, tz, { day: "numeric", month: "short", year: "numeric" })} by {printedBy}. It has no balance
             until a customer buys it: activate it with the amount they pay. Its 3 years start that day, and the QR code on the card then shows the
             balance.
           </p>
-          <SellGiftVoucherButton code={v.code} className="w-full" />
+          <SellGiftCardButton code={v.code} className="w-full" />
         </Card>
         <Card className="@container flex flex-col gap-4 p-5">
-          <h2 className="text-lg font-extrabold">Printed voucher</h2>
-          <PrintableVoucher code={v.code} expiresOn={null} token={v.public_token} />
+          <h2 className="text-lg font-extrabold">Printed gift card</h2>
+          <PrintableGiftCard code={v.code} expiresOn={null} token={v.public_token} />
         </Card>
       </div>
       {isAdmin && (
         <div className="flex min-w-0 flex-col gap-5">
           <Fold title="Admin tools">
-            <Section title="Delete voucher" hint="For a blank card that's lost or spoiled. Its code and QR code stop working.">
+            <Section title="Delete gift card" hint="For a blank card that's lost or spoiled. Its code and QR code stop working.">
               <ConfirmButton
                 variant="danger"
                 className="w-full"
                 title={`Delete ${v.code}?`}
                 description="For a blank card that's lost or spoiled. Its code and QR code stop working. This can't be undone."
-                confirmLabel="Delete voucher"
-                action={deleteGiftVoucher.bind(null, v.id)}
+                confirmLabel="Delete gift card"
+                action={deleteGiftCard.bind(null, v.id)}
               >
-                Delete voucher
+                Delete gift card
               </ConfirmButton>
             </Section>
           </Fold>

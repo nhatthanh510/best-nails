@@ -221,7 +221,7 @@
 }
 
 /*
- * Admin components shown on the kiosk (the Gift voucher dialog): the same forms, in the kiosk's
+ * Admin components shown on the kiosk (the Gift card dialog): the same forms, in the kiosk's
  * dark palette and a size for fingers, so staff don't feel they've left the check-in screen.
  * Every text/background pair here passes WCAG AA.
  */
@@ -269,7 +269,7 @@
 }
 
 
-/* Printing a gift voucher (PrintVoucherButton in components/admin/voucher-card.tsx): a copy of the
+/* Printing a gift card (PrintGiftCardButton in components/admin/printed-gift-card.tsx): a copy of the
    card goes into #print-root, and only that prints, at about the size of a gift card holder. */
 @media screen {
   #print-root {
@@ -291,9 +291,9 @@
     margin: 0 auto;
   }
 }
-/* Blank cards printed ahead of time (components/admin/blank-vouchers.tsx): 2 × 5 cards on an A4
+/* Blank cards printed ahead of time (components/admin/blank-gift-cards.tsx): 2 × 5 cards on an A4
    page with a gap to cut between. 80 mm wide at the card's 1.7 ratio is 47 mm tall. Keep in step
-   with SHEET in lib/voucher-pdf.ts, which lays out the PDF the same way. */
+   with SHEET in lib/gift-card-pdf.ts, which lays out the PDF the same way. */
 @media print {
   #print-root[data-sheet] {
     display: grid;

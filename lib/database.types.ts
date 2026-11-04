@@ -109,39 +109,39 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
-                },"gift_voucher_transactions": {
+                },"gift_card_transactions": {
                   Row: {
-                    "balance_after_cents": number,"created_at": string,"created_by": string | null,"customer_id": string | null,"delta_cents": number,"gift_voucher_id": string,"id": string,"kind": Database["public"]['Enums']["gift_voucher_entry"],"note": string | null,"seq": number,"undoes": string | null,"voided_at": string | null,"voided_by": string | null
+                    "balance_after_cents": number,"created_at": string,"created_by": string | null,"customer_id": string | null,"delta_cents": number,"gift_card_id": string,"id": string,"kind": Database["public"]['Enums']["gift_card_entry"],"note": string | null,"seq": number,"undoes": string | null,"voided_at": string | null,"voided_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "balance_after_cents": number,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"delta_cents": number,"gift_voucher_id": string,"id"?: string,"kind": Database["public"]['Enums']["gift_voucher_entry"],"note"?: string | null,"seq"?: never,"undoes"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
+                    "balance_after_cents": number,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"delta_cents": number,"gift_card_id": string,"id"?: string,"kind": Database["public"]['Enums']["gift_card_entry"],"note"?: string | null,"seq"?: never,"undoes"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
                   }
                   Update: {
-                    "balance_after_cents"?: number,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"delta_cents"?: number,"gift_voucher_id"?: string,"id"?: string,"kind"?: Database["public"]['Enums']["gift_voucher_entry"],"note"?: string | null,"seq"?: never,"undoes"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
+                    "balance_after_cents"?: number,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"delta_cents"?: number,"gift_card_id"?: string,"id"?: string,"kind"?: Database["public"]['Enums']["gift_card_entry"],"note"?: string | null,"seq"?: never,"undoes"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
                   }
                   Relationships: [
                     {
-      foreignKeyName: "gift_voucher_transactions_customer_id_fkey"
+      foreignKeyName: "gift_card_transactions_customer_id_fkey"
       columns: ["customer_id"]
 isOneToOne: false
       referencedRelation: "customers"
       referencedColumns: ["id"]
     },{
-      foreignKeyName: "gift_voucher_transactions_gift_voucher_id_fkey"
-      columns: ["gift_voucher_id"]
+      foreignKeyName: "gift_card_transactions_gift_card_id_fkey"
+      columns: ["gift_card_id"]
 isOneToOne: false
-      referencedRelation: "gift_vouchers"
+      referencedRelation: "gift_cards"
       referencedColumns: ["id"]
     },{
-      foreignKeyName: "gift_voucher_transactions_undoes_fkey"
+      foreignKeyName: "gift_card_transactions_undoes_fkey"
       columns: ["undoes"]
 isOneToOne: false
-      referencedRelation: "gift_voucher_transactions"
+      referencedRelation: "gift_card_transactions"
       referencedColumns: ["id"]
     }
                   ]
-                },"gift_vouchers": {
+                },"gift_cards": {
                   Row: {
                     "amount_cents": number | null,"balance_cents": number,"blocked_at": string | null,"blocked_by": string | null,"blocked_reason": string | null,"code": string,"created_at": string,"customer_id": string | null,"expires_on": string | null,"id": string,"notes": string | null,"public_token": string,"sold_by": string | null,"sold_on": string | null,"updated_at": string
                   }
@@ -154,7 +154,7 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
-      foreignKeyName: "gift_vouchers_customer_id_fkey"
+      foreignKeyName: "gift_cards_customer_id_fkey"
       columns: ["customer_id"]
 isOneToOne: false
       referencedRelation: "customers"
@@ -286,7 +286,7 @@ isOneToOne: false
                 }
           }
           Views: {
-            "gift_voucher_totals": {
+            "gift_card_totals": {
                   Row: {
                     "active_count": number | null,"outstanding_cents": number | null,"total_count": number | null
                   }
@@ -312,7 +312,7 @@ isOneToOne: false
 "_discount_used_today":
 { Args: { "p_customer_id": string }; Returns: boolean
                            },
-"_gift_voucher_loaded":
+"_gift_card_loaded":
 { Args: { "p_id": string }; Returns: number
                            },
 "_luhn_check_digit":
@@ -321,11 +321,11 @@ isOneToOne: false
 "_needs_cash_visits":
 { Args: { "p_reward": Omit<Database["public"]['Tables']["promotions"]['Row'], Database["public"]['Tables']["promotions"]['ComputedFields']>,"p_value": Json }; Returns: boolean
                            },
-"_new_gift_voucher_code":
+"_new_gift_card_code":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
-"_post_gift_voucher":
-{ Args: { "p_customer_id"?: string,"p_delta_cents": number,"p_gift_voucher_id": string,"p_kind": Database["public"]['Enums']["gift_voucher_entry"],"p_note"?: string,"p_undoes"?: string }; Returns: number
+"_post_gift_card":
+{ Args: { "p_customer_id"?: string,"p_delta_cents": number,"p_gift_card_id": string,"p_kind": Database["public"]['Enums']["gift_card_entry"],"p_note"?: string,"p_undoes"?: string }; Returns: number
                            },
 "_post_points":
 { Args: { "p_actor"?: string,"p_check_in_id"?: string,"p_customer_id": string,"p_delta": number,"p_discount_cents"?: number,"p_discount_percent"?: number,"p_note"?: string,"p_payment_method"?: Database["public"]['Enums']["payment_method"],"p_promotion_id"?: string,"p_reason": Database["public"]['Enums']["point_reason"] }; Returns: number
@@ -339,8 +339,8 @@ isOneToOne: false
 "_shop_today":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
-"adjust_gift_voucher":
-{ Args: { "p_delta_cents": number,"p_gift_voucher_id": string,"p_note": string }; Returns: number
+"adjust_gift_card":
+{ Args: { "p_delta_cents": number,"p_gift_card_id": string,"p_note": string }; Returns: number
                            },
 "adjust_points":
 { Args: { "p_customer_id": string,"p_delta": number,"p_note": string,"p_payment_method"?: Database["public"]['Enums']["payment_method"] }; Returns: number
@@ -357,22 +357,22 @@ isOneToOne: false
 "birthday_status":
 { Args: { "p_customer_id": string }; Returns: Json
                            },
-"block_gift_voucher":
-{ Args: { "p_gift_voucher_id": string,"p_reason": string }; Returns: undefined
+"block_gift_card":
+{ Args: { "p_gift_card_id": string,"p_reason": string }; Returns: undefined
                            },
 "cash_visits_since_reward":
 { Args: { "p_customer_id": string }; Returns: number
                            },
-"check_gift_voucher":
+"check_gift_card":
 { Args: { "p_code": string }; Returns: Json
                            },
 "check_in_totals":
 { Args: { "p_since": string,"p_source"?: Database["public"]['Enums']["check_in_source"] }; Returns: Json
                            },
-"create_inactive_gift_vouchers":
+"create_inactive_gift_cards":
 { Args: { "p_codes": (string)[] }; Returns: Json
                            },
-"generate_gift_voucher_code":
+"generate_gift_card_code":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
 "is_owner":
@@ -396,13 +396,13 @@ isOneToOne: false
 "kiosk_today":
 { Args: { "p_customer_id": string }; Returns: Json
                            },
-"normalize_voucher_code":
+"normalize_gift_card_code":
 { Args: { "p_code": string }; Returns: string
                            },
-"preview_gift_voucher_codes":
+"preview_gift_card_codes":
 { Args: { "p_count": number }; Returns: (string)[]
                            },
-"public_gift_voucher":
+"public_gift_card":
 { Args: { "p_token": string }; Returns: Json
                            },
 "redeem_birthday":
@@ -411,7 +411,7 @@ isOneToOne: false
 "redeem_reward":
 { Args: { "p_customer_id": string,"p_promotion_id": string }; Returns: Json
                            },
-"sell_gift_voucher":
+"sell_gift_card":
 { Args: { "p_amount_cents": number,"p_code"?: string,"p_customer_id"?: string,"p_expires_on"?: string,"p_notes"?: string }; Returns: Json
                            },
 "set_check_in_payment":
@@ -420,7 +420,7 @@ isOneToOne: false
 "shop_day_start":
 { Args: { "p_days_ago"?: number }; Returns: string
                            },
-"spend_gift_voucher":
+"spend_gift_card":
 { Args: { "p_amount_cents": number,"p_code": string,"p_customer_id"?: string,"p_note"?: string }; Returns: Json
                            },
 "top_services":
@@ -428,15 +428,15 @@ isOneToOne: false
               "category_name": string,"name": string,"uses": number
             }[]
                            },
-"top_up_gift_voucher":
+"top_up_gift_card":
 { Args: { "p_amount_cents": number,"p_code": string,"p_customer_id"?: string }; Returns: Json
                            },
-"unblock_gift_voucher":
-{ Args: { "p_gift_voucher_id": string }; Returns: undefined
+"unblock_gift_card":
+{ Args: { "p_gift_card_id": string }; Returns: undefined
                            }
           }
           Enums: {
-            "check_in_source": "kiosk"|"admin","discount_kind": "percent"|"amount","gift_voucher_entry": "sale"|"spend"|"undo"|"adjust"|"top_up","payment_method": "cash"|"card","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "admin"|"staff"
+            "check_in_source": "kiosk"|"admin","discount_kind": "percent"|"amount","gift_card_entry": "sale"|"spend"|"undo"|"adjust"|"top_up","payment_method": "cash"|"card","point_reason": "check_in"|"signup_bonus"|"redeem"|"adjust"|"void","promotion_type": "reward","staff_role": "admin"|"staff"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -556,7 +556,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "check_in_source": ["kiosk", "admin"],"discount_kind": ["percent", "amount"],"gift_voucher_entry": ["sale", "spend", "undo", "adjust", "top_up"],"payment_method": ["cash", "card"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["admin", "staff"]
+            "check_in_source": ["kiosk", "admin"],"discount_kind": ["percent", "amount"],"gift_card_entry": ["sale", "spend", "undo", "adjust", "top_up"],"payment_method": ["cash", "card"],"point_reason": ["check_in", "signup_bonus", "redeem", "adjust", "void"],"promotion_type": ["reward"],"staff_role": ["admin", "staff"]
           }
         }
 } as const

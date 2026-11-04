@@ -7,7 +7,7 @@ import type { Database } from "@/lib/database.types";
 import type { BirthdayStatus, Reward } from "@/lib/rewards";
 import { isBirthdayOn } from "@/lib/birthday";
 import { tierRange, type TierThresholds } from "@/lib/tiers";
-import { giftVoucherStatus, type GiftVoucherStatus } from "@/lib/gift-vouchers";
+import { giftCardStatus, type GiftCardStatus } from "@/lib/gift-cards";
 import { discountLabel, type Discount } from "@/lib/rewards";
 
 // Every read starts with requireAdmin(): RLS would return nothing to a non-staff user anyway,
@@ -21,7 +21,7 @@ export type CheckInRow = Tables["check_ins"]["Row"] & {
   /** What they picked on the kiosk, in menu order (names as they were at the time). */
   services: Pick<Tables["check_in_services"]["Row"], "position" | "name" | "category_name">[];
 };
-/** Something a customer used on the day of a check-in: a discount or part of a gift voucher. */
+/** Something a customer used on the day of a check-in: a discount or part of a gift card. */
 export type VisitUse = { kind: "points"; label: string } | { kind: "birthday"; label: string } | { kind: "gift"; cents: number };
 /** A points history row; a check-in also brings what was done on that visit (picked on the kiosk). */
 export type LedgerRow = Tables["point_transactions"]["Row"] & {
@@ -104,10 +104,10 @@ const DASHBOARD_CHECK_INS = 10;
 const TOP_SERVICES = 5;
 
 /**
- * How many vouchers were sold and used, and for how much (spends are stored as negative deltas).
- * Value added to an existing voucher is money taken too, so it's in soldCents but not the count.
+ * How many gift cards were sold and used, and for how much (spends are stored as negative deltas).
+ * Value added to an existing gift card is money taken too, so it's in soldCents but not the count.
  */
-function voucherTotals(rows: { kind: string; delta_cents: number }[]) {
+function giftCardTotals(rows: { kind: string; delta_cents: number }[]) {
   const sales = rows.filter((r) => r.kind === "sale");
   const uses = rows.filter((r) => r.kind === "spend");
   return {
@@ -148,7 +148,7 @@ export async function getDashboard(period: DashboardPeriod = "today") {
   const { supabase } = await staffClient();
   const [today, { from, prevFrom, prevUntil }] = await Promise.all([dayStart(0), periodWindow(period)]);
 
-  const [checkIns, todayCount, count, prevCount, topServices, newMembers, redeemed, birthdays, vouchers] = await Promise.all([
+  const [checkIns, todayCount, count, prevCount, topServices, newMembers, redeemed, birthdays, giftCards] = await Promise.all([
     supabase
       .from("check_ins")
       .select("*, customer:customers(id, first_name, last_name, phone, lifetime_points), services:check_in_services(position, name, category_name)")
@@ -165,8 +165,8 @@ export async function getDashboard(period: DashboardPeriod = "today") {
     supabase.from("customers").select("id", { count: "exact", head: true }).gte("created_at", from),
     supabase.from("point_transactions").select("id", { count: "exact", head: true }).eq("reason", "redeem").gte("created_at", from),
     supabase.from("birthday_redemptions").select("id", { count: "exact", head: true }).gte("created_at", from),
-    // Voucher sales and uses, from the ledger (older undone uses keep voided_at).
-    supabase.from("gift_voucher_transactions").select("kind, delta_cents").in("kind", ["sale", "top_up", "spend"]).gte("created_at", from).is("voided_at", null),
+    // Gift card sales and uses, from the ledger (older undone uses keep voided_at).
+    supabase.from("gift_card_transactions").select("kind, delta_cents").in("kind", ["sale", "top_up", "spend"]).gte("created_at", from).is("voided_at", null),
   ]);
 
   return {
@@ -180,7 +180,7 @@ export async function getDashboard(period: DashboardPeriod = "today") {
     newMembers: newMembers.count ?? 0,
     redeemed: redeemed.count ?? 0,
     birthdayDiscounts: birthdays.count ?? 0,
-    vouchers: voucherTotals(vouchers.data ?? []),
+    giftCards: giftCardTotals(giftCards.data ?? []),
   };
 }
 
@@ -420,7 +420,7 @@ export async function listCheckIns({
     .range(from, from + CHECK_INS_PAGE_SIZE - 1);
   if (search?.phone) query = query.like("customer.phone", search.phone);
   if (search?.name) query = query.or(search.name, { referencedTable: "customer" });
-  // What was used in the range: points rewards, birthday discounts and gift voucher spends.
+  // What was used in the range: points rewards, birthday discounts and gift card spends.
   // Fetched for the whole range (a shop's month is a few hundred rows) for the totals, then
   // matched to each check-in by customer and shop day.
   const [{ data, count, error }, totals, redeems, birthdays, spends, timezone] = await Promise.all([
@@ -429,8 +429,8 @@ export async function listCheckIns({
     supabase.from("point_transactions").select("customer_id, created_at, promotion:promotions(title)").eq("reason", "redeem").gte("created_at", since).limit(5000),
     supabase.from("birthday_redemptions").select("customer_id, created_at, percent, amount_cents").gte("created_at", since).limit(5000),
     supabase
-      .from("gift_voucher_transactions")
-      .select("customer_id, created_at, delta_cents, voucher:gift_vouchers(customer_id)")
+      .from("gift_card_transactions")
+      .select("customer_id, created_at, delta_cents, giftCard:gift_cards(customer_id)")
       .eq("kind", "spend")
       .is("voided_at", null)
       .gte("created_at", since)
@@ -447,8 +447,8 @@ export async function listCheckIns({
   };
   for (const r of redeems.data ?? []) add(dayKey(r.customer_id, r.created_at), { kind: "points", label: r.promotion?.title ?? "Reward" });
   for (const b of birthdays.data ?? []) add(dayKey(b.customer_id, b.created_at), { kind: "birthday", label: discountLabel(b) ?? "discount" });
-  // A spend names the customer only when staff gave one; otherwise it's the voucher's owner.
-  for (const g of spends.data ?? []) add(dayKey(g.customer_id ?? g.voucher?.customer_id, g.created_at), { kind: "gift", cents: -g.delta_cents });
+  // A spend names the customer only when staff gave one; otherwise it's the gift card's owner.
+  for (const g of spends.data ?? []) add(dayKey(g.customer_id ?? g.giftCard?.customer_id, g.created_at), { kind: "gift", cents: -g.delta_cents });
 
   const rows = ((data ?? []) as CheckInRow[]).map((r) => ({
     ...r,
@@ -462,7 +462,7 @@ export async function listCheckIns({
     total: count ?? 0,
     /** Visits and points across the whole range. */
     totals: totals.data as { visits: number; points: number },
-    /** Discounts given and gift voucher credit used across the whole range. */
+    /** Discounts given and gift card credit used across the whole range. */
     used: {
       discounts: (redeems.data?.length ?? 0) + (birthdays.data?.length ?? 0),
       giftCents: (spends.data ?? []).reduce((sum, g) => sum - g.delta_cents, 0),
@@ -561,41 +561,41 @@ export async function listAccounts(): Promise<Account[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Gift vouchers
+// Gift cards
 // ---------------------------------------------------------------------------
 
 type CustomerRef = Pick<Customer, "id" | "first_name" | "last_name" | "phone">;
-export type GiftVoucherRow = Tables["gift_vouchers"]["Row"] & {
+export type GiftCardRow = Tables["gift_cards"]["Row"] & {
   customer: CustomerRef | null;
-  status: GiftVoucherStatus;
+  status: GiftCardStatus;
   /** The most recent spend still standing (not undone): when, how much (negative cents) and by which customer. */
   lastUse: { created_at: string; delta_cents: number; customer: Pick<Customer, "first_name" | "last_name"> | null } | null;
 };
-export type GiftVoucherTransaction = Tables["gift_voucher_transactions"]["Row"] & { customer: CustomerRef | null };
+export type GiftCardTransaction = Tables["gift_card_transactions"]["Row"] & { customer: CustomerRef | null };
 
 /** The list's status tabs (`inactive` is shown as Not sold). */
-export const GIFT_VOUCHER_FILTERS = ["all", "active", "used_up", "expired", "inactive", "blocked"] as const;
-export type GiftVoucherFilter = (typeof GIFT_VOUCHER_FILTERS)[number];
-export const GIFT_VOUCHER_SORTS = ["newest", "oldest", "balance", "expiring"] as const;
-export type GiftVoucherSort = (typeof GIFT_VOUCHER_SORTS)[number];
-export const GIFT_VOUCHERS_PAGE_SIZE = 25;
+export const GIFT_CARD_FILTERS = ["all", "active", "used_up", "expired", "inactive", "blocked"] as const;
+export type GiftCardFilter = (typeof GIFT_CARD_FILTERS)[number];
+export const GIFT_CARD_SORTS = ["newest", "oldest", "balance", "expiring"] as const;
+export type GiftCardSort = (typeof GIFT_CARD_SORTS)[number];
+export const GIFT_CARDS_PAGE_SIZE = 25;
 
 const CUSTOMER_REF = "customer:customers(id, first_name, last_name, phone)";
 
-// Each sort's first ordering; newest first breaks ties. Not sold vouchers (no expiry) go last when expiring.
-const GIFT_VOUCHER_ORDER: Record<GiftVoucherSort, ["created_at" | "balance_cents" | "expires_on", { ascending: boolean; nullsFirst?: boolean }]> = {
+// Each sort's first ordering; newest first breaks ties. Not sold gift cards (no expiry) go last when expiring.
+const GIFT_CARD_ORDER: Record<GiftCardSort, ["created_at" | "balance_cents" | "expires_on", { ascending: boolean; nullsFirst?: boolean }]> = {
   newest: ["created_at", { ascending: false }],
   oldest: ["created_at", { ascending: true }],
   balance: ["balance_cents", { ascending: false }],
   expiring: ["expires_on", { ascending: true, nullsFirst: false }],
 };
 
-/** How many vouchers each status tab holds (not narrowed by a search), for the tab counts. */
-export async function giftVoucherCounts(): Promise<Record<GiftVoucherFilter, number>> {
+/** How many gift cards each status tab holds (not narrowed by a search), for the tab counts. */
+export async function giftCardCounts(): Promise<Record<GiftCardFilter, number>> {
   const { supabase } = await staffClient();
   const today = isoDate(shopDate(await shopTimezone()));
-  const count = () => supabase.from("gift_vouchers").select("id", { count: "exact", head: true });
-  // The same conditions as the tabs in listGiftVouchers.
+  const count = () => supabase.from("gift_cards").select("id", { count: "exact", head: true });
+  // The same conditions as the tabs in listGiftCards.
   const [all, active, usedUp, expired, inactive, blocked] = await Promise.all([
     count(),
     count().gt("balance_cents", 0).gte("expires_on", today).is("blocked_at", null),
@@ -615,10 +615,10 @@ export async function giftVoucherCounts(): Promise<Record<GiftVoucherFilter, num
 }
 
 /**
- * One page of vouchers: a status tab, an optional search, `usedToday` (for checking against the
+ * One page of gift cards: a status tab, an optional search, `usedToday` (for checking against the
  * till at the end of the day) and a sort.
  */
-export async function listGiftVouchers({
+export async function listGiftCards({
   q,
   filter,
   usedToday = false,
@@ -626,16 +626,16 @@ export async function listGiftVouchers({
   page,
 }: {
   q: string;
-  filter: GiftVoucherFilter;
+  filter: GiftCardFilter;
   usedToday?: boolean;
-  sort?: GiftVoucherSort;
+  sort?: GiftCardSort;
   page: number;
 }) {
   const { supabase } = await staffClient();
   const today = isoDate(shopDate(await shopTimezone()));
   let query = supabase
-    .from("gift_vouchers")
-    .select("*, customer:customers(id, first_name, last_name, phone), last_use:gift_voucher_transactions(created_at, delta_cents, customer:customers(first_name, last_name))", {
+    .from("gift_cards")
+    .select("*, customer:customers(id, first_name, last_name, phone), last_use:gift_card_transactions(created_at, delta_cents, customer:customers(first_name, last_name))", {
       count: "exact",
     })
     // Only the latest spend that wasn't undone, for the list's "Last used" column.
@@ -644,7 +644,7 @@ export async function listGiftVouchers({
     .order("seq", { referencedTable: "last_use", ascending: false })
     .limit(1, { referencedTable: "last_use" });
 
-  // A search can be a code or a customer: a customer finds the vouchers they hold and the ones they used.
+  // A search can be a code or a customer: a customer finds the gift cards they hold and the ones they used.
   const term = q.trim();
   if (term) {
     // Codes are stored without dashes or spaces, so search the same way.
@@ -658,32 +658,32 @@ export async function listGiftVouchers({
       : { data: [] };
     const customerIds = (people.data ?? []).map((r) => r.id);
     const used = customerIds.length
-      ? await supabase.from("gift_voucher_transactions").select("gift_voucher_id").in("customer_id", customerIds).limit(500)
+      ? await supabase.from("gift_card_transactions").select("gift_card_id").in("customer_id", customerIds).limit(500)
       : { data: [] };
-    const usedIds = [...new Set((used.data ?? []).map((r) => r.gift_voucher_id))];
+    const usedIds = [...new Set((used.data ?? []).map((r) => r.gift_card_id))];
     const either = [
       code ? `code.like.%${code}%` : null,
       customerIds.length ? `customer_id.in.(${customerIds.join(",")})` : null,
       usedIds.length ? `id.in.(${usedIds.join(",")})` : null,
     ].filter(Boolean);
-    if (!either.length) return { vouchers: [] as GiftVoucherRow[], total: 0, pastEnd: false };
+    if (!either.length) return { giftCards: [] as GiftCardRow[], total: 0, pastEnd: false };
     query = query.or(either.join(","));
   }
   // For checking against the till at the end of the day.
   if (usedToday) {
     const { data: spends, error } = await supabase
-      .from("gift_voucher_transactions")
-      .select("gift_voucher_id")
+      .from("gift_card_transactions")
+      .select("gift_card_id")
       .eq("kind", "spend")
       .is("voided_at", null)
       .gte("created_at", await dayStart(0))
       .limit(1000);
     if (error) throw error;
-    const ids = [...new Set((spends ?? []).map((r) => r.gift_voucher_id))];
-    if (!ids.length) return { vouchers: [] as GiftVoucherRow[], total: 0, pastEnd: false };
+    const ids = [...new Set((spends ?? []).map((r) => r.gift_card_id))];
+    if (!ids.length) return { giftCards: [] as GiftCardRow[], total: 0, pastEnd: false };
     query = query.in("id", ids);
   }
-  // A blocked voucher is only under Blocked, as its status says.
+  // A blocked gift card is only under Blocked, as its status says.
   if (filter === "active") query = query.gt("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
   if (filter === "used_up") query = query.eq("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
   if (filter === "expired") query = query.lt("expires_on", today).is("blocked_at", null);
@@ -691,17 +691,17 @@ export async function listGiftVouchers({
   // Printed ahead of time and not sold yet (no expiry until then).
   if (filter === "inactive") query = query.is("sold_on", null);
 
-  const from = (page - 1) * GIFT_VOUCHERS_PAGE_SIZE;
+  const from = (page - 1) * GIFT_CARDS_PAGE_SIZE;
   const { data, count, error } = await query
-    .order(...GIFT_VOUCHER_ORDER[sort])
+    .order(...GIFT_CARD_ORDER[sort])
     .order("created_at", { ascending: false })
     .order("id")
-    .range(from, from + GIFT_VOUCHERS_PAGE_SIZE - 1);
-  if (error?.code === PAST_END) return { vouchers: [] as GiftVoucherRow[], total: 0, pastEnd: true };
+    .range(from, from + GIFT_CARDS_PAGE_SIZE - 1);
+  if (error?.code === PAST_END) return { giftCards: [] as GiftCardRow[], total: 0, pastEnd: true };
   if (error) throw error;
   return {
-    vouchers: (data as unknown as (Omit<GiftVoucherRow, "status" | "lastUse"> & { last_use: GiftVoucherRow["lastUse"][] })[]).map(
-      ({ last_use, ...v }) => ({ ...v, status: giftVoucherStatus(v, today), lastUse: last_use[0] ?? null }),
+    giftCards: (data as unknown as (Omit<GiftCardRow, "status" | "lastUse"> & { last_use: GiftCardRow["lastUse"][] })[]).map(
+      ({ last_use, ...v }) => ({ ...v, status: giftCardStatus(v, today), lastUse: last_use[0] ?? null }),
     ),
     total: count ?? 0,
     pastEnd: false,
@@ -709,43 +709,43 @@ export async function listGiftVouchers({
 }
 
 /** Just the code, for the browser tab title. */
-export async function giftVoucherCode(id: string) {
+export async function giftCardCode(id: string) {
   const { supabase } = await staffClient();
-  const { data } = await supabase.from("gift_vouchers").select("code").eq("id", id).maybeSingle();
+  const { data } = await supabase.from("gift_cards").select("code").eq("id", id).maybeSingle();
   return data?.code ?? null;
 }
 
-/** One gift voucher with its whole history (a voucher only ever has a handful of entries). */
-export async function getGiftVoucher(id: string) {
+/** One gift card with its whole history (a gift card only ever has a handful of entries). */
+export async function getGiftCard(id: string) {
   const { supabase } = await staffClient();
-  const [voucher, transactions, tz] = await Promise.all([
-    supabase.from("gift_vouchers").select(`*, ${CUSTOMER_REF}`).eq("id", id).maybeSingle(),
+  const [giftCard, transactions, tz] = await Promise.all([
+    supabase.from("gift_cards").select(`*, ${CUSTOMER_REF}`).eq("id", id).maybeSingle(),
     supabase
-      .from("gift_voucher_transactions")
+      .from("gift_card_transactions")
       .select(`*, ${CUSTOMER_REF}`)
-      .eq("gift_voucher_id", id)
+      .eq("gift_card_id", id)
       .order("seq", { ascending: false })
       .limit(1000),
     shopTimezone(),
   ]);
-  if (voucher.error) throw voucher.error;
-  if (!voucher.data) return null;
-  const v = voucher.data as unknown as Omit<GiftVoucherRow, "status">;
+  if (giftCard.error) throw giftCard.error;
+  if (!giftCard.data) return null;
+  const v = giftCard.data as unknown as Omit<GiftCardRow, "status">;
   return {
-    voucher: { ...v, status: giftVoucherStatus(v, isoDate(shopDate(tz))) } as GiftVoucherRow,
-    transactions: (transactions.data ?? []) as unknown as GiftVoucherTransaction[],
+    giftCard: { ...v, status: giftCardStatus(v, isoDate(shopDate(tz))) } as GiftCardRow,
+    transactions: (transactions.data ?? []) as unknown as GiftCardTransaction[],
   };
 }
 
-/** Unused credit the shop owes, and this month's new vouchers. */
-export async function giftVoucherSummary() {
+/** Unused credit the shop owes, and this month's new gift cards. */
+export async function giftCardSummary() {
   const { supabase } = await staffClient();
   // Only this month's sales need the timezone, so the totals don't wait for it.
   const [totals, sold] = await Promise.all([
-    supabase.from("gift_voucher_totals").select("*").single(),
+    supabase.from("gift_card_totals").select("*").single(),
     shopTimezone().then((tz) => {
       const { year, month } = shopDate(tz);
-      return supabase.from("gift_vouchers").select("amount_cents").gte("sold_on", isoDate({ year, month, day: 1 }));
+      return supabase.from("gift_cards").select("amount_cents").gte("sold_on", isoDate({ year, month, day: 1 }));
     }),
   ]);
   return {
@@ -756,13 +756,13 @@ export async function giftVoucherSummary() {
   };
 }
 
-/** A customer's gift vouchers, newest first, for their page. */
-export async function customerGiftVouchers(customerId: string) {
+/** A customer's gift cards, newest first, for their page. */
+export async function customerGiftCards(customerId: string) {
   const { supabase } = await staffClient();
   const [{ data }, tz] = await Promise.all([
-    supabase.from("gift_vouchers").select("*").eq("customer_id", customerId).order("created_at", { ascending: false }),
+    supabase.from("gift_cards").select("*").eq("customer_id", customerId).order("created_at", { ascending: false }),
     shopTimezone(),
   ]);
   const today = isoDate(shopDate(tz));
-  return (data ?? []).map((v) => ({ ...v, status: giftVoucherStatus(v, today) }));
+  return (data ?? []).map((v) => ({ ...v, status: giftCardStatus(v, today) }));
 }

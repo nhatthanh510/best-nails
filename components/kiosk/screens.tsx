@@ -80,25 +80,25 @@ const headerButton =
 
 /**
  * One header above every kiosk step, so the shop's frame never changes: the brand on the left;
- * Gift voucher, Admin (admin accounts) and Sign out (asks first) on the right. Staff controls
+ * Gift card, Admin (admin accounts) and Sign out (asks first) on the right. Staff controls
  * stay quiet so customers read them as the shop's. A step's own way back lives in the step
  * (StepBack), not here. On phones the controls are icons and only the logo shows.
  */
 export function KioskHeader({
   isAdmin,
   onSignOut,
-  voucher,
+  giftCard,
 }: {
   isAdmin: boolean;
   onSignOut: () => void;
-  voucher: React.ReactNode;
+  giftCard: React.ReactNode;
 }) {
   return (
     <header className='flex-none px-5 pt-5 sm:px-10 sm:pt-8 lg:px-16 lg:short:pt-5'>
       <div className='flex items-center justify-between gap-3 border-b border-kiosk-line pb-5 short:pb-3'>
         <KioskBrand compactOnPhone />
         <div className='flex items-center gap-1'>
-          {voucher}
+          {giftCard}
           {isAdmin && (
             <Link
               href='/admin'
@@ -581,7 +581,7 @@ const MONTHS = [
 ];
 
 /**
- * An error on the kiosk: the kiosk's one error colour (the same red the Gift voucher dialog uses)
+ * An error on the kiosk: the kiosk's one error colour (the same red the Gift card dialog uses)
  * with an icon, so it never relies on colour alone. Warnings ("not a standard number") keep
  * kiosk-notice with a triangle.
  */
@@ -1374,7 +1374,7 @@ export function SuccessScreen({
   onDone: () => void;
   /** What they picked, listed back so they can see what was recorded. */
   summary: VisitSummary;
-  /** Hold the countdown, e.g. while staff use the Gift voucher dialog. */
+  /** Hold the countdown, e.g. while staff use the Gift card dialog. */
   paused?: boolean;
 }) {
   const options = redeemOptions(

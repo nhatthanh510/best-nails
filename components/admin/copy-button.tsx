@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** An icon button that copies `text` (e.g. a gift voucher code) and shows a tick for a moment. */
+/** An icon button that copies `text` (e.g. a gift card code) and shows a tick for a moment. */
 export function CopyButton({ text, label, className }: { text: string; label: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   return (
