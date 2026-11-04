@@ -15,7 +15,7 @@ test.describe("Phone width (375 px)", () => {
 
   test("L-01 admin pages don't scroll sideways, and the menu holds account and sign out", async ({ page }) => {
     await seedCustomer({ phone: testPhone(60), firstName: "Wide", lastName: "Name-For-Layout-Testing" });
-    for (const path of ["/admin", "/admin/customers", "/admin/check-ins", "/admin/rewards", "/admin/gift-vouchers", "/admin/settings"]) {
+    for (const path of ["/admin", "/admin/customers", "/admin/check-ins", "/admin/rewards", "/admin/gift-cards", "/admin/settings"]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await expectNoSidewaysScroll(page);
@@ -72,7 +72,7 @@ test.describe("iPad", () => {
 
 test.describe("Accessibility basics", () => {
   test("X-01 every button and link has a name, and each page has one main heading", async ({ page }) => {
-    for (const path of ["/kiosk", "/admin", "/admin/customers", "/admin/gift-vouchers", "/admin/settings"]) {
+    for (const path of ["/kiosk", "/admin", "/admin/customers", "/admin/gift-cards", "/admin/settings"]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 }).filter({ visible: true })).toHaveCount(1);
       const unnamed = await page.evaluate(() =>

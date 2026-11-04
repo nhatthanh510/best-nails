@@ -11,30 +11,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormDialog } from "@/components/admin/form-dialog";
 import { useActionToast } from "@/components/admin/action-button";
 import {
-  adjustGiftVoucher,
-  checkGiftVoucherCode,
-  generateGiftVoucherCode,
-  sellGiftVoucher,
-  spendGiftVoucher,
-  updateGiftVoucher,
-  topUpGiftVoucher,
-  blockGiftVoucher,
+  adjustGiftCard,
+  checkGiftCardCode,
+  generateGiftCardCode,
+  sellGiftCard,
+  spendGiftCard,
+  updateGiftCard,
+  topUpGiftCard,
+  blockGiftCard,
   type TopUpState,
-  type CreatedVoucher,
-  type GiftVoucherCheck,
+  type CreatedGiftCard,
+  type GiftCardCheck,
   type SellState,
-} from "@/app/admin/gift-voucher-actions";
+} from "@/app/admin/gift-card-actions";
 import type { ActionState } from "@/app/admin/actions";
-import { formatMoney, GIFT_VOUCHER_PRESETS, parseDollars } from "@/lib/gift-vouchers";
+import { formatMoney, GIFT_CARD_PRESETS, parseDollars } from "@/lib/gift-cards";
 import { formatPhoneInput } from "@/lib/phone-mask";
 import { cn } from "@/lib/utils";
-import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
-import type { GiftVoucherStatus } from "@/lib/gift-vouchers";
+import { GiftCardStatusPill } from "@/components/admin/gift-card-status";
+import type { GiftCardStatus } from "@/lib/gift-cards";
 import { toast } from "sonner";
 import { useFormSubmit } from "@/lib/use-form-submit";
 import { cleanNumber, numberInput } from "@/lib/number-input";
 import { AddRemoveToggle, type Direction } from "@/components/admin/add-remove-toggle";
-import { PrintVoucherButton, VoucherCard } from "@/components/admin/voucher-card";
+import { PrintGiftCardButton, PrintedGiftCard } from "@/components/admin/printed-gift-card";
 
 const segment = (active: boolean) =>
   cn(
@@ -59,49 +59,49 @@ function FormError({ state }: { state: ActionState }) {
 // ---------------------------------------------------------------------------
 
 /** `code`: activate a blank card printed ahead of time (from its own page), with its code fixed. */
-export function SellGiftVoucherButton({ variant, code, className }: { variant?: "default" | "outline"; code?: string; className?: string }) {
+export function SellGiftCardButton({ variant, code, className }: { variant?: "default" | "outline"; code?: string; className?: string }) {
   return (
     <FormDialog
       variant={variant}
       className={className}
-      title={code ? `Activate ${code}` : "Create a gift voucher"}
-      description="Take payment at the till as usual. The voucher is valid for 3 years."
+      title={code ? `Activate ${code}` : "Create a gift card"}
+      description="Take payment at the till as usual. The gift card is valid for 3 years."
       trigger={
         <>
           {code ? <Gift aria-hidden="true" /> : <Plus aria-hidden="true" />}
-          {code ? "Activate voucher" : "Create gift voucher"}
+          {code ? "Activate gift card" : "Create gift card"}
         </>
       }
     >
-      {(close) => <SellGiftVoucherForm onDone={close} defaultCode={code} activate={Boolean(code)} confirmAsToast={Boolean(code)} />}
+      {(close) => <SellGiftCardForm onDone={close} defaultCode={code} activate={Boolean(code)} confirmAsToast={Boolean(code)} />}
     </FormDialog>
   );
 }
 
-/** The voucher page's main action: opens the use form for that voucher, already checked. */
-export function UseThisVoucherButton({ code }: { code: string }) {
+/** The gift card page's main action: opens the use form for that gift card, already checked. */
+export function UseThisGiftCardButton({ code }: { code: string }) {
   return (
-    <FormDialog title={`Use ${code}`} description="Take today's service off this voucher." size="lg" trigger={<><WalletCards aria-hidden="true" />Use this voucher</>}>
-      {(close) => <UseGiftVoucher code={code} onDone={close} />}
+    <FormDialog title={`Use ${code}`} description="Take today's service off this gift card." size="lg" trigger={<><WalletCards aria-hidden="true" />Use this gift card</>}>
+      {(close) => <UseGiftCard code={code} onDone={close} />}
     </FormDialog>
   );
 }
 
 /**
- * The amount for a new voucher or added value: the presets and "Other" are one row of choices, so
+ * The amount for a new gift card or added value: the presets and "Other" are one row of choices, so
  * a typed amount reads as the custom one (a separate full-width box would repeat the selected
  * preset). It posts `amount` in dollars.
  */
 function AmountPicker({ amount, onChange, legend = "Amount" }: { amount: string; onChange: (amount: string) => void; legend?: string }) {
   const cents = parseDollars(amount);
   // Anything other than a preset (including an empty box being typed into) is the "Other" amount.
-  const isOther = !GIFT_VOUCHER_PRESETS.some((p) => p === cents) && amount !== "";
+  const isOther = !GIFT_CARD_PRESETS.some((p) => p === cents) && amount !== "";
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="mb-2 text-sm font-semibold">{legend}</legend>
       <input type="hidden" name="amount" value={amount} />
       <div className="grid grid-cols-4 gap-2">
-        {GIFT_VOUCHER_PRESETS.map((p) => (
+        {GIFT_CARD_PRESETS.map((p) => (
           <button key={p} type="button" aria-pressed={cents === p} onClick={() => onChange(String(p / 100))} className={segment(cents === p)}>
             {formatMoney(p).replace(".00", "")}
           </button>
@@ -132,7 +132,7 @@ function AmountPicker({ amount, onChange, legend = "Amount" }: { amount: string;
   );
 }
 
-export function SellGiftVoucherForm({
+export function SellGiftCardForm({
   onDone,
   openAfterSale = true,
   defaultPhone = "",
@@ -143,14 +143,14 @@ export function SellGiftVoucherForm({
 }: {
   onDone: () => void;
   /**
-   * Created from the blank card's own page: that page turns into the active voucher as this
+   * Created from the blank card's own page: that page turns into the active gift card as this
    * returns, closing the dialog, so the confirmation is a toast instead of the Created screen.
    */
   confirmAsToast?: boolean;
-  /** A printed voucher's code, when selling it from its own page. */
+  /** A printed gift card's code, when selling it from its own page. */
   defaultCode?: string;
   /**
-   * Activating a blank card (a Not sold voucher): its code is already printed, so it's shown but
+   * Activating a blank card (a Not sold gift card): its code is already printed, so it's shown but
    * can't be changed, and the button says Activate rather than Create.
    */
   activate?: boolean;
@@ -169,27 +169,27 @@ export function SellGiftVoucherForm({
   const [generating, startGenerate] = useTransition();
   const generate = () =>
     startGenerate(async () => {
-      const result = await generateGiftVoucherCode();
+      const result = await generateGiftCardCode();
       if (result.ok) {
         setCode(result.code);
         setCodeError(null);
       } else setCodeError(result.message);
     });
-  // Errors show in the form; success swaps it for the "Voucher created" screen below.
+  // Errors show in the form; success swaps it for the "Gift card created" screen below.
   const [state, formAction, pending] = useActionState(async (prev: SellState, fd: FormData) => {
-    const result = await sellGiftVoucher(prev, fd);
+    const result = await sellGiftCard(prev, fd);
     if (confirmAsToast && result?.ok) toast.success(result.message);
     return result;
   }, null);
   const cents = parseDollars(amount);
 
   const formSubmit = useFormSubmit(state, formAction, { resetOnSuccess: false });
-  if (state?.ok && state.voucher && !confirmAsToast) {
+  if (state?.ok && state.giftCard && !confirmAsToast) {
     return (
-      <VoucherCreated
-        voucher={state.voucher}
+      <GiftCardCreated
+        giftCard={state.giftCard}
         onDone={onDone}
-        // In the admin, staff can go to the new voucher; on the kiosk they stay on the check-in screen.
+        // In the admin, staff can go to the new gift card; on the kiosk they stay on the check-in screen.
         onOpen={
           openAfterSale && state.href
             ? () => {
@@ -203,8 +203,8 @@ export function SellGiftVoucherForm({
   }
   return (
     <form {...formSubmit} className="flex flex-col gap-4">
-      {/* What the printed voucher will look like, as the code is chosen. */}
-      <VoucherCard code={code.trim()} expiresOn={null} token={null} className="mx-auto max-w-[300px]" />
+      {/* What the printed gift card will look like, as the code is chosen. */}
+      <PrintedGiftCard code={code.trim()} expiresOn={null} token={null} className="mx-auto max-w-[300px]" />
       <AmountPicker amount={amount} onChange={setAmount} />
       <div className="flex flex-col gap-2">
         <Label htmlFor="gv-code">Code</Label>
@@ -235,7 +235,7 @@ export function SellGiftVoucherForm({
         </div>
         <p className={cn("text-[13px]", codeError ? "font-semibold text-destructive" : "text-muted-foreground")}>
           {codeError ??
-            (activate ? "The code printed on this blank card. It stays the same." : "Type the number printed on the voucher card, or press Generate.")}
+            (activate ? "The code printed on this blank card. It stays the same." : "Type the number printed on the gift card, or press Generate.")}
         </p>
       </div>
       {phoneKnown ? (
@@ -271,7 +271,7 @@ export function SellGiftVoucherForm({
             ? activate
               ? "Activating…"
               : "Creating…"
-            : `${activate ? "Activate" : "Create"} ${cents && cents >= 100 ? `${formatMoney(cents)} voucher` : "voucher"}`}
+            : `${activate ? "Activate" : "Create"} ${cents && cents >= 100 ? `${formatMoney(cents)} gift card` : "gift card"}`}
         </Button>
       </div>
     </form>
@@ -279,11 +279,11 @@ export function SellGiftVoucherForm({
 }
 
 /**
- * Shown after creating a voucher, until Done: the voucher card with its code and QR, to print
+ * Shown after creating a gift card, until Done: the printed card with its code and QR, to print
  * (or copy the code onto a card by hand; a toast would fade before they'd finished), and a
  * reminder to take payment.
  */
-function VoucherCreated({ voucher: v, onDone, onOpen }: { voucher: CreatedVoucher; onDone: () => void; onOpen?: () => void }) {
+function GiftCardCreated({ giftCard: v, onDone, onOpen }: { giftCard: CreatedGiftCard; onDone: () => void; onOpen?: () => void }) {
   const [copied, setCopied] = useState(false);
   const card = useRef<HTMLDivElement>(null);
   const copy = async () => {
@@ -300,15 +300,15 @@ function VoucherCreated({ voucher: v, onDone, onOpen }: { voucher: CreatedVouche
         <span className="flex size-6 items-center justify-center rounded-full bg-success text-background">
           <Check className="size-3.5" aria-hidden="true" />
         </span>
-        {v.preprinted ? `Voucher ${v.code} activated · hand over the printed card` : `Voucher ${v.code} created · print it, or write the code on a card`}
+        {v.preprinted ? `Gift card ${v.code} activated · hand over the printed card` : `Gift card ${v.code} created · print it, or write the code on a card`}
       </p>
-      <VoucherCard ref={card} code={v.code} expiresOn={v.expiresOn || null} token={v.publicToken} className="mx-auto max-w-md" />
+      <PrintedGiftCard ref={card} code={v.code} expiresOn={v.expiresOn || null} token={v.publicToken} className="mx-auto max-w-md" />
       <div className="grid grid-cols-2 gap-2">
         <Button type="button" variant="outline" onClick={copy}>
           {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
           {copied ? "Copied" : "Copy code"}
         </Button>
-        <PrintVoucherButton card={card} />
+        <PrintGiftCardButton card={card} />
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
         <dt className="text-muted-foreground">Amount</dt>
@@ -323,7 +323,7 @@ function VoucherCreated({ voucher: v, onDone, onOpen }: { voucher: CreatedVouche
       <div className="flex flex-wrap justify-end gap-2">
         {onOpen && (
           <Button type="button" variant="outline" size="lg" onClick={onOpen}>
-            Open voucher
+            Open gift card
           </Button>
         )}
         <Button type="button" size="lg" onClick={onDone} autoFocus>
@@ -340,18 +340,18 @@ function VoucherCreated({ voucher: v, onDone, onOpen }: { voucher: CreatedVouche
 
 /**
  * Type the code, check the balance, then spend part of it on today's service. Pass `code` to
- * start from a known voucher (its own page) and `customerId` on a customer's page. `compact`
- * stacks the fields for a narrow column. `vouchers` lists the customer's own, each with a Use
+ * start from a known gift card (its own page) and `customerId` on a customer's page. `compact`
+ * stacks the fields for a narrow column. `gift cards` lists the customer's own, each with a Use
  * button that fills in its code: admin only, since on the shared kiosk the code itself is what
- * proves the person holds the voucher.
+ * proves the person holds the gift card.
  */
-export function UseGiftVoucher({
+export function UseGiftCard({
   code: fixedCode,
   customerId,
   compact = false,
   onDone,
   defaultPhone = "",
-  vouchers = [],
+  giftCards = [],
   phoneKnown = false,
 }: {
   code?: string;
@@ -361,19 +361,19 @@ export function UseGiftVoucher({
   onDone?: () => void;
   /** Who is using it, e.g. the number typed on the kiosk. */
   defaultPhone?: string;
-  vouchers?: { id: string; code: string; amountCents: number; balanceCents: number; status: GiftVoucherStatus }[];
+  giftCards?: { id: string; code: string; amountCents: number; balanceCents: number; status: GiftCardStatus }[];
   /** Who is using it is already shown (the kiosk's "For …" chip), so the phone field isn't repeated. */
   phoneKnown?: boolean;
 }) {
   const [code, setCode] = useState(fixedCode ?? "");
-  const [check, setCheck] = useState<GiftVoucherCheck | null>(null);
+  const [check, setCheck] = useState<GiftCardCheck | null>(null);
   const [amount, setAmount] = useState("");
   // After "Use the full balance": what's still owed for the service, taken at the till.
   const [tillCents, setTillCents] = useState(0);
   const [checking, startCheck] = useTransition();
 
   const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
-    const result = await spendGiftVoucher(prev, fd);
+    const result = await spendGiftCard(prev, fd);
     if (result?.ok) {
       setAmount("");
       setTillCents(0);
@@ -386,7 +386,7 @@ export function UseGiftVoucher({
 
   const runCheck = (value = code) => {
     if (!value.trim()) return;
-    startCheck(async () => setCheck(await checkGiftVoucherCode(value)));
+    startCheck(async () => setCheck(await checkGiftCardCode(value)));
   };
   const pick = (value: string) => {
     setCode(value);
@@ -394,7 +394,7 @@ export function UseGiftVoucher({
     setTillCents(0);
     runCheck(value);
   };
-  // A known voucher (its own page) is checked straight away.
+  // A known gift card (its own page) is checked straight away.
   useEffect(() => {
     if (fixedCode) runCheck(fixedCode);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the form opens
@@ -408,11 +408,11 @@ export function UseGiftVoucher({
   return (
     <form {...formSubmit} className="flex flex-col gap-3.5">
       {customerId && <input type="hidden" name="customer_id" value={customerId} />}
-      {vouchers.length > 0 && (
+      {giftCards.length > 0 && (
         <ul className="flex flex-col gap-2">
-          {vouchers.map((g) => (
+          {giftCards.map((g) => (
             <li key={g.id} className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-background py-2 pr-2 pl-3.5">
-              <Link href={`/admin/gift-vouchers/${g.id}`} className="flex min-w-0 flex-col gap-0.5 hover:underline">
+              <Link href={`/admin/gift-cards/${g.id}`} className="flex min-w-0 flex-col gap-0.5 hover:underline">
                 <span className="font-mono text-sm font-bold tracking-wider">{g.code}</span>
                 <span className="text-[13px] text-muted-foreground">
                   {g.status === "active" ? `${formatMoney(g.balanceCents)} left of ${formatMoney(g.amountCents)}` : `of ${formatMoney(g.amountCents)}`}
@@ -423,7 +423,7 @@ export function UseGiftVoucher({
                   Use
                 </Button>
               ) : (
-                <GiftVoucherStatusPill status={g.status} />
+                <GiftCardStatusPill status={g.status} />
               )}
             </li>
           ))}
@@ -434,14 +434,14 @@ export function UseGiftVoucher({
       ) : (
         <div className={cn("grid grid-cols-1 gap-3", !compact && "sm:grid-cols-[1fr_auto] sm:items-end")}>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`gift-code${customerId ?? ""}`}>{vouchers.length > 0 && !vouchers.some((g) => g.code === code) ? "Another voucher? Type its code" : "Gift voucher code"}</Label>
+            <Label htmlFor={`gift-code${customerId ?? ""}`}>{giftCards.length > 0 && !giftCards.some((g) => g.code === code) ? "Another gift card? Type its code" : "Gift card code"}</Label>
             <Input
               id={`gift-code${customerId ?? ""}`}
               name="code"
               autoComplete="off"
               autoCapitalize="characters"
               spellCheck={false}
-              placeholder="Code on the voucher"
+              placeholder="Code on the gift card"
               value={code}
               onChange={(e) => {
                 setCode(e.target.value.toUpperCase());
@@ -531,7 +531,7 @@ export function UseGiftVoucher({
               <Input id={`spend-phone${check.id}`} name="phone" type="tel" {...numberInput("phone")} placeholder="0412 345 678" defaultValue={defaultPhone} className="bg-card" />
             </div>
           )}
-          {/* The usual split payment: the voucher covers what's left, the till takes the rest. */}
+          {/* The usual split payment: the gift card covers what's left, the till takes the rest. */}
           <input type="hidden" name="till" value={tillCents > 0 ? (tillCents / 100).toFixed(2) : ""} />
           {/* One message slot beside the button, the same height whatever it says (a hint, what's
               left, the over-balance warning, or what to take at the till), so typing an amount never
@@ -561,16 +561,16 @@ export function UseGiftVoucher({
                 ) : tillCents > 0 ? (
                   <p>Uses all of it. Take {formatMoney(tillCents)} at the till.</p>
                 ) : (
-                  <p>Leaves {formatMoney(balance - cents)} on the voucher.</p>
+                  <p>Leaves {formatMoney(balance - cents)} on the gift card.</p>
                 )
               ) : (
-                // The voucher pays like cash, so a discount comes off first.
+                // The gift card pays like cash, so a discount comes off first.
                 <p className="font-normal text-muted-foreground">Using a discount today? Enter the price after the discount.</p>
               )}
             </div>
             <Button type="submit" pending={pending} disabled={cents === null || cents <= 0 || over} className={cn("flex-none", compact ? "w-full" : "sm:min-w-40")}>
               <Gift aria-hidden="true" />
-              {pending ? "Saving…" : cents && cents > 0 && !over ? `Use ${formatMoney(cents)}` : "Use voucher"}
+              {pending ? "Saving…" : cents && cents > 0 && !over ? `Use ${formatMoney(cents)}` : "Use gift card"}
             </Button>
           </div>
         </div>
@@ -580,10 +580,10 @@ export function UseGiftVoucher({
 }
 
 // ---------------------------------------------------------------------------
-// Managing a voucher (its own page)
+// Managing a gift card (its own page)
 // ---------------------------------------------------------------------------
 
-export function GiftVoucherSettingsForm({
+export function GiftCardSettingsForm({
   id,
   phone,
   notes,
@@ -599,7 +599,7 @@ export function GiftVoucherSettingsForm({
   minExpiry: string;
   isAdmin: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(updateGiftVoucher.bind(null, id), null);
+  const [state, formAction, pending] = useActionState(updateGiftCard.bind(null, id), null);
   useActionToast(state);
 
   const formSubmit = useFormSubmit(state, formAction, { resetOnSuccess: false });
@@ -638,11 +638,11 @@ export function GiftVoucherSettingsForm({
   );
 }
 
-export function AdjustGiftVoucherForm({ id, balanceCents }: { id: string; balanceCents: number }) {
+export function AdjustGiftCardForm({ id, balanceCents }: { id: string; balanceCents: number }) {
   const [direction, setDirection] = useState<Direction>("add");
   const [amount, setAmount] = useState("");
   const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
-    const result = await adjustGiftVoucher(id, prev, fd);
+    const result = await adjustGiftCard(id, prev, fd);
     if (result?.ok) setAmount("");
     return result;
   }, null);
@@ -670,10 +670,10 @@ export function AdjustGiftVoucherForm({ id, balanceCents }: { id: string; balanc
 }
 
 // ---------------------------------------------------------------------------
-// Top up (a customer puts more money on their voucher) and block (lost or stolen)
+// Top up (a customer puts more money on their gift card) and block (lost or stolen)
 // ---------------------------------------------------------------------------
 
-/** Top up from a voucher's page (`code`), or from the front desk with the code typed in. */
+/** Top up from a gift card's page (`code`), or from the front desk with the code typed in. */
 export function TopUpButton({
   code,
   variant = "outline",
@@ -682,7 +682,7 @@ export function TopUpButton({
 }: {
   code?: string;
   variant?: "default" | "outline";
-  /** "lg" beside Use this voucher on the voucher's page, so the two line up. */
+  /** "lg" beside Use this gift card on the gift card's page, so the two line up. */
   size?: "lg";
   className?: string;
 }) {
@@ -691,8 +691,8 @@ export function TopUpButton({
       variant={variant}
       size={size}
       className={className}
-      title={code ? `Top up ${code}` : "Top up a gift voucher"}
-      description="Put more money on a voucher the customer already has. Take payment at the till as usual."
+      title={code ? `Top up ${code}` : "Top up a gift card"}
+      description="Put more money on a gift card the customer already has. Take payment at the till as usual."
       trigger={
         <>
           <Plus aria-hidden="true" />
@@ -712,7 +712,7 @@ export function TopUpButton({
 export function TopUpForm({ code: fixedCode, onDone }: { code?: string; onDone: () => void }) {
   const [code, setCode] = useState(fixedCode ?? "");
   const [amount, setAmount] = useState("50");
-  const [state, formAction, pending] = useActionState(async (prev: TopUpState, fd: FormData) => topUpGiftVoucher(prev, fd), null);
+  const [state, formAction, pending] = useActionState(async (prev: TopUpState, fd: FormData) => topUpGiftCard(prev, fd), null);
   const formSubmit = useFormSubmit(state, formAction, { resetOnSuccess: false });
   const cents = parseDollars(amount);
 
@@ -742,7 +742,7 @@ export function TopUpForm({ code: fixedCode, onDone }: { code?: string; onDone: 
         <input type="hidden" name="code" value={fixedCode} />
       ) : (
         <div className="flex flex-col gap-2">
-          <Label htmlFor="av-code">Gift voucher code</Label>
+          <Label htmlFor="av-code">Gift card code</Label>
           <Input
             id="av-code"
             name="code"
@@ -768,9 +768,9 @@ export function TopUpForm({ code: fixedCode, onDone }: { code?: string; onDone: 
   );
 }
 
-/** Block a lost or stolen voucher (admin), with the reason. Its balance is kept. `onDone` closes a dialog. */
-export function BlockGiftVoucherForm({ id, onDone }: { id: string; onDone?: () => void }) {
-  const [state, formAction, pending] = useActionState(blockGiftVoucher.bind(null, id), null);
+/** Block a lost or stolen gift card (admin), with the reason. Its balance is kept. `onDone` closes a dialog. */
+export function BlockGiftCardForm({ id, onDone }: { id: string; onDone?: () => void }) {
+  const [state, formAction, pending] = useActionState(blockGiftCard.bind(null, id), null);
   useActionToast(state, { errors: false, onSuccess: onDone });
   const formSubmit = useFormSubmit(state, formAction);
   return (
@@ -779,7 +779,7 @@ export function BlockGiftVoucherForm({ id, onDone }: { id: string; onDone?: () =
       <FormError state={state} />
       <Button type="submit" variant="danger" pending={pending} className="self-end">
         <Ban aria-hidden="true" />
-        Block voucher
+        Block gift card
       </Button>
     </form>
   );

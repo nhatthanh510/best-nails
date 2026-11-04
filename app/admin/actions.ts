@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizePhone } from "@/lib/phone";
 import { isValidBirthday } from "@/lib/birthday";
 import { safeRedirectPath } from "@/lib/safe-redirect";
-import { parseDollars } from "@/lib/gift-vouchers";
+import { parseDollars } from "@/lib/gift-cards";
 import { discountLabel, type DiscountKind } from "@/lib/rewards";
 import type { Database } from "@/lib/database.types";
 

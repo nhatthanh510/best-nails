@@ -3,7 +3,7 @@
 Run on 26 Oct 2026 against the local stack (Next.js dev server, Supabase in Docker), as the seed admin and a temporary staff account. Every test record used the fictional range 0491 570 1xx and was deleted afterwards.
 
 **How each case was tested**
-- **DB**: `supabase/tests/business_rules.test.sql` (pgTAP, 54 checks, added in this pass), plus `loyalty.test.sql` and `gift_vouchers.test.sql`. All run with `npm run test:db`, inside a transaction that rolls back.
+- **DB**: `supabase/tests/business_rules.test.sql` (pgTAP, 54 checks, added in this pass), plus `loyalty.test.sql` and `gift_cards.test.sql`. All run with `npm run test:db`, inside a transaction that rolls back.
 - **E2E**: by hand in Chrome at 1180×820 (iPad landscape), 820 wide (iPad portrait) and in a 375 px frame (phone).
 - **Unit**: Vitest (`npm test`).
 - **Code**: read from the code; not exercised.
@@ -68,7 +68,7 @@ Run on 26 Oct 2026 against the local stack (Next.js dev server, Supabase in Dock
 | B-04 | Birthday used twice in one year | Refused (already used) | DB (loyalty.test) | Pass |
 | B-05 | 29 Feb birthdays in non-leap years | Count as 28 Feb | Unit | Pass |
 
-### Gift vouchers
+### Gift cards
 | ID | Scenario | Expected | How | Result |
 |---|---|---|---|---|
 | G-01 | Generated code | Prefix + 8 digits, valid Luhn check digit | DB | Pass |
@@ -84,11 +84,11 @@ Run on 26 Oct 2026 against the local stack (Next.js dev server, Supabase in Dock
 | G-11 | Unknown code | not_found | DB | Pass |
 | G-12 | Adjust below $0, or with no reason | Refused | DB | Pass |
 | G-13 | Edit the balance directly | Refused by the guard | DB | Pass |
-| G-14 | Spend an expired voucher | Refused (expired) | DB | Pass |
+| G-14 | Spend an expired gift card | Refused (expired) | DB | Pass |
 | G-15 | Create from the kiosk header with a customer on screen | Phone pre-filled; toast with code | E2E | Pass (code vanishes too fast: UX-1) |
 | G-16 | Mistyped code (two digits swapped) | "This code looks mistyped" | E2E | Pass |
-| G-17 | Delete a used voucher | Not offered; only unspent vouchers can be deleted | E2E + DB policy | Pass |
-| G-18 | Voucher search by code, name or phone; Used today filter | Matching vouchers listed | E2E | Pass |
+| G-17 | Delete a used gift card | Not offered; only unspent gift cards can be deleted | E2E + DB policy | Pass |
+| G-18 | Gift card search by code, name or phone; Used today filter | Matching gift cards listed | E2E | Pass |
 
 ### Customers, check-ins, rewards, settings, dashboard
 | ID | Scenario | Expected | How | Result |
@@ -100,27 +100,27 @@ Run on 26 Oct 2026 against the local stack (Next.js dev server, Supabase in Dock
 | C-05 | Customer page tiles and history | Balance, tier, next reward, history rows | E2E | Pass |
 | C-06 | Adjust points with no reason; then +9 | Blocked; then saved, tier moves to Regular | E2E | Pass |
 | C-07 | Points below zero; points edited directly; customer created with points | All refused | DB | Pass |
-| C-08 | Delete a customer | Confirm, then gone with their history | E2E | Pass (doesn't mention their gift voucher: UX-9) |
+| C-08 | Delete a customer | Confirm, then gone with their history | E2E | Pass (doesn't mention their gift card: UX-9) |
 | C-09 | Subtitle with one customer | "1 member" | E2E | Pass (BUG-05 fixed) |
 | CI-01 | Today / 7 days / 30 days, search | Correct rows and totals | E2E | Pass |
 | CI-02 | Undone check-ins | Left out of the list and totals | Code + DB | Pass |
-| CI-03 | Used column | "10% OFF · points", "Gift voucher $20.00" on the visit | E2E | Pass |
+| CI-03 | Used column | "10% OFF · points", "Gift card $20.00" on the visit | E2E | Pass |
 | RW-01 | Reward with 0 points | Refused (minimum 1) | E2E | Pass |
 | RW-02 | Turn the birthday discount on/off | Kiosk and admin follow | Code | Pass |
 | ST-01 | Save button; leave with unsaved changes | "Leave without saving?" with Stay/Leave | E2E | Pass |
 | ST-02 | VIP below Regular | Inline error, Save disabled | E2E | Pass |
 | ST-03 | Code prefix not 2–4 letters | Refused | Code + DB constraint | Pass |
-| D-01 | Dashboard numbers after a visit, redemption and voucher | Counts and credit correct; "N with points" | E2E | Pass (BUG-02 fixed) |
+| D-01 | Dashboard numbers after a visit, redemption and gift card | Counts and credit correct; "N with points" | E2E | Pass (BUG-02 fixed) |
 
 ### Security (database level, as each role would through the API)
 | ID | Scenario | Expected | How | Result |
 |---|---|---|---|---|
 | S-01 | Staff account reads customers | 0 rows | DB | Pass |
 | S-02 | Staff account adjusts points | Forbidden | DB | Pass |
-| S-03 | Staff account creates a gift voucher | Allowed (kiosk header) | DB | Pass |
+| S-03 | Staff account creates a gift card | Allowed (kiosk header) | DB | Pass |
 | S-04 | Signed-in account calls kiosk functions directly | Forbidden (only the server can) | DB | Pass |
 | S-05 | Staff account reads the staff list | Only its own row | DB | Pass |
-| S-06 | Removed account creates a gift voucher | Forbidden | DB | Pass |
+| S-06 | Removed account creates a gift card | Forbidden | DB | Pass |
 | S-07 | Signed-out visitor calls kiosk functions | Forbidden | DB | Pass |
 | S-08 | Signed-out visitor reads customers | 0 rows | DB | Pass |
 | S-09 | Function permissions after the migration squash | Identical to the 25 original migrations | Schema diff | Pass |
@@ -143,7 +143,7 @@ Run on 26 Oct 2026 against the local stack (Next.js dev server, Supabase in Dock
 |---|---|---|---|---|
 | BUG-04 | High (phones) | Admin top bar, ≤ 400 px | Logo + kiosk + account + sign out + menu are 19 px too wide, so every admin page scrolls sideways. Regression from the account icon added today. | Fixed: "Your account" and "Sign out" moved to the bottom of the phone menu (`components/admin/sidebar.tsx`). |
 | BUG-01 | Medium | Kiosk sign-up | 31 Feb, or a day without a month, is silently dropped: the customer thinks they gave a birthday and never gets the discount. | Fixed: the day list follows the month (29 Feb allowed) and one part alone gets a message; the server action rejects bad dates too (`components/kiosk/screens.tsx`, `app/kiosk/actions.ts`). The admin form already checked. |
-| BUG-03 | Medium | Forms using Server Actions (sign-in, Add customer; likely the other dialogs) | After a server error the form clears everything typed. The error also shows twice (toast and inline). | Fixed for all 14 forms with `useFormSubmit` (`lib/use-form-submit.ts`): submits without React's reset, clears after success as before (except Settings, birthday and voucher details, which keep what was saved). Forms with inline errors no longer also toast them (`useActionToast(state, { errors: false })`). |
+| BUG-03 | Medium | Forms using Server Actions (sign-in, Add customer; likely the other dialogs) | After a server error the form clears everything typed. The error also shows twice (toast and inline). | Fixed for all 14 forms with `useFormSubmit` (`lib/use-form-submit.ts`): submits without React's reset, clears after success as before (except Settings, birthday and gift card details, which keep what was saved). Forms with inline errors no longer also toast them (`useActionToast(state, { errors: false })`). |
 | BUG-02 | Low | Dashboard "Discounts given this month" | "1 points · 0 birthday": reads as a plural mistake, and shows birthday while it's turned off. | Fixed: "1 with points", birthday part only when it's on (or was used this month). |
 | BUG-05 | Low | Customers subtitle | "1 members". | Fixed. |
 | BUG-06 | Low | Kiosk, after today's discount | "0 points saved for your next visit". | Fixed: "One discount per visit. See you next time!" at 0, and singular "point". |
@@ -156,7 +156,7 @@ Compared with Square Loyalty and Square Gift Cards (the closest match: tablet ch
 **Already at or above the bar**
 - **Phone-number check-in on a shared tablet** with a masked number, an idle reset and a privacy note: the same pattern Square Loyalty uses, with a nicer brand feel.
 - **Two-step redeem plus a "show this to the front desk" screen with a timestamp**: Square shows a similar staff-verify screen. Good protection against accidental taps.
-- **Gift voucher safety**: the check digit catches typos (most POS systems don't do this for hand-written codes), the 3-year minimum is enforced, and every change, including corrections with Adjust, stays in the voucher's history.
+- **Gift card safety**: the check digit catches typos (most POS systems don't do this for hand-written codes), the 3-year minimum is enforced, and every change, including corrections with Adjust, stays in the gift card's history.
 - **Over-balance spends blocked inline** before anything is saved.
 - **Roles, removal that keeps history, forced change of temporary passwords**: in line with Square Team and Fresha staff accounts.
 
@@ -164,23 +164,23 @@ Compared with Square Loyalty and Square Gift Cards (the closest match: tablet ch
 
 | # | Improvement | Seen in | Why |
 |---|---|---|---|
-| UX-1 | **Done (26 Oct).** After creating a gift voucher, show a confirmation with the **code in large type**, a copy button and "Write this on the card", until dismissed. | Square Gift Cards | Today the code is only in a toast that fades in a few seconds, and staff need to copy it onto the physical card. |
+| UX-1 | **Done (26 Oct).** After creating a gift card, show a confirmation with the **code in large type**, a copy button and "Write this on the card", until dismissed. | Square Gift Cards | Today the code is only in a toast that fades in a few seconds, and staff need to copy it onto the physical card. |
 | UX-2 | **Done (26 Oct).** "Use the full $50.00 · take $10.00 at the till" button when the service costs more than the balance. | Square, most POS systems | Staff currently retype the amount; split payment is the common case. |
-| UX-3 | **Done (26 Oct), admin customer page only.** **List their vouchers to tap** instead of typing the code. Left off the kiosk on purpose: anyone could type a customer's number there and spend their credit, so the code stays required. | Fresha client profile | Fewer typos, faster at the till. |
+| UX-3 | **Done (26 Oct), admin customer page only.** **List their gift cards to tap** instead of typing the code. Left off the kiosk on purpose: anyone could type a customer's number there and spend their credit, so the code stays required. | Fresha client profile | Fewer typos, faster at the till. |
 | UX-4 | **Dropped (owner's decision):** **Undo a redemption** (from the customer page, for a short time or by an admin). | Square Loyalty ("void reward") | Today a mistaken redeem can only be fixed with Adjust points, which leaves the discount counted as used for the day. |
 | UX-5 | **Done (26 Oct).** Put errors **next to the field** and highlight it (kiosk first name, admin forms). | Platform guidelines (Apple, Material) | The kiosk error sits under the birthday, far from the name. |
 | UX-6 | **Done (26 Oct).** **Phone first** on Add customer, with an instant "already a customer: open their page" check. | Square Customers | The phone is the identity everywhere else; this catches duplicates before typing a name. |
-| UX-7 | **Done (26 Oct).** Gift voucher dialogs on the kiosk in the kiosk's own dark theme and larger sizes; the Create button visible without scrolling. | Square POS on iPad | It currently looks like a different app and needs scrolling at iPad height. |
-| UX-8 | **Done (26 Oct).** Say *why* things are blocked: "Vouchers must last at least 3 years (Australian law)"; "Used vouchers can't be deleted. Adjust the balance instead." | General | The browser's "Value must be 26/10/2029 or later" and a missing Delete leave admins guessing. |
-| UX-9 | **Done (26 Oct).** Deleting a customer should mention their gift vouchers and unspent credit. | Fresha | The voucher survives unlinked, which surprises later. |
+| UX-7 | **Done (26 Oct).** Gift card dialogs on the kiosk in the kiosk's own dark theme and larger sizes; the Create button visible without scrolling. | Square POS on iPad | It currently looks like a different app and needs scrolling at iPad height. |
+| UX-8 | **Done (26 Oct).** Say *why* things are blocked: "Gift cards must last at least 3 years (Australian law)"; "Used gift cards can't be deleted. Adjust the balance instead." | General | The browser's "Value must be 26/10/2029 or later" and a missing Delete leave admins guessing. |
+| UX-9 | **Done (26 Oct).** Deleting a customer should mention their gift cards and unspent credit. | Fresha | The gift card survives unlinked, which surprises later. |
 | UX-10 | **Done (26 Oct).** Dashboard tiles in a grid that doesn't leave a gap at iPad width (4 or 6 tiles, or 5 in one row). | Square Dashboard | At 1180 px the tiles wrap 3 + 2 with an empty slot. |
-| UX-11 | **Done (26 Oct).** "Use this voucher" on the voucher page as a header button, not a whole card that repeats its own title. | Square, Fresha | Less scrolling on the most-used action. |
+| UX-11 | **Done (26 Oct).** "Use this gift card" on the gift card page as a header button, not a whole card that repeats its own title. | Square, Fresha | Less scrolling on the most-used action. |
 | UX-12 | **Data, not code:** give the seed and new accounts real names ("By: Admin · Admin" repeats). | General | Clearer history. |
 
 **Bigger ideas, only if the shop wants them** (each changes what the program does, so they're your call):
 - A text after check-in or redemption with the points balance, like Square Loyalty. SMS was removed on purpose, so this would need a decision and a sending service.
 - A celebration moment when a customer reaches a reward (Starbucks-style animation on the punch card).
-- A daily close-out view: today's discounts, voucher sales and voucher spends, for reconciling with the till. Square's end-of-day report covers this.
+- A daily close-out view: today's discounts, gift card sales and gift card spends, for reconciling with the till. Square's end-of-day report covers this.
 
 ## 4. How to rerun
 

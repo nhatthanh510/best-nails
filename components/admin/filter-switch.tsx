@@ -7,7 +7,7 @@ import { startNavProgress } from "./nav-progress";
 import { cn } from "@/lib/utils";
 
 /**
- * An on/off filter for a list, e.g. Gift vouchers' "Used today": a switch that goes to `href`
+ * An on/off filter for a list, e.g. Gift cards' "Used today": a switch that goes to `href`
  * (the list with the filter flipped), so the choice stays in the URL. It flips straight away and
  * the list follows once it has loaded.
  */

@@ -16,8 +16,8 @@ import {
   type DashboardPeriod,
   type NudgeCustomer,
 } from "@/lib/admin-data";
-import { formatMoney } from "@/lib/gift-vouchers";
-import { FindVoucherButton } from "@/components/admin/find-voucher";
+import { formatMoney } from "@/lib/gift-cards";
+import { FindGiftCardButton } from "@/components/admin/find-gift-card";
 import { tierFor } from "@/lib/tiers";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatTime, fullName } from "@/lib/format";
@@ -51,7 +51,7 @@ function periodRange(period: DashboardPeriod, tz: string) {
  * What the owner checks during or after a day: four tiles and the top services for today (or the
  * last 7 days / this month, ?period=), who came in today for what and with whom, and short lists
  * worth a word (birthdays, nearly at a reward, regulars not back lately). Totals that change slowly live on
- * their own pages (credit on Gift vouchers, the program on Rewards). There's deliberately no
+ * their own pages (credit on Gift cards, the program on Rewards). There's deliberately no
  * per-technician count: visit counts aren't a fair measure of anyone's work and read as a ranking.
  */
 async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["searchParams"] }) {
@@ -83,7 +83,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
   // What the check-ins are compared with (see periodWindow in lib/admin-data.ts).
   const before = { today: `last ${weekday} so far`, week: "the 7 days before", month: "this time last month" }[period];
   const joined = { today: "Joined today", week: "Joined in the last 7 days", month: "Joined this month" }[period];
-  const vouchers = stats.vouchers;
+  const giftCards = stats.giftCards;
   const range = periodRange(period, tz);
 
   return (
@@ -91,7 +91,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
       <PageHeader
         title="Today at Best Nails"
         subtitle={new Date().toLocaleDateString("en-AU", { weekday: "long", month: "long", day: "numeric", timeZone: tz })}
-        actions={<FindVoucherButton />}
+        actions={<FindGiftCardButton />}
       />
 
       <div className="-mb-2 flex flex-wrap items-center justify-between gap-3">
@@ -124,14 +124,14 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
         <StatTile
           // The app says "created" (payment happens at the till). New credit (created, activated and
           // topped up) and credit used are different money, so each gets its own line.
-          label="Gift voucher credit added"
-          value={formatMoney(vouchers.soldCents)}
+          label="Gift card credit added"
+          value={formatMoney(giftCards.soldCents)}
           hint={
             <>
-              <span className="block">{vouchers.sold} new voucher{vouchers.sold === 1 ? "" : "s"}</span>
+              <span className="block">{giftCards.sold} new gift card{giftCards.sold === 1 ? "" : "s"}</span>
               <span className="block">
-                {vouchers.used > 0
-                  ? `${formatMoney(vouchers.usedCents)} used from ${vouchers.used} voucher${vouchers.used === 1 ? "" : "s"}`
+                {giftCards.used > 0
+                  ? `${formatMoney(giftCards.usedCents)} used from ${giftCards.used} gift card${giftCards.used === 1 ? "" : "s"}`
                   : `None used${period === "today" ? " yet" : ""}`}
               </span>
             </>

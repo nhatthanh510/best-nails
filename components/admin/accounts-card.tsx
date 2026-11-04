@@ -189,7 +189,7 @@ function AccountItem({ account: a, isMe }: { account: AccountRow; isMe: boolean 
         open={open === "delete"}
         onClose={close}
         title={`Delete ${a.name} for good?`}
-        description={`This can't be undone. ${a.name}'s sign-in is deleted, and the check-ins, points and gift vouchers they handled will show "Staff" instead of their name. To stop someone signing in but keep their name on the history, leave the account removed.`}
+        description={`This can't be undone. ${a.name}'s sign-in is deleted, and the check-ins, points and gift cards they handled will show "Staff" instead of their name. To stop someone signing in but keep their name on the history, leave the account removed.`}
         confirmLabel="Delete for good"
         action={() => deleteAccount(a.id)}
       />

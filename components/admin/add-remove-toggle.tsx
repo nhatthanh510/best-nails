@@ -5,7 +5,7 @@ export type Direction = "add" | "remove";
 
 /**
  * Add / Remove switch for adjustment forms: green with a plus, red with a minus, so the two can't be
- * confused. `labels` renames them where "Add" would mean something else (a voucher's Correct
+ * confused. `labels` renames them where "Add" would mean something else (a gift card's Correct
  * balance, beside Add value).
  */
 export function AddRemoveToggle({

@@ -63,7 +63,7 @@ export function CardSkeleton({ lines = 3, className }: { lines?: number; classNa
   );
 }
 
-/** Customers, Gift vouchers and Check-ins: the list panel with its toolbar and rows. */
+/** Customers, Gift cards and Check-ins: the list panel with its toolbar and rows. */
 export function ListPanelSkeleton({ rows = 10, avatar = false, label }: { rows?: number; avatar?: boolean; label: string }) {
   return (
     <ListPanel id="list" className="scroll-mt-4">
@@ -111,7 +111,7 @@ export function DashboardSkeleton() {
   );
 }
 
-/** Customer and gift voucher pages: the header card, tiles, the history and the side cards. */
+/** Customer and gift card pages: the header card, tiles, the history and the side cards. */
 export function DetailSkeleton({ tiles, label }: { tiles: number; label: string }) {
   return (
     <>

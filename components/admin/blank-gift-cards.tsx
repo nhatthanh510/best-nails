@@ -6,10 +6,10 @@ import { Check, ChevronDown, Download, Printer, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { SellGiftVoucherButton } from "@/components/admin/gift-voucher-forms";
-import { printVoucherNodes, VoucherCard, voucherCardsIn } from "@/components/admin/voucher-card";
-import { createInactiveGiftVouchers, previewGiftVoucherCodes, type PrintedVoucher } from "@/app/admin/gift-voucher-actions";
-import { downloadVoucherPdf } from "@/lib/voucher-pdf";
+import { SellGiftCardButton } from "@/components/admin/gift-card-forms";
+import { printGiftCardNodes, PrintedGiftCard, printedGiftCardsIn } from "@/components/admin/printed-gift-card";
+import { createInactiveGiftCards, previewGiftCardCodes, type BlankGiftCard } from "@/app/admin/gift-card-actions";
+import { downloadGiftCardPdf } from "@/lib/gift-card-pdf";
 import { cn } from "@/lib/utils";
 
 const COUNTS = [10, 20, 50];
@@ -21,10 +21,10 @@ const segment = (active: boolean) =>
   );
 
 /**
- * Blank cards: gift vouchers printed in advance, with a code and QR but no amount, as with
- * Square's physical gift cards. They're saved as Not sold vouchers (the list's Not sold filter, so
- * each one can be tracked) and activated when sold: Activate voucher with the amount (the code
- * is the card's). It's under the header's Create gift voucher ▾, and in the list's Not sold tab.
+ * Blank cards: gift cards printed in advance, with a code and QR but no amount, as with
+ * Square's physical gift cards. They're saved as Not sold gift cards (the list's Not sold filter, so
+ * each one can be tracked) and activated when sold: Activate gift card with the amount (the code
+ * is the card's). It's under the header's Create gift card ▾, and in the list's Not sold tab.
  */
 export function PrintBlankCardsButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
@@ -40,20 +40,20 @@ export function PrintBlankCardsButton({ className }: { className?: string }) {
 }
 
 /**
- * The Gift vouchers header's main button: Create gift voucher, with a ▾ beside it for the related,
+ * The Gift cards header's main button: Create gift card, with a ▾ beside it for the related,
  * occasional job of printing blank cards, the usual split-button pattern. One button's room at every
- * screen size, and nothing that reads as "print this voucher".
+ * screen size, and nothing that reads as "print this gift card".
  */
-export function CreateVoucherSplitButton() {
+export function CreateGiftCardSplitButton() {
   const [open, setOpen] = useState(false);
   return (
     // On phones PageHeader stretches its children and hides their icons; the group keeps no padding
     // of its own and its ▾ stays visible.
     <div className="flex max-sm:px-0!">
-      <SellGiftVoucherButton className="rounded-r-none max-sm:flex-1" />
+      <SellGiftCardButton className="rounded-r-none max-sm:flex-1" />
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <Button type="button" aria-label="More ways to create vouchers" className="w-11 flex-none rounded-l-none border-l border-l-primary-foreground/25 px-0">
+          <Button type="button" aria-label="More ways to create gift cards" className="w-11 flex-none rounded-l-none border-l border-l-primary-foreground/25 px-0">
             <ChevronDown className="size-4 max-sm:block!" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
@@ -76,7 +76,7 @@ function BlankCardsDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         <DialogHeader>
           <DialogTitle>Print blank cards</DialogTitle>
           <DialogDescription>
-            Gift vouchers printed in advance, with a code and QR but no amount. They stay Not sold until a customer buys one: then find the
+            Gift cards printed in advance, with a code and QR but no amount. They stay Not sold until a customer buys one: then find the
             card&apos;s code and activate it with the amount.
           </DialogDescription>
         </DialogHeader>
@@ -89,7 +89,7 @@ function BlankCardsDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 function BlankCards({ onDone }: { onDone: () => void }) {
   const [count, setCount] = useState(10);
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [saved, setSaved] = useState<PrintedVoucher[] | null>(null);
+  const [saved, setSaved] = useState<BlankGiftCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewing, startPreview] = useTransition();
   const [saving, startSave] = useTransition();
@@ -101,7 +101,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
 
   const preview = (n: number) =>
     startPreview(async () => {
-      const result = await previewGiftVoucherCodes(n);
+      const result = await previewGiftCardCodes(n);
       if (!result.ok) return setError(result.message);
       setError(null);
       setCodes(result.codes);
@@ -110,15 +110,15 @@ function BlankCards({ onDone }: { onDone: () => void }) {
   // The first preview, for the default count.
   useEffect(() => preview(10), []);
 
-  const cards = () => (sheet.current ? voucherCardsIn(sheet.current) : []);
+  const cards = () => (sheet.current ? printedGiftCardsIn(sheet.current) : []);
   const download = () =>
     startDownload(async () => {
       const list = cards();
-      if (list.length) await downloadVoucherPdf(list, `blank-cards-${list.length}.pdf`);
+      if (list.length) await downloadGiftCardPdf(list, `blank-cards-${list.length}.pdf`);
     });
 
   useEffect(() => {
-    if (printRequest && sheet.current) printVoucherNodes([...sheet.current.children], true);
+    if (printRequest && sheet.current) printGiftCardNodes([...sheet.current.children], true);
   }, [printRequest]);
 
   const [saveKind, setSaveKind] = useState<"pdf" | "print">("print");
@@ -127,10 +127,10 @@ function BlankCards({ onDone }: { onDone: () => void }) {
     startSave(async () => {
       setSaveKind(kind);
       if (!codes) return;
-      const result = await createInactiveGiftVouchers(codes);
+      const result = await createInactiveGiftCards(codes);
       if (!result.ok) return setError(result.message);
       setError(null);
-      setSaved(result.vouchers);
+      setSaved(result.giftCards);
       if (kind === "print") setPrintRequest(1);
     });
 
@@ -157,7 +157,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
           </Button>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Link href="/admin/gift-vouchers?filter=inactive" onClick={onDone} className="text-sm font-bold text-primary hover:underline">
+          <Link href="/admin/gift-cards?filter=inactive" onClick={onDone} className="text-sm font-bold text-primary hover:underline">
             See them in the list
           </Link>
           <Button type="button" size="lg" onClick={onDone} autoFocus>
@@ -167,7 +167,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
         {/* The cards to print or capture: drawn off screen (a PDF needs them laid out), one per row. */}
         <div ref={sheet} aria-hidden="true" className="fixed top-0 -left-[10000px] flex w-[640px] flex-col gap-4">
           {saved.map((v) => (
-            <VoucherCard key={v.code} code={v.code} expiresOn={null} token={v.token} />
+            <PrintedGiftCard key={v.code} code={v.code} expiresOn={null} token={v.token} />
           ))}
         </div>
       </div>
@@ -197,7 +197,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
         <p className="text-[13px] text-muted-foreground">10 fit on an A4 page, with a gap to cut between.</p>
       </fieldset>
 
-      <VoucherCard code={codes?.[0] ?? ""} expiresOn={null} token={null} className="mx-auto max-w-[280px]" />
+      <PrintedGiftCard code={codes?.[0] ?? ""} expiresOn={null} token={null} className="mx-auto max-w-[280px]" />
 
       <section aria-labelledby="bc-codes" aria-busy={previewing} className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">

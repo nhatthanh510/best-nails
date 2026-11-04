@@ -6,8 +6,8 @@ import { encode } from "uqr";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/kiosk/brand";
 import { CopyButton } from "@/components/admin/copy-button";
-import { voucherBalanceUrl } from "@/lib/voucher-link";
-import { downloadVoucherPdf } from "@/lib/voucher-pdf";
+import { giftCardBalanceUrl } from "@/lib/gift-card-link";
+import { downloadGiftCardPdf } from "@/lib/gift-card-pdf";
 import { cn } from "@/lib/utils";
 
 const dateLabel = (d: string) =>
@@ -26,7 +26,7 @@ function Qr({ value, className }: { value: string; className?: string }) {
 }
 
 /**
- * The gift voucher as it's handed over: logo, code, expiry and a QR code that opens its balance
+ * The gift card as it's handed over: logo, code, expiry and a QR code that opens its balance
  * page (`/v/<token>`). No amount, as on stored-value gift cards: it's spent over several visits,
  * so a printed value would be wrong after the first one (or on a reprint); the QR shows what's
  * left. Before it's created (`token` null, the create form's live preview) the QR spot says it's
@@ -34,7 +34,7 @@ function Qr({ value, className }: { value: string; className?: string }) {
  * yet (`expiresOn` null): it starts at the sale. Its own fixed colours, so it looks the same in the admin, on the kiosk and on paper. Text scales with
  * the card's width (container units), so one design serves the preview, the page and the print.
  */
-export function VoucherCard({
+export function PrintedGiftCard({
   code,
   expiresOn,
   token,
@@ -50,7 +50,7 @@ export function VoucherCard({
   return (
     <div ref={ref} className={cn("@container w-full", className)}>
       <div
-        data-voucher-card
+        data-printed-gift-card
         className="relative flex aspect-[1.7] w-full flex-col overflow-hidden rounded-[4cqw] bg-kiosk-bg p-[5.5cqw] text-kiosk-ink [print-color-adjust:exact]"
       >
         {/* A soft gold glow and an inset hairline frame, echoing the logo's ring. */}
@@ -64,7 +64,7 @@ export function VoucherCard({
 
         <div className="relative mt-auto flex items-end justify-between gap-[4cqw]">
           <div className="flex min-w-0 flex-col gap-[1.6cqw]">
-            <span className="font-heading text-[10.5cqw] leading-[0.9] font-bold text-gold-bright">Gift Voucher</span>
+            <span className="font-heading text-[10.5cqw] leading-[0.9] font-bold text-gold-bright">Gift Card</span>
             <span className={cn("mt-[1.4cqw] font-mono text-[4.6cqw] leading-tight font-bold tracking-[0.14em] break-all", !code && "text-kiosk-faint")}>
               {code || "••••••••••"}
             </span>
@@ -73,7 +73,7 @@ export function VoucherCard({
           <div className="flex flex-none flex-col items-center gap-[1.2cqw]">
             <div className="flex size-[22cqw] items-center justify-center rounded-[2cqw] bg-white p-[1.6cqw]">
               {token ? (
-                <Qr value={voucherBalanceUrl(token)} className="size-full" />
+                <Qr value={giftCardBalanceUrl(token)} className="size-full" />
               ) : (
                 <QrCode className="size-[60%] text-kiosk-faint" strokeWidth={1.5} aria-hidden="true" />
               )}
@@ -91,7 +91,7 @@ export function VoucherCard({
  * (globals.css), so it works from a dialog or a page, and it's removed after printing. `sheet`
  * lays them out as cards to cut out, 10 to an A4 page with a gap between; otherwise it's one card.
  */
-export function printVoucherNodes(nodes: Node[], sheet = false) {
+export function printGiftCardNodes(nodes: Node[], sheet = false) {
   document.getElementById("print-root")?.remove();
   const root = document.createElement("div");
   root.id = "print-root";
@@ -102,8 +102,8 @@ export function printVoucherNodes(nodes: Node[], sheet = false) {
   window.print();
 }
 
-export function PrintVoucherButton({ card, className }: { card: React.RefObject<HTMLDivElement | null>; className?: string }) {
-  const print = () => card.current && printVoucherNodes([card.current]);
+export function PrintGiftCardButton({ card, className }: { card: React.RefObject<HTMLDivElement | null>; className?: string }) {
+  const print = () => card.current && printGiftCardNodes([card.current]);
   return (
     <Button type="button" variant="outline" onClick={print} className={className}>
       <Printer aria-hidden="true" />
@@ -112,20 +112,20 @@ export function PrintVoucherButton({ card, className }: { card: React.RefObject<
   );
 }
 
-/** The cards inside `container` (VoucherCards), as they're drawn on screen. */
-export function voucherCardsIn(container: HTMLElement) {
-  return [...container.querySelectorAll<HTMLElement>("[data-voucher-card]")];
+/** The cards inside `container` (PrintedGiftCards), as they're drawn on screen. */
+export function printedGiftCardsIn(container: HTMLElement) {
+  return [...container.querySelectorAll<HTMLElement>("[data-printed-gift-card]")];
 }
 
 /** For a shop without a printer: the card as a PDF to print elsewhere. */
-export function DownloadVoucherButton({ card, filename, className }: { card: React.RefObject<HTMLDivElement | null>; filename: string; className?: string }) {
+export function DownloadGiftCardButton({ card, filename, className }: { card: React.RefObject<HTMLDivElement | null>; filename: string; className?: string }) {
   const [pending, start] = useTransition();
   return (
     <Button
       type="button"
       variant="outline"
       pending={pending}
-      onClick={() => start(async () => void (card.current && (await downloadVoucherPdf(voucherCardsIn(card.current), filename))))}
+      onClick={() => start(async () => void (card.current && (await downloadGiftCardPdf(printedGiftCardsIn(card.current), filename))))}
       className={className}
     >
       <Download aria-hidden="true" />
@@ -135,11 +135,11 @@ export function DownloadVoucherButton({ card, filename, className }: { card: Rea
 }
 
 /**
- * The voucher's public balance page (what its QR opens), so staff can open it, check what the
+ * The gift card's public balance page (what its QR opens), so staff can open it, check what the
  * customer sees, or copy it into a message. Anyone with the link sees the balance.
  */
-export function VoucherBalanceLink({ token }: { token: string }) {
-  const url = voucherBalanceUrl(token);
+export function GiftCardBalanceLink({ token }: { token: string }) {
+  const url = giftCardBalanceUrl(token);
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-[13px] font-semibold">Balance page · what the QR code opens</span>
@@ -164,21 +164,21 @@ export function VoucherBalanceLink({ token }: { token: string }) {
 }
 
 /**
- * The card with Print, Download PDF and its balance link, for a voucher that exists. Stacked; in a
+ * The card with Print, Download PDF and its balance link, for a gift card that exists. Stacked; in a
  * wide box (an @container, e.g. a one-column page on a tablet) the buttons sit beside the card.
  */
-export function PrintableVoucher({ code, expiresOn, token }: { code: string; expiresOn: string | null; token: string }) {
+export function PrintableGiftCard({ code, expiresOn, token }: { code: string; expiresOn: string | null; token: string }) {
   const card = useRef<HTMLDivElement>(null);
   return (
     <div className="grid w-full max-w-md gap-3 @xl:max-w-none @xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @xl:items-start @xl:gap-5">
-      <VoucherCard ref={card} code={code} expiresOn={expiresOn} token={token} />
+      <PrintedGiftCard ref={card} code={code} expiresOn={expiresOn} token={token} />
       <div className="flex min-w-0 flex-col gap-3">
         {/* Side by side under the card; stacked when they sit beside it, where the column is narrow. */}
         <div className="grid grid-cols-2 gap-2 @xl:grid-cols-1">
-          <PrintVoucherButton card={card} />
-          <DownloadVoucherButton card={card} filename={`gift-voucher-${code}.pdf`} />
+          <PrintGiftCardButton card={card} />
+          <DownloadGiftCardButton card={card} filename={`gift-card-${code}.pdf`} />
         </div>
-        <VoucherBalanceLink token={token} />
+        <GiftCardBalanceLink token={token} />
       </div>
     </div>
   );

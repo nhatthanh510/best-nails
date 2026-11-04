@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/admin/action-button";
-import { deleteGiftVouchers } from "@/app/admin/gift-voucher-actions";
+import { deleteGiftCards } from "@/app/admin/gift-card-actions";
 
 /**
- * Choosing several gift vouchers in the list to delete at once. The rows stay server-rendered:
+ * Choosing several gift cards in the list to delete at once. The rows stay server-rendered:
  * each one that can be deleted has a plain checkbox (BulkCheckbox), and these two read and set
  * them in the list panel they're in, so a new page, filter or search starts with none chosen.
  */
@@ -94,7 +94,7 @@ export function BulkActions() {
   };
 
   return (
-    <div ref={ref} role="region" aria-label="Chosen vouchers" aria-live="polite" className={ids.length ? "contents" : "hidden"}>
+    <div ref={ref} role="region" aria-label="Chosen gift cards" aria-live="polite" className={ids.length ? "contents" : "hidden"}>
       {ids.length > 0 && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-accent/60 px-4 py-2">
           <span className="text-sm font-bold">
@@ -107,10 +107,10 @@ export function BulkActions() {
             variant="danger"
             size="sm"
             className="ml-auto"
-            title={`Delete ${ids.length} voucher${ids.length === 1 ? "" : "s"}?`}
-            description="For blank cards that are lost or misprinted, or vouchers created by mistake (refund those at the till). Any that have been used are kept. This can't be undone."
+            title={`Delete ${ids.length} gift card${ids.length === 1 ? "" : "s"}?`}
+            description="For blank cards that are lost or misprinted, or gift cards created by mistake (refund those at the till). Any that have been used are kept. This can't be undone."
             confirmLabel={`Delete ${ids.length}`}
-            action={() => deleteGiftVouchers(ids)}
+            action={() => deleteGiftCards(ids)}
           >
             <Trash2 aria-hidden="true" />
             Delete {ids.length}

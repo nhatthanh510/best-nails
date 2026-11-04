@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { ScrollFade } from "./scroll-fade";
 
 /**
- * A list page's frame by status (Gift vouchers), top to bottom: the title with the page's buttons
+ * A list page's frame by status (Gift cards), top to bottom: the title with the page's buttons
  * (PageHeader), a summary card of a few numbers, status tabs with counts, then the list panel with
  * its search and sort above the rows. Tabs suit statuses, where every row is in exactly one; for
  * overlapping filters (Customers' visit days) or a date range (Check-ins) use chips or a joined bar.

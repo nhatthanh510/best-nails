@@ -8,7 +8,7 @@ import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { tierFor } from "@/lib/tiers";
 import { CHECK_IN_RANGES, CHECK_INS_PAGE_SIZE, getSettings, listCheckIns, type CheckInRange, type VisitUse } from "@/lib/admin-data";
 import { VisitPayment, VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
-import { formatMoney } from "@/lib/gift-vouchers";
+import { formatMoney } from "@/lib/gift-cards";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatTime, fullName } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -59,12 +59,12 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
         subtitle={[
           `${totals.visits.toLocaleString()} visit${totals.visits === 1 ? "" : "s"}`,
           `${used.discounts.toLocaleString()} discount${used.discounts === 1 ? "" : "s"}`,
-          `${formatMoney(used.giftCents)} from gift vouchers`,
+          `${formatMoney(used.giftCents)} from gift cards`,
         ].join(" · ")}
       />
 
       <ListPanel id="list" className="scroll-mt-4">
-        {/* The toolbar and rows are one panel, as on Customers and Gift vouchers. */}
+        {/* The toolbar and rows are one panel, as on Customers and Gift cards. */}
         <div className="flex shrink-0 items-center gap-2 border-b border-border p-3 md:flex-wrap md:gap-3 md:p-4">
           <SearchBox
             action="/admin/check-ins"
@@ -172,7 +172,7 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
 
 /**
  * What the customer used on the day of that visit. Each kind keeps one colour: points rewards
- * gold, birthday blue, gift vouchers brown (as "Used" on the Gift vouchers page).
+ * gold, birthday blue, gift cards brown (as "Used" on the Gift cards page).
  */
 function UsedPills({ used }: { used: VisitUse[] }) {
   if (used.length === 0)
@@ -194,7 +194,7 @@ function UsedPills({ used }: { used: VisitUse[] }) {
           </Pill>
         ) : (
           <Pill key={i} className="bg-warning-soft whitespace-nowrap text-warning">
-            Gift voucher {formatMoney(u.cents)}
+            Gift card {formatMoney(u.cents)}
           </Pill>
         ),
       )}

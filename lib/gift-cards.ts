@@ -1,11 +1,11 @@
-// Gift vouchers hold money, stored in cents. These helpers are shared by the admin pages and
+// Gift cards hold money, stored in cents. These helpers are shared by the admin pages and
 // actions, and stay free of server-only imports.
 
 /**
  * `inactive`: a blank card printed ahead of time and not sold yet, so it has no amount or expiry.
  * `blocked`: switched off by an admin (lost or stolen); its balance is kept until it's unblocked.
  */
-export type GiftVoucherStatus = "inactive" | "active" | "used_up" | "expired" | "blocked";
+export type GiftCardStatus = "inactive" | "active" | "used_up" | "expired" | "blocked";
 
 const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
 
@@ -30,7 +30,7 @@ export function normalizeGiftCode(input: string) {
 
 /**
  * Generated codes are a 2–4 letter business prefix + 7 digits + a Luhn check digit, e.g.
- * BN48207138 (`_new_gift_voucher_code`). True when a code has that shape but the check digit
+ * BN48207138 (`_new_gift_card_code`). True when a code has that shape but the check digit
  * is wrong: almost certainly a typo (one wrong digit, or two swapped) rather than another code.
  */
 export function looksMistyped(input: string) {
@@ -49,10 +49,10 @@ export function looksMistyped(input: string) {
 export const CODE_PREFIX_PATTERN = /^[A-Z]{2,4}$/;
 
 /** `today` is YYYY-MM-DD in the shop's timezone. */
-export function giftVoucherStatus(
+export function giftCardStatus(
   v: { balance_cents: number; expires_on: string | null; blocked_at?: string | null },
   today: string,
-): GiftVoucherStatus {
+): GiftCardStatus {
   if (v.expires_on === null) return "inactive";
   if (v.blocked_at) return "blocked";
   if (v.expires_on < today) return "expired";
@@ -60,7 +60,7 @@ export function giftVoucherStatus(
   return "active";
 }
 
-export const GIFT_VOUCHER_STATUS_LABELS: Record<GiftVoucherStatus, string> = {
+export const GIFT_CARD_STATUS_LABELS: Record<GiftCardStatus, string> = {
   inactive: "Not sold",
   blocked: "Blocked",
   active: "Active",
@@ -68,15 +68,15 @@ export const GIFT_VOUCHER_STATUS_LABELS: Record<GiftVoucherStatus, string> = {
   expired: "Expired",
 };
 
-/** Messages for check_gift_voucher / spend_gift_voucher statuses that mean "can't use it". */
-export const GIFT_VOUCHER_PROBLEMS: Record<string, string> = {
-  not_found: "No gift voucher has this code. Check it was typed correctly.",
-  mistyped: "This code looks mistyped: one of the digits is probably wrong. Check it against the voucher.",
-  used_up: "This gift voucher has no balance left.",
-  expired: "This gift voucher has expired.",
-  blocked: "This voucher is blocked (reported lost or stolen). An admin can unblock it on its page.",
+/** Messages for check_gift_card / spend_gift_card statuses that mean "can't use it". */
+export const GIFT_CARD_PROBLEMS: Record<string, string> = {
+  not_found: "No gift card has this code. Check it was typed correctly.",
+  mistyped: "This code looks mistyped: one of the digits is probably wrong. Check it against the gift card.",
+  used_up: "This gift card has no balance left.",
+  expired: "This gift card has expired.",
+  blocked: "This gift card is blocked (reported lost or stolen). An admin can unblock it on its page.",
   not_sold: "This blank card hasn't been activated yet. Activate it with the amount the customer pays first.",
 };
 
 /** Quick amounts on the sell form. */
-export const GIFT_VOUCHER_PRESETS = [5000, 10000, 15000];
+export const GIFT_CARD_PRESETS = [5000, 10000, 15000];

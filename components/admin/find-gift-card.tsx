@@ -7,29 +7,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FormDialog } from "@/components/admin/form-dialog";
-import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
-import { SellGiftVoucherForm, TopUpForm, UseGiftVoucher } from "@/components/admin/gift-voucher-forms";
-import { findGiftVoucher, type FindResult } from "@/app/admin/gift-voucher-actions";
-import { formatMoney } from "@/lib/gift-vouchers";
+import { GiftCardStatusPill } from "@/components/admin/gift-card-status";
+import { SellGiftCardForm, TopUpForm, UseGiftCard } from "@/components/admin/gift-card-forms";
+import { findGiftCard, type FindResult } from "@/app/admin/gift-card-actions";
+import { formatMoney } from "@/lib/gift-cards";
 
 const dateLabel = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
-/** The front desk's one way in: Find voucher, in a dialog (the Gift vouchers page and the dashboard). */
-export function FindVoucherButton({ variant = "outline" }: { variant?: "default" | "outline" }) {
+/** The front desk's one way in: Find gift card, in a dialog (the Gift cards page and the dashboard). */
+export function FindGiftCardButton({ variant = "outline" }: { variant?: "default" | "outline" }) {
   return (
     <FormDialog
       variant={variant}
-      title="Find a gift voucher"
-      description="Type the code on the voucher. You'll see its balance and what you can do with it."
+      title="Find a gift card"
+      description="Type the code on the gift card. You'll see its balance and what you can do with it."
       trigger={
         <>
           <Search aria-hidden="true" />
-          Find voucher
+          Find gift card
         </>
       }
     >
-      {(close) => <FindVoucher onDone={close} />}
+      {(close) => <FindGiftCard onDone={close} />}
     </FormDialog>
   );
 }
@@ -37,13 +37,13 @@ export function FindVoucherButton({ variant = "outline" }: { variant?: "default"
 type Mode = "found" | "use" | "top_up" | "create";
 
 /**
- * Type a code, see the voucher, then only the actions that fit it, as on a Square or Toast till:
+ * Type a code, see the gift card, then only the actions that fit it, as on a Square or Toast till:
  * a blank card that isn't sold yet → Create; active → Use or Top up; used up → Top up; expired or
  * blocked → why not. A code that doesn't exist (and isn't a typo) can be created, for a number
- * printed elsewhere. `onKiosk` leaves out the link to the voucher's admin page, and `defaultPhone`
+ * printed elsewhere. `onKiosk` leaves out the link to the gift card's admin page, and `defaultPhone`
  * / `phoneKnown` pass the customer typed on the kiosk on to the forms.
  */
-export function FindVoucher({
+export function FindGiftCard({
   onDone,
   onKiosk = false,
   defaultPhone = "",
@@ -63,30 +63,30 @@ export function FindVoucher({
     if (!code.trim()) return;
     startFind(async () => {
       setMode("found");
-      setResult(await findGiftVoucher(code));
+      setResult(await findGiftCard(code));
     });
   };
   const back = (
     <button type="button" onClick={() => setMode("found")} className="flex w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline">
       <ArrowLeft className="size-4" aria-hidden="true" />
-      Back to {result?.ok ? result.voucher.code : code}
+      Back to {result?.ok ? result.giftCard.code : code}
     </button>
   );
 
-  // The chosen action, for the voucher found (or a new code).
+  // The chosen action, for the gift card found (or a new code).
   if (mode !== "found") {
-    const found = result?.ok ? result.voucher.code : code.trim().toUpperCase();
+    const found = result?.ok ? result.giftCard.code : code.trim().toUpperCase();
     return (
       <div className="flex flex-col gap-4">
         {back}
-        {mode === "use" && <UseGiftVoucher code={found} onDone={onDone} defaultPhone={defaultPhone} phoneKnown={phoneKnown} />}
+        {mode === "use" && <UseGiftCard code={found} onDone={onDone} defaultPhone={defaultPhone} phoneKnown={phoneKnown} />}
         {mode === "top_up" && <TopUpForm code={found} onDone={onDone} />}
         {mode === "create" && (
-          <SellGiftVoucherForm
+          <SellGiftCardForm
             onDone={onDone}
             defaultCode={found}
             // A blank card is activated with its printed code; a new code is created.
-            activate={result?.ok === true && result.voucher.status === "inactive"}
+            activate={result?.ok === true && result.giftCard.status === "inactive"}
             openAfterSale={!onKiosk}
             defaultPhone={defaultPhone}
             phoneKnown={phoneKnown}
@@ -96,7 +96,7 @@ export function FindVoucher({
     );
   }
 
-  const v = result?.ok ? result.voucher : null;
+  const v = result?.ok ? result.giftCard : null;
   return (
     <div className="flex flex-col gap-4">
       <form
@@ -108,14 +108,14 @@ export function FindVoucher({
         }}
       >
         <div className="flex flex-col gap-2">
-          <Label htmlFor="find-code">Gift voucher code</Label>
+          <Label htmlFor="find-code">Gift card code</Label>
           <Input
             id="find-code"
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
             autoFocus
-            placeholder="Code on the voucher"
+            placeholder="Code on the gift card"
             value={code}
             onChange={(e) => {
               setCode(e.target.value.toUpperCase());
@@ -139,17 +139,17 @@ export function FindVoucher({
           {result.canCreate && (
             <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setMode("create")}>
               <Plus aria-hidden="true" />
-              Create a voucher with this code
+              Create a gift card with this code
             </Button>
           )}
         </div>
       )}
 
       {v && (
-        <section aria-label={`Gift voucher ${v.code}`} className="flex flex-col gap-4 rounded-2xl border border-border bg-background p-4">
+        <section aria-label={`Gift card ${v.code}`} className="flex flex-col gap-4 rounded-2xl border border-border bg-background p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-mono text-lg font-extrabold tracking-wider">{v.code}</span>
-            <GiftVoucherStatusPill status={v.status} />
+            <GiftCardStatusPill status={v.status} />
           </div>
 
           {v.status === "inactive" ? (
@@ -179,7 +179,7 @@ export function FindVoucher({
             {v.status === "inactive" && (
               <Button type="button" size="lg" className="col-span-2" onClick={() => setMode("create")}>
                 <Plus aria-hidden="true" />
-                Activate voucher
+                Activate gift card
               </Button>
             )}
             {v.status === "active" && (
@@ -203,7 +203,7 @@ export function FindVoucher({
           </div>
 
           {!onKiosk && (
-            <Link href={`/admin/gift-vouchers/${v.id}`} onClick={onDone} className="flex w-fit items-center gap-1 text-sm font-bold text-primary hover:underline">
+            <Link href={`/admin/gift-cards/${v.id}`} onClick={onDone} className="flex w-fit items-center gap-1 text-sm font-bold text-primary hover:underline">
               Open its page: history, print, details
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>

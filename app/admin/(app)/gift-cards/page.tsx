@@ -6,36 +6,36 @@ import { FilterSelect } from "@/components/admin/filter-select";
 import { FilterSwitch } from "@/components/admin/filter-switch";
 import { DataTable, ListPanel, EmptyRow, PageHeader, Pager, td, th } from "@/components/admin/ui";
 import { StatusTabs, SummaryCard } from "@/components/admin/list-layout";
-import { GiftVoucherStatusPill } from "@/components/admin/gift-voucher-status";
-import { FindVoucherButton } from "@/components/admin/find-voucher";
-import { CreateVoucherSplitButton, PrintBlankCardsButton } from "@/components/admin/blank-vouchers";
+import { GiftCardStatusPill } from "@/components/admin/gift-card-status";
+import { FindGiftCardButton } from "@/components/admin/find-gift-card";
+import { CreateGiftCardSplitButton, PrintBlankCardsButton } from "@/components/admin/blank-gift-cards";
 import { BulkActions, BulkCheckbox, BulkSelectAll } from "@/components/admin/bulk-select";
 import {
-  GIFT_VOUCHER_FILTERS,
-  GIFT_VOUCHER_SORTS,
-  GIFT_VOUCHERS_PAGE_SIZE,
+  GIFT_CARD_FILTERS,
+  GIFT_CARD_SORTS,
+  GIFT_CARDS_PAGE_SIZE,
   getSettings,
-  giftVoucherCounts,
-  giftVoucherSummary,
-  listGiftVouchers,
-  type GiftVoucherFilter,
-  type GiftVoucherSort,
+  giftCardCounts,
+  giftCardSummary,
+  listGiftCards,
+  type GiftCardFilter,
+  type GiftCardSort,
 } from "@/lib/admin-data";
-import { formatMoney } from "@/lib/gift-vouchers";
+import { formatMoney } from "@/lib/gift-cards";
 import { formatDate, fullName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "@/components/admin/copy-button";
-import { VoucherRowActions } from "@/components/admin/voucher-row-actions";
-import { voucherBalanceUrl } from "@/lib/voucher-link";
+import { GiftCardRowActions } from "@/components/admin/gift-card-row-actions";
+import { giftCardBalanceUrl } from "@/lib/gift-card-link";
 import { ExternalLink } from "lucide-react";
 
 // The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
 // the current page still up (and the sidebar's loading line) rather than showing a skeleton.
 export const instant = false;
 
-export const metadata = { title: "Gift vouchers" };
+export const metadata = { title: "Gift cards" };
 
-const FILTER_LABELS: Record<GiftVoucherFilter, string> = {
+const FILTER_LABELS: Record<GiftCardFilter, string> = {
   all: "All",
   active: "Active",
   used_up: "Used up",
@@ -44,29 +44,29 @@ const FILTER_LABELS: Record<GiftVoucherFilter, string> = {
   blocked: "Blocked",
 };
 
-const SORT_LABELS: Record<GiftVoucherSort, string> = {
+const SORT_LABELS: Record<GiftCardSort, string> = {
   newest: "Newest",
   oldest: "Oldest",
   balance: "Highest balance",
   expiring: "Expiring soonest",
 };
 
-export default function GiftVouchersPage({ searchParams }: PageProps<"/admin/gift-vouchers">) {
+export default function GiftCardsPage({ searchParams }: PageProps<"/admin/gift-cards">) {
   return (
     <>
       <PageHeader
-        title="Gift vouchers"
+        title="Gift cards"
         actions={
           <>
-            {/* Everything for a voucher a customer already has (use, top up, activate a blank card)
-                starts from its code. Print blank cards is under Create gift voucher's ▾. */}
-            <FindVoucherButton />
-            <CreateVoucherSplitButton />
+            {/* Everything for a gift card a customer already has (use, top up, activate a blank card)
+                starts from its code. Print blank cards is under Create gift card's ▾. */}
+            <FindGiftCardButton />
+            <CreateGiftCardSplitButton />
           </>
         }
       />
       <Summary />
-      <GiftVoucherLists searchParams={searchParams} />
+      <GiftCardLists searchParams={searchParams} />
     </>
   );
 }
@@ -75,43 +75,43 @@ export default function GiftVouchersPage({ searchParams }: PageProps<"/admin/gif
 async function Summary() {
   // Request time only: a link prefetch prerenders the page with the cookies, and it reads the clock.
   await connection();
-  const s = await giftVoucherSummary();
+  const s = await giftCardSummary();
   return (
     <SummaryCard
       stats={[
-        { value: formatMoney(s.outstandingCents), label: "Unused credit", href: "/admin/gift-vouchers?filter=active" },
-        { value: s.activeCount.toLocaleString(), label: "Active vouchers", href: "/admin/gift-vouchers?filter=active" },
+        { value: formatMoney(s.outstandingCents), label: "Unused credit", href: "/admin/gift-cards?filter=active" },
+        { value: s.activeCount.toLocaleString(), label: "Active gift cards", href: "/admin/gift-cards?filter=active" },
         { value: formatMoney(s.soldThisMonthCents), label: `New this month (${s.soldThisMonth.toLocaleString()})` },
       ]}
     />
   );
 }
 
-type Params = Awaited<PageProps<"/admin/gift-vouchers">["searchParams"]>;
+type Params = Awaited<PageProps<"/admin/gift-cards">["searchParams"]>;
 
-async function GiftVoucherLists({ searchParams }: { searchParams: PageProps<"/admin/gift-vouchers">["searchParams"] }) {
+async function GiftCardLists({ searchParams }: { searchParams: PageProps<"/admin/gift-cards">["searchParams"] }) {
   // Request time only: a link prefetch prerenders the page with the cookies, and it reads the clock.
   await connection();
-  return <VoucherList params={await searchParams} />;
+  return <GiftCardList params={await searchParams} />;
 }
 
-async function VoucherList({ params }: { params: Params }) {
+async function GiftCardList({ params }: { params: Params }) {
   const q = typeof params.q === "string" ? params.q.slice(0, 60) : "";
-  const filter = GIFT_VOUCHER_FILTERS.includes(params.filter as GiftVoucherFilter) ? (params.filter as GiftVoucherFilter) : "all";
+  const filter = GIFT_CARD_FILTERS.includes(params.filter as GiftCardFilter) ? (params.filter as GiftCardFilter) : "all";
   // "Used today" isn't a status, so it's a toggle that works with any tab (older links said filter=used_today).
   const usedToday = params.today === "1" || params.filter === "used_today";
-  const sort = GIFT_VOUCHER_SORTS.includes(params.sort as GiftVoucherSort) ? (params.sort as GiftVoucherSort) : "newest";
+  const sort = GIFT_CARD_SORTS.includes(params.sort as GiftCardSort) ? (params.sort as GiftCardSort) : "newest";
   const page = Math.max(1, Number(params.page) || 1);
 
-  const [{ vouchers, total, pastEnd }, settings, counts] = await Promise.all([
-    listGiftVouchers({ q, filter, usedToday, sort, page }),
+  const [{ giftCards, total, pastEnd }, settings, counts] = await Promise.all([
+    listGiftCards({ q, filter, usedToday, sort, page }),
     getSettings(),
-    giftVoucherCounts(),
+    giftCardCounts(),
   ]);
   const tz = settings.timezone;
 
   // Every link keeps the tab, search, toggle and sort; anything that changes the list goes back to page 1.
-  const href = (next: Partial<{ q: string; filter: string; today: boolean; sort: GiftVoucherSort; page: number }>) => {
+  const href = (next: Partial<{ q: string; filter: string; today: boolean; sort: GiftCardSort; page: number }>) => {
     const sp = new URLSearchParams();
     const merged = { q, filter, today: usedToday, sort, page: 1, ...next };
     if (merged.q) sp.set("q", merged.q);
@@ -120,24 +120,24 @@ async function VoucherList({ params }: { params: Params }) {
     if (merged.sort !== "newest") sp.set("sort", merged.sort);
     if (merged.page > 1) sp.set("page", String(merged.page));
     const s = sp.toString();
-    return `/admin/gift-vouchers${s ? `?${s}` : ""}`;
+    return `/admin/gift-cards${s ? `?${s}` : ""}`;
   };
   // A stale or hand-typed page number past the end starts again from the first page.
-  if (pastEnd || (page > 1 && vouchers.length === 0)) redirect(href({ page: 1 }));
+  if (pastEnd || (page > 1 && giftCards.length === 0)) redirect(href({ page: 1 }));
 
   return (
     <>
       <StatusTabs
-        label="Gift vouchers by status"
+        label="Gift cards by status"
         value={filter}
-        tabs={GIFT_VOUCHER_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], count: counts[f], href: href({ filter: f }) }))}
+        tabs={GIFT_CARD_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], count: counts[f], href: href({ filter: f }) }))}
       />
       <ListPanel id="list" className="scroll-mt-4">
         {/* The search and sort sit above the rows, in one panel, so spare space under a short list
             reads as part of the list rather than an empty table. */}
         <div className="flex shrink-0 items-center gap-2 border-b border-border p-3 md:gap-3 md:p-4">
           <SearchBox
-            action="/admin/gift-vouchers"
+            action="/admin/gift-cards"
             id="gv-q"
             label="Search by code, name or phone"
             placeholder="Code, name or phone"
@@ -155,12 +155,12 @@ async function VoucherList({ params }: { params: Params }) {
             <FilterSelect
               label="Sort by"
               value={sort}
-              options={GIFT_VOUCHER_SORTS.map((o) => ({ value: o, label: SORT_LABELS[o], href: href({ sort: o }) }))}
+              options={GIFT_CARD_SORTS.map((o) => ({ value: o, label: SORT_LABELS[o], href: href({ sort: o }) }))}
               className="w-32 md:w-44"
             />
           </div>
           {/* From tablet width up the pager sits in this toolbar, Gmail-style; phones keep it under the list. */}
-          <Pager compact page={page} pageSize={GIFT_VOUCHERS_PAGE_SIZE} total={total} href={(p) => href({ page: p })} className="hidden md:flex" />
+          <Pager compact page={page} pageSize={GIFT_CARDS_PAGE_SIZE} total={total} href={(p) => href({ page: p })} className="hidden md:flex" />
         </div>
         {filter === "inactive" && (
           // Where blank cards are tracked, say what they are.
@@ -192,11 +192,11 @@ async function VoucherList({ params }: { params: Params }) {
             </tr>
           </thead>
           <tbody>
-            {vouchers.length === 0 && (
-              <EmptyRow colSpan={8}>{q ? `No gift vouchers match “${q}”.` : usedToday ? "No gift vouchers here were used today." : filter === "inactive" ? "No blank cards waiting to be activated. Print some with Print blank cards." : "No gift vouchers here yet."}</EmptyRow>
+            {giftCards.length === 0 && (
+              <EmptyRow colSpan={8}>{q ? `No gift cards match “${q}”.` : usedToday ? "No gift cards here were used today." : filter === "inactive" ? "No blank cards waiting to be activated. Print some with Print blank cards." : "No gift cards here yet."}</EmptyRow>
             )}
-            {vouchers.map((v) => (
-              // A used-up voucher gets a red tint, so staff spot at a glance that there's no credit left.
+            {giftCards.map((v) => (
+              // A used-up gift card gets a red tint, so staff spot at a glance that there's no credit left.
               <tr key={v.id} className={v.status === "used_up" ? "bg-destructive/5 hover:bg-destructive/10" : "hover:bg-background/60"}>
                 <td className={`${td} hidden pr-0 sm:table-cell`}>
                   {/* Only one nothing has been spent from can be deleted. */}
@@ -204,7 +204,7 @@ async function VoucherList({ params }: { params: Params }) {
                 </td>
                 <td className={td}>
                   <span className="flex items-center gap-0.5">
-                    <Link href={`/admin/gift-vouchers/${v.id}`} className="font-mono font-bold tracking-wider whitespace-nowrap hover:underline">
+                    <Link href={`/admin/gift-cards/${v.id}`} className="font-mono font-bold tracking-wider whitespace-nowrap hover:underline">
                       {v.code}
                     </Link>
                     <CopyButton text={v.code} label={`Copy ${v.code}`} className="-my-2" />
@@ -239,7 +239,7 @@ async function VoucherList({ params }: { params: Params }) {
                 </td>
                 <td className={cn(`${td} text-right whitespace-nowrap tabular-nums`, "font-extrabold", v.status === "used_up" && "text-destructive")}>
                   {/* The balance page the card's QR opens (what the customer sees), in a new tab, for
-                      every voucher. A Not sold card has no balance yet, so it says so. */}
+                      every gift card. A Not sold card has no balance yet, so it says so. */}
                   <span className="inline-flex items-center gap-1">
                     {v.status === "inactive" ? (
                       <span className="text-[13px] font-semibold text-muted-foreground">No balance yet</span>
@@ -247,7 +247,7 @@ async function VoucherList({ params }: { params: Params }) {
                       formatMoney(v.balance_cents)
                     )}
                     <a
-                      href={voucherBalanceUrl(v.public_token)}
+                      href={giftCardBalanceUrl(v.public_token)}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`Open the balance page for ${v.code}`}
@@ -259,7 +259,7 @@ async function VoucherList({ params }: { params: Params }) {
                   </span>
                   {/* Phones: the status sits under the balance, so a row stays two lines. */}
                   <span className="mt-1 flex justify-end sm:hidden">
-                    <GiftVoucherStatusPill status={v.status} />
+                    <GiftCardStatusPill status={v.status} />
                   </span>
                 </td>
                 <td className={`${td} hidden text-right whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell`}>
@@ -269,19 +269,19 @@ async function VoucherList({ params }: { params: Params }) {
                   {v.expires_on ? formatDate(`${v.expires_on}T12:00:00Z`, "UTC", { day: "numeric", month: "short", year: "numeric" }) : "–"}
                 </td>
                 <td className={`${td} hidden sm:table-cell`}>
-                  <GiftVoucherStatusPill status={v.status} />
+                  <GiftCardStatusPill status={v.status} />
                 </td>
                 <td className={`${td} px-0`}>
-                  <VoucherRowActions
-                    voucher={{ id: v.id, code: v.code, status: v.status, token: v.public_token, expiresOn: v.expires_on, neverUsed: !v.lastUse }}
+                  <GiftCardRowActions
+                    giftCard={{ id: v.id, code: v.code, status: v.status, token: v.public_token, expiresOn: v.expires_on, neverUsed: !v.lastUse }}
                   />
                 </td>
               </tr>
             ))}
           </tbody>
         </DataTable>
-        {total > GIFT_VOUCHERS_PAGE_SIZE && (
-          <Pager page={page} pageSize={GIFT_VOUCHERS_PAGE_SIZE} total={total} href={(p) => href({ page: p })} noun="vouchers" anchor="list" className="md:hidden" />
+        {total > GIFT_CARDS_PAGE_SIZE && (
+          <Pager page={page} pageSize={GIFT_CARDS_PAGE_SIZE} total={total} href={(p) => href({ page: p })} noun="gift cards" anchor="list" className="md:hidden" />
         )}
       </ListPanel>
     </>
