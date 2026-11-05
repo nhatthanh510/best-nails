@@ -34,7 +34,7 @@ test.describe("Kiosk: cash reward", () => {
     await page.getByRole("button", { name: /^Next/ }).click();
     // Then the technician step when the shop has technicians: skip it.
     const payment = page.getByRole("heading", { name: "How are you paying today?" });
-    const staff = page.getByRole("heading", { name: "Who's looking after you?" });
+    const staff = page.getByRole("heading", { name: "Who's your nail technician today?" });
     await expect(payment.or(staff)).toBeVisible();
     if (await staff.isVisible()) await page.getByRole("button", { name: /^Skip/ }).click();
 

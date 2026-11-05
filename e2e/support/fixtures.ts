@@ -65,7 +65,7 @@ export class Kiosk {
   async skipVisitSteps(payment: "Cash" | "Card" = "Card") {
     const step = this.page.getByRole("heading", {
       level: 1,
-      name: /What are you in for today\?|Who's looking after you\?|How are you paying today\?/,
+      name: /What are you in for today\?|Who's your nail technician today\?|How are you paying today\?/,
     });
     const done = this.page.getByText(/You.re checked in|all checked in for today|Something went wrong/).first();
     for (let i = 0; i < 4; i++) {

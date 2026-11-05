@@ -16,6 +16,7 @@ import {
 import type { KioskContent } from "@/lib/kiosk-content";
 import { SignOutConfirm } from "./sign-out-confirm";
 import { GiftCardMenu } from "./gift-card-menu";
+import { StillThere } from "./still-there";
 import {
   AlreadyScreen,
   EnterScreen,
@@ -53,13 +54,14 @@ export type Screen =
   | { name: "redeemed"; result: Extract<RedeemResult, { status: "redeemed" }> }
   | { name: "error"; message: string };
 
-const SUCCESS_SECONDS = 8;
+/** How long "Still there?" counts down before the idle reset (at most half the idle time). */
+const WARNING_SECONDS = 15;
 
 export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin: boolean }) {
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>({ name: "enter" });
   const [signingOut, setSigningOut] = useState(false);
-  // While the Gift card dialog is open, the idle reset and screen countdowns wait.
+  // While the Gift card dialog is open, the idle reset waits.
   const [giftCardOpen, setGiftCardOpen] = useState(false);
   const [digits, setDigitsRaw] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
@@ -69,8 +71,11 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     setDigitsRaw(next);
   }, []);
   const [pending, startTransition] = useTransition();
+  // Seconds left on the "Still there?" warning, while it shows.
+  const [warningLeft, setWarningLeft] = useState<number | null>(null);
 
   const reset = useCallback(() => {
+    setWarningLeft(null);
     setDigits("");
     setRedeemError(null);
     setGiftCardOpen(false);
@@ -93,17 +98,29 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
       setRedeemError(null);
       setGiftCardOpen(false);
       setSigningOut(false);
+      setWarningLeft(null);
       setScreen({ name: "enter" });
     };
   }, [router]);
 
-  // Idle timeout: any screen returns to the start and the number is cleared.
+  // Idle timeout: any screen returns to the start and the number is cleared. Before that, "Still
+  // there?" counts down, so a customer holding the iPad (or waiting for staff) isn't sent back
+  // without warning; any tap or key press starts the wait again. While the warning shows, only its
+  // buttons close it (a stray tap doesn't), and dismissing it starts a fresh wait. It's the only
+  // automatic return: no screen has a countdown of its own.
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const warningShown = warningLeft !== null;
   useEffect(() => {
+    if (warningShown) return;
     const atRest = screen.name === "enter" && digits === "";
+    const warning = Math.min(WARNING_SECONDS, Math.floor(content.idleSeconds / 2));
     const arm = () => {
       clearTimeout(idleTimer.current);
-      if (!atRest && !giftCardOpen) idleTimer.current = setTimeout(reset, content.idleSeconds * 1000);
+      if (atRest || giftCardOpen) return;
+      idleTimer.current = setTimeout(
+        () => (warning > 0 ? setWarningLeft(warning) : reset()),
+        (content.idleSeconds - warning) * 1000,
+      );
     };
     arm();
     window.addEventListener("pointerdown", arm);
@@ -113,7 +130,14 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
       window.removeEventListener("pointerdown", arm);
       window.removeEventListener("keydown", arm);
     };
-  }, [screen.name, digits, content.idleSeconds, reset, giftCardOpen]);
+  }, [screen.name, digits, content.idleSeconds, reset, giftCardOpen, warningShown]);
+
+  // The warning's countdown, a second at a time, then the reset.
+  useEffect(() => {
+    if (warningLeft === null) return;
+    const t = setTimeout(() => (warningLeft <= 1 ? reset() : setWarningLeft(warningLeft - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [warningLeft, reset]);
 
   const handleResult = (result: CheckInResult, summary: VisitSummary) => {
     if (result.status === "checked_in") setScreen({ name: "success", result, summary });
@@ -229,6 +253,8 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   // a field or a dialog (e.g. a gift card code from the header).
   // An Effect Event sees the latest digits (for Enter) without re-subscribing on every keypress.
   const onKeyboard = useEffectEvent((e: KeyboardEvent) => {
+    // "Still there?" is up: only its buttons do anything.
+    if (warningLeft !== null) return;
     if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable], [role=dialog], [role=alertdialog]")) return;
     if (/^[0-9]$/.test(e.key)) setDigits((d) => (d.length < MAX_KIOSK_DIGITS ? d + e.key : d));
     else if (e.key === "Backspace") setDigits((d) => d.slice(0, -1));
@@ -282,6 +308,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
       />
       {renderScreen()}
       {signingOut && <SignOutConfirm onClose={() => setSigningOut(false)} />}
+      {warningLeft !== null && <StillThere secondsLeft={warningLeft} onStillHere={() => setWarningLeft(null)} onStartOver={reset} />}
     </div>
   );
 
@@ -380,16 +407,14 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
           <SuccessScreen
             result={screen.result}
             summary={screen.summary}
-            seconds={SUCCESS_SECONDS}
             onDone={reset}
-            paused={giftCardOpen}
             {...redeemProps}
           />
         );
       case "already":
         return <AlreadyScreen result={screen.result} timezone={content.timezone} onDone={reset} {...redeemProps} />;
       case "redeemed":
-        return <RedeemedScreen result={screen.result} timezone={content.timezone} onDone={reset} paused={giftCardOpen} />;
+        return <RedeemedScreen result={screen.result} timezone={content.timezone} onDone={reset} />;
       case "error":
         return <ErrorScreen message={screen.message} onDone={reset} />;
     }

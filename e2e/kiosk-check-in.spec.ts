@@ -47,8 +47,29 @@ test.describe("Kiosk: entering a number", () => {
     await kiosk.goto();
     await kiosk.tap("0491");
     await expect(kiosk.display).toHaveText("0491 ___ ___");
-    await page.clock.fastForward(61_000);
-    await expect(kiosk.display).toHaveAccessibleName("Phone number, empty");
+    // 15 seconds before the reset (idle 60), "Still there?" counts down.
+    await page.clock.fastForward(46_000);
+    await expect(page.getByRole("alertdialog", { name: "Still there?" })).toBeVisible();
+    await expect(async () => {
+      await page.clock.fastForward(1_000);
+      await expect(kiosk.display).toHaveAccessibleName("Phone number, empty", { timeout: 200 });
+    }).toPass();
+    await expect(page.getByRole("alertdialog", { name: "Still there?" })).toHaveCount(0);
+  });
+
+  test("K-11b \"I'm still here\" keeps the number", async ({ kiosk, page }) => {
+    await page.clock.install();
+    await kiosk.goto();
+    await kiosk.tap("0491");
+    await page.clock.fastForward(46_000);
+    const warning = page.getByRole("alertdialog", { name: "Still there?" });
+    await expect(warning).toBeVisible();
+    // A tap outside its buttons doesn't close it.
+    await page.mouse.click(10, 10);
+    await expect(warning).toBeVisible();
+    await warning.getByRole("button", { name: "I'm still here" }).click();
+    await expect(warning).toHaveCount(0);
+    await expect(kiosk.display).toHaveText("0491 ___ ___");
   });
 
   test("K-12 with no reward and the birthday discount off, there's no program card", async ({ kiosk, page }) => {
@@ -159,7 +180,7 @@ test.describe("Kiosk: joining and checking in", () => {
     await expect(next).toHaveAccessibleName("Next (2 selected)");
     await next.click();
 
-    await expect(page.getByRole("heading", { name: "Who's looking after you?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Who's your nail technician today?" })).toBeVisible();
     // Back keeps what was picked.
     await page.getByRole("button", { name: "Back" }).click();
     await expect(pedicure.getByRole("checkbox", { name: "Deluxe pedicure" })).toBeChecked();
@@ -171,7 +192,7 @@ test.describe("Kiosk: joining and checking in", () => {
     await page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Card/ }).click();
 
     await expect(page.getByText("You're checked in, Fay!")).toBeVisible();
-    await expect(page.getByText("Have a seat. E2E Linh will be with you shortly.")).toBeVisible();
+    await expect(page.getByText("Thanks for visiting Best Nails!")).toBeVisible();
     // The done screen lists what was recorded.
     await expect(page.getByText("Full set · Deluxe pedicure")).toBeVisible();
     await expect(page.getByText("With E2E Linh")).toBeVisible();
@@ -190,22 +211,27 @@ test.describe("Kiosk: joining and checking in", () => {
     // Already checked in today: straight to "all set", no Check in button.
     await expect(page.getByText(/Checked in today at/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Check in", exact: true })).toHaveCount(0);
-    await expect(page.getByText("You're all checked in for today. See you next time!")).toBeVisible();
+    await expect(page.getByText("You're all checked in for today.")).toBeVisible();
     await page.getByRole("button", { name: "Done" }).click();
     await expect(page.getByRole("heading", { name: /Welcome in/ })).toBeVisible();
 
     expect(await findCustomer(testPhone(5))).toMatchObject({ points_balance: 1, visit_count: 1 });
   });
 
-  test("the success screen returns to the start on its own", async ({ kiosk, page }) => {
+  test("the success screen stays until Done or the idle timeout, with no countdown of its own", async ({ kiosk, page }) => {
     await page.clock.install();
     await seedCustomer({ phone: testPhone(6), firstName: "Eve" });
     await kiosk.goto();
     await kiosk.enter(testPhone(6));
     await kiosk.checkIn();
     await expect(page.getByText("You're checked in, Eve!")).toBeVisible();
-    await expect(page.getByText(/closing in \d+s/)).toBeVisible();
-    for (let i = 0; i < 9; i++) await page.clock.runFor(1_000);
+    await expect(page.getByText(/closing in/)).toHaveCount(0);
+    await page.clock.fastForward(30_000);
+    await expect(page.getByText("You're checked in, Eve!")).toBeVisible();
+    // Idle 60: "Still there?" at 45 seconds, then back to the start.
+    await page.clock.fastForward(16_000);
+    await expect(page.getByRole("alertdialog", { name: "Still there?" })).toBeVisible();
+    await page.getByRole("button", { name: "Start over" }).click();
     await expect(page.getByRole("heading", { name: /Welcome in/ })).toBeVisible();
     await expect(kiosk.display).toHaveAccessibleName("Phone number, empty");
   });
