@@ -161,6 +161,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"kiosk_pin": {
+                  Row: {
+                    "failed_attempts": number,"id": boolean,"locked_until": string | null,"pin": string,"pin_hash": string,"updated_at": string,"updated_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "failed_attempts"?: number,"id"?: boolean,"locked_until"?: string | null,"pin": string,"pin_hash": string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "failed_attempts"?: number,"id"?: boolean,"locked_until"?: string | null,"pin"?: string,"pin_hash"?: string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"point_transactions": {
                   Row: {
                     "balance_after": number,"check_in_id": string | null,"created_at": string,"created_by": string | null,"customer_id": string,"delta": number,"discount_cents": number | null,"discount_percent": number | null,"id": string,"note": string | null,"payment_method": Database["public"]['Enums']["payment_method"] | null,"promotion_id": string | null,"reason": Database["public"]['Enums']["point_reason"],"seq": number
@@ -369,6 +383,12 @@ isOneToOne: false
 "check_in_totals":
 { Args: { "p_since": string,"p_source"?: Database["public"]['Enums']["check_in_source"] }; Returns: Json
                            },
+"check_kiosk_pin":
+{ Args: { "p_pin": string }; Returns: string
+                           },
+"clear_kiosk_pin":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
 "create_inactive_gift_cards":
 { Args: { "p_codes": (string)[] }; Returns: Json
                            },
@@ -386,6 +406,12 @@ isOneToOne: false
                            },
 "kiosk_lookup":
 { Args: { "p_phone": string }; Returns: Json
+                           },
+"kiosk_pin_reveal":
+{ Args: Record<PropertyKey, never>; Returns: string
+                           },
+"kiosk_pin_status":
+{ Args: Record<PropertyKey, never>; Returns: Json
                            },
 "kiosk_redeem":
 { Args: { "p_phone": string,"p_promotion_id": string }; Returns: Json
@@ -416,6 +442,9 @@ isOneToOne: false
                            },
 "set_check_in_payment":
 { Args: { "p_check_in_id": string,"p_payment_method": Database["public"]['Enums']["payment_method"] }; Returns: undefined
+                           },
+"set_kiosk_pin":
+{ Args: { "p_pin": string }; Returns: undefined
                            },
 "shop_day_start":
 { Args: { "p_days_ago"?: number }; Returns: string

@@ -15,7 +15,18 @@ import { deleteGiftCard, unblockGiftCard } from "@/app/admin/gift-card-actions";
 import { giftCardBalanceUrl } from "@/lib/gift-card-link";
 import type { GiftCardStatus } from "@/lib/gift-cards";
 
-type Row = { id: string; code: string; status: GiftCardStatus; token: string; expiresOn: string | null; neverUsed: boolean };
+type Row = {
+  id: string;
+  code: string;
+  status: GiftCardStatus;
+  token: string;
+  expiresOn: string | null;
+  neverUsed: boolean;
+  /** For Use: the list already has these, so its form opens complete rather than checking first. */
+  balanceCents: number;
+  loadedCents: number | null;
+  customerName: string | null;
+};
 type Open = "use" | "top_up" | "create" | "block" | "delete" | null;
 
 const TITLES: Record<Exclude<Open, null>, (code: string) => { title: string; description: string }> = {
@@ -68,12 +79,6 @@ export function GiftCardRowActions({ giftCard: v }: { giftCard: Row }) {
   const sold = v.status !== "inactive";
   return (
     <div className="flex items-center justify-end">
-      {/* The gift card's page, in one tap; everything else is in the ⋯ menu. */}
-      <Button asChild variant="ghost" size="icon" className="-my-2 text-muted-foreground">
-        <Link href={`/admin/gift-cards/${v.id}`} aria-label={`Open ${v.code}`} title="Open gift card">
-          <Eye aria-hidden="true" />
-        </Link>
-      </Button>
       {/* modal={false}: a dialog opened from an item would otherwise fight the menu for focus. */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
@@ -84,9 +89,16 @@ export function GiftCardRowActions({ giftCard: v }: { giftCard: Row }) {
         <DropdownMenuContent>
           <DropdownMenuItem asChild>
             <Link href={`/admin/gift-cards/${v.id}`}>
-              <ExternalLink aria-hidden="true" />
+              <Eye aria-hidden="true" />
               Open gift card
             </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            {/* The page the card's QR opens: what the customer sees. */}
+            <a href={giftCardBalanceUrl(v.token)} target="_blank" rel="noopener noreferrer">
+              <ExternalLink aria-hidden="true" />
+              Open balance page
+            </a>
           </DropdownMenuItem>
           {v.status === "active" && (
             <DropdownMenuItem onSelect={() => setOpen("use")}>
@@ -149,7 +161,17 @@ export function GiftCardRowActions({ giftCard: v }: { giftCard: Row }) {
               <DialogDescription>{TITLES[open](v.code).description}</DialogDescription>
             </DialogHeader>
           )}
-          {open === "use" && <UseGiftCard code={v.code} onDone={close} />}
+          {open === "use" && (
+            <UseGiftCard
+              code={v.code}
+              initialCheck={
+                v.expiresOn && v.loadedCents !== null
+                  ? { ok: true, id: v.id, code: v.code, balanceCents: v.balanceCents, amountCents: v.loadedCents, expiresOn: v.expiresOn, customerName: v.customerName }
+                  : undefined
+              }
+              onDone={close}
+            />
+          )}
           {open === "top_up" && <TopUpForm code={v.code} onDone={close} />}
           {open === "create" && <SellGiftCardForm defaultCode={v.code} activate onDone={close} />}
           {open === "block" && <BlockGiftCardForm id={v.id} onDone={close} />}

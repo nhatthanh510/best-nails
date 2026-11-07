@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { requireAdmin, requireSignedIn } from "@/lib/auth";
+import { tillLocked } from "@/lib/kiosk-lock";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { findCustomer } from "@/lib/customer-lookup";
@@ -62,7 +63,8 @@ export type CreatedGiftCard = {
 export type SellState = (ActionState & { giftCard?: CreatedGiftCard }) | null;
 
 export async function sellGiftCard(_: SellState, formData: FormData): Promise<SellState> {
-  await requireSignedIn();
+  const locked = await tillLocked(await requireSignedIn());
+  if (locked) return fail(locked);
   const parsed = sellSchema.safeParse({
     amount: formData.get("amount") ?? "",
     code: formData.get("code") ?? "",
@@ -139,7 +141,8 @@ export async function createInactiveGiftCards(codes: string[]): Promise<{ ok: tr
 
 /** A fresh code with the business prefix, for the sell form's Generate button. */
 export async function generateGiftCardCode(): Promise<{ ok: true; code: string } | { ok: false; message: string }> {
-  await requireSignedIn();
+  const locked = await tillLocked(await requireSignedIn());
+  if (locked) return { ok: false, message: locked };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("generate_gift_card_code");
   if (error || !data) return { ok: false, message: "Couldn't make a code. Please try again." };
@@ -182,7 +185,8 @@ export type FindResult = { ok: true; giftCard: FoundGiftCard } | { ok: false; me
  * created (a number printed elsewhere). Open to any signed-in account, like checking a balance.
  */
 export async function findGiftCard(code: string): Promise<FindResult> {
-  await requireSignedIn();
+  const locked = await tillLocked(await requireSignedIn());
+  if (locked) return { ok: false, message: locked, canCreate: false };
   const typed = normalizeGiftCode(String(code ?? "").slice(0, 40));
   if (!typed) return { ok: false, message: "Type the code on the gift card.", canCreate: false };
   const supabase = await createClient();
@@ -233,7 +237,8 @@ export async function findGiftCard(code: string): Promise<FindResult> {
 
 /** Look a code up first, so staff can tell the customer their balance. */
 export async function checkGiftCardCode(code: string): Promise<GiftCardCheck> {
-  await requireSignedIn();
+  const locked = await tillLocked(await requireSignedIn());
+  if (locked) return { ok: false, message: locked };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("check_gift_card", { p_code: code });
   if (error || !data) return { ok: false, message: "Couldn't check the gift card. Please try again." };
@@ -258,7 +263,8 @@ export type TopUpState = (ActionState & { topUp?: { code: string; addedCents: nu
  * is taken at the till. The expiry moves out to at least 3 years from today for the new money.
  */
 export async function topUpGiftCard(_: TopUpState, formData: FormData): Promise<TopUpState> {
-  await requireSignedIn();
+  const locked = await tillLocked(await requireSignedIn());
+  if (locked) return fail(locked);
   const code = String(formData.get("code") ?? "").trim().slice(0, 40);
   const cents = parseDollars(String(formData.get("amount") ?? ""));
   if (!code) return fail("Enter the gift card's code.");
@@ -299,7 +305,8 @@ export async function unblockGiftCard(id: string): Promise<ActionState> {
 }
 
 export async function spendGiftCard(_: ActionState, formData: FormData): Promise<ActionState> {
-  await requireSignedIn();
+  const locked = await tillLocked(await requireSignedIn());
+  if (locked) return fail(locked);
   const code = String(formData.get("code") ?? "");
   const cents = parseDollars(String(formData.get("amount") ?? ""));
   if (cents === null || cents < 1) return fail("Enter the amount for today's service, e.g. 35.");

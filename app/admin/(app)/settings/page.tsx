@@ -3,7 +3,8 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/admin/ui";
 import { AccountsCard } from "@/components/admin/accounts-card";
 import { FormCardsSkeleton } from "@/components/admin/skeletons";
-import { getSettings, listAccounts } from "@/lib/admin-data";
+import { getKioskPinStatus, getSettings, listAccounts } from "@/lib/admin-data";
+import { KioskPinCard } from "@/components/admin/kiosk-pin-card";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { requireAdmin } from "@/lib/auth";
 import { SettingsForm } from "./settings-form";
@@ -27,11 +28,13 @@ async function Settings() {
   // first visit opens without a skeleton.
   "use cache: private";
   cacheLife({ stale: 300 });
-  const [staff, settings, accounts] = await Promise.all([requireAdmin(), getSettings(), listAccounts()]);
+  const [staff, settings, accounts, pin] = await Promise.all([requireAdmin(), getSettings(), listAccounts(), getKioskPinStatus()]);
 
   return (
     <>
       <SettingsForm settings={settings} canEdit={staff.role === "admin"} />
+
+      <KioskPinCard isSet={pin.isSet} changedOn={pin.updatedAt && formatDate(pin.updatedAt, settings.timezone)} version={pin.updatedAt} />
 
       <AccountsCard
         meId={staff.id}

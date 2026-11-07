@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
+import { Users } from "lucide-react";
 import { DataTable, ListPanel, EmptyRow, PageHeader, Pager, SortableTh, Avatar, BirthdayBadge, TierBadge, td, th } from "@/components/admin/ui";
 import { tierFor } from "@/lib/tiers";
 import { SearchBox } from "@/components/admin/search-box";
@@ -98,7 +99,7 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
             action="/admin/customers"
             id="q"
             label="Search customers"
-            placeholder="Search by name or phone"
+            placeholder="Name or phone"
             defaultValue={q}
             className="flex-1 md:flex-[1_1_200px]"
           >
@@ -149,7 +150,19 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
           </thead>
           <tbody>
             {customers.length === 0 && (
-              <EmptyRow colSpan={6}>{q ? `No customers match “${q}”.` : "No customers here yet."}</EmptyRow>
+              <EmptyRow
+                colSpan={6}
+                icon={Users}
+                hint={
+                  q
+                    ? "Check the spelling, or search by phone number."
+                    : filter === "all"
+                      ? "Customers join on the kiosk, or add one with Add customer."
+                      : "Nobody matches this filter. Try All."
+                }
+              >
+                {q ? `No customers match “${q}”` : filter === "all" ? "No customers yet" : "No customers here"}
+              </EmptyRow>
             )}
             {customers.map((c) => (
               <tr key={c.id} className="hover:bg-background/60">

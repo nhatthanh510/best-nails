@@ -190,7 +190,19 @@ async function GiftCardDetail({ params }: { params: PageProps<"/admin/gift-cards
           {/* Only the till actions that fit: Use needs a balance; Top up works on an active or used-up gift card. */}
           {(v.status === "active" || v.status === "used_up") && (
             <div className="grid grid-cols-2 gap-2">
-              {v.status === "active" && <UseThisGiftCardButton code={v.code} />}
+              {v.status === "active" && (
+                <UseThisGiftCardButton
+                  giftCard={{
+                    ok: true,
+                    id: v.id,
+                    code: v.code,
+                    balanceCents: v.balance_cents,
+                    amountCents: loaded,
+                    expiresOn,
+                    customerName: v.customer ? fullName(v.customer) : null,
+                  }}
+                />
+              )}
               <TopUpButton
                 code={v.code}
                 size="lg"

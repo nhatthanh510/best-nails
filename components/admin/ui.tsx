@@ -153,11 +153,33 @@ export function SortableTh({
   );
 }
 
-export function EmptyRow({ colSpan, children }: { colSpan: number; children: React.ReactNode }) {
+/**
+ * A list with nothing to show: what's missing in a line, and (with `hint`) where rows come from or
+ * what to try, with the page's icon, so an empty list reads as finished rather than broken.
+ */
+export function EmptyRow({
+  colSpan,
+  children,
+  hint,
+  icon: Icon,
+}: {
+  colSpan: number;
+  children: React.ReactNode;
+  hint?: React.ReactNode;
+  icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+}) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-5 py-10 text-center text-muted-foreground">
-        {children}
+      <td colSpan={colSpan} className="px-5 py-12 text-center">
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-2">
+          {Icon && (
+            <span className="mb-1 flex size-11 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+              <Icon className="size-5" aria-hidden />
+            </span>
+          )}
+          <p className="text-[15px] font-semibold text-foreground">{children}</p>
+          {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
+        </div>
       </td>
     </tr>
   );
