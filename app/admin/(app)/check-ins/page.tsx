@@ -1,8 +1,10 @@
 import { connection } from "next/server";
+import { CheckSquare } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DataTable, EmptyRow, ListPanel, PageHeader, Pager, Pill, TierBadge, td, th } from "@/components/admin/ui";
 import { SearchBox } from "@/components/admin/search-box";
+import { SummaryCard } from "@/components/admin/list-layout";
 import { FilterSelect } from "@/components/admin/filter-select";
 import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { tierFor } from "@/lib/tiers";
@@ -20,6 +22,7 @@ export const instant = false;
 export const metadata = { title: "Check-ins" };
 
 const RANGE_LABELS: Record<CheckInRange, string> = { today: "Today", "7d": "7 days", "30d": "30 days" };
+const RANGE_SUMMARY: Record<CheckInRange, string> = { today: "today", "7d": "last 7 days", "30d": "last 30 days" };
 
 export default function CheckInsPage({ searchParams }: PageProps<"/admin/check-ins">) {
   return <CheckIns searchParams={searchParams} />;
@@ -54,13 +57,14 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
   const ranges = (Object.keys(CHECK_IN_RANGES) as CheckInRange[]).map((r) => ({ value: r, label: RANGE_LABELS[r], href: href({ range: r }) }));
   return (
     <>
-      <PageHeader
-        title="Check-ins"
-        subtitle={[
-          `${totals.visits.toLocaleString()} visit${totals.visits === 1 ? "" : "s"}`,
-          `${used.discounts.toLocaleString()} discount${used.discounts === 1 ? "" : "s"}`,
-          `${formatMoney(used.giftCents)} from gift cards`,
-        ].join(" · ")}
+      <PageHeader title="Check-ins" />
+      {/* The same summary strip as Gift cards, for the period chosen below. */}
+      <SummaryCard
+        stats={[
+          { value: totals.visits.toLocaleString(), label: `Visits · ${RANGE_SUMMARY[range]}` },
+          { value: used.discounts.toLocaleString(), label: "Discounts used" },
+          { value: formatMoney(used.giftCents), label: "Paid with gift cards" },
+        ]}
       />
 
       <ListPanel id="list" className="scroll-mt-4">
@@ -70,7 +74,7 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
             action="/admin/check-ins"
             id="q"
             label="Search check-ins by customer"
-            placeholder="Search by name or phone"
+            placeholder="Name or phone"
             defaultValue={q}
             className="flex-1 md:flex-[1_1_200px]"
           >
@@ -99,7 +103,13 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <EmptyRow colSpan={showPayment ? 7 : 6}>{q ? `No check-ins in this period match “${q}”.` : "No check-ins in this period."}</EmptyRow>
+              <EmptyRow
+                colSpan={showPayment ? 7 : 6}
+                icon={CheckSquare}
+                hint={q ? "Check the spelling, try a phone number, or pick a longer period." : "Check-ins show up here as customers use the kiosk."}
+              >
+                {q ? `No check-ins in this period match “${q}”` : "No check-ins in this period yet"}
+              </EmptyRow>
             )}
             {rows.map((r) => (
               <tr key={r.id}>

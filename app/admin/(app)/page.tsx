@@ -39,12 +39,16 @@ const sideCard = (empty: boolean) => (empty ? "flex flex-col gap-1 px-5 py-4" : 
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = { today: "Today", week: "7 days", month: "This month" };
 
-/** The dates the tiles cover, e.g. "23 – 29 Oct" (today is in the page subtitle already). */
+/** What the tiles cover, e.g. "Last 7 days · 23 – 29 Oct" (today's date is in the page subtitle already). */
 function periodRange(period: DashboardPeriod, tz: string) {
   const now = Date.now();
   const dayMonth = (daysAgo: number) => formatDate(new Date(now - daysAgo * 86_400_000).toISOString(), tz, { day: "numeric", month: "short" });
   const dayOfMonth = Number(new Date(now).toLocaleDateString("en-AU", { day: "numeric", timeZone: tz }));
-  return { today: "Today so far", week: `${dayMonth(6)} – ${dayMonth(0)}`, month: `${dayMonth(dayOfMonth - 1)} – ${dayMonth(0)}` }[period];
+  return {
+    today: "Today so far",
+    week: `Last 7 days · ${dayMonth(6)} – ${dayMonth(0)}`,
+    month: `This month · ${dayMonth(dayOfMonth - 1)} – ${dayMonth(0)}`,
+  }[period];
 }
 
 /**
@@ -159,7 +163,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
               </tr>
             </thead>
             <tbody>
-              {stats.checkIns.length === 0 && <EmptyRow colSpan={showPayment ? 6 : 5}>No check-ins yet today.</EmptyRow>}
+              {stats.checkIns.length === 0 && <EmptyRow colSpan={showPayment ? 6 : 5} hint="They show up here as customers use the kiosk.">No check-ins yet today</EmptyRow>}
               {stats.checkIns.map((c) => (
                 <tr key={c.id}>
                   <td className={`${td} whitespace-nowrap text-muted-foreground tabular-nums`}>{formatTime(c.created_at, tz)}</td>

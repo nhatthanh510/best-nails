@@ -10,10 +10,9 @@ import {
   CircleAlert,
   CreditCard,
   Gift,
-  LayoutGrid,
-  LogOut,
   RotateCw,
   TriangleAlert,
+  UserRound,
   WifiOff,
 } from 'lucide-react';
 import { Spinner as SharedSpinner } from '@/components/ui/spinner';
@@ -46,8 +45,6 @@ import {
   isCompleteNumber,
   looksStandard,
 } from '@/lib/phone-mask';
-import Link from 'next/link';
-import { LinkPending } from '@/components/link-pending';
 import { KioskBrand } from './brand';
 import { Numpad } from './numpad';
 
@@ -80,46 +77,24 @@ const headerButton =
   'flex min-h-12 items-center gap-2 rounded-full px-4 text-base sm:px-5';
 
 /**
- * One header above every kiosk step, so the shop's frame never changes: the brand on the left;
- * Gift card, Admin (admin accounts) and Sign out (asks first) on the right. Staff controls
- * stay quiet so customers read them as the shop's. A step's own way back lives in the step
- * (StepBack), not here. On phones the controls are icons and only the logo shows.
+ * One header above every kiosk step, so the shop's frame never changes: the brand on the left and
+ * one quiet Staff button on the right (Gift card, Admin and Sign out behind the shop PIN, in
+ * StaffMenu), so customers holding the iPad see only the check-in. A step's own way back lives in
+ * the step (StepBack), not here. On phones the button is an icon and only the logo shows.
  */
-export function KioskHeader({
-  isAdmin,
-  onSignOut,
-  giftCard,
-}: {
-  isAdmin: boolean;
-  onSignOut: () => void;
-  giftCard: React.ReactNode;
-}) {
+export function KioskHeader({ onStaff, pending = false }: { onStaff: () => void; pending?: boolean }) {
   return (
     <header className='flex-none px-5 pt-5 sm:px-10 sm:pt-8 lg:px-16 lg:short:pt-5'>
       <div className='flex items-center justify-between gap-3 border-b border-kiosk-line pb-5 short:pb-3'>
         <KioskBrand compactOnPhone />
-        <div className='flex items-center gap-1'>
-          {giftCard}
-          {isAdmin && (
-            <Link
-              href='/admin'
-              className={`${headerButton} border border-kiosk-line font-bold text-kiosk-muted hover:text-kiosk-ink`}
-            >
-              <LinkPending>
-                <LayoutGrid className='size-5' aria-hidden='true' />
-              </LinkPending>
-              <span className='max-sm:sr-only'>Admin</span>
-            </Link>
-          )}
-          <button
-            type='button'
-            onClick={onSignOut}
-            className={`${headerButton} font-semibold text-kiosk-faint hover:text-kiosk-muted`}
-          >
-            <LogOut className='size-5' aria-hidden='true' />
-            <span className='max-sm:sr-only'>Sign out</span>
-          </button>
-        </div>
+        <button
+          type='button'
+          onClick={onStaff}
+          className={`${headerButton} font-semibold text-kiosk-faint hover:text-kiosk-muted`}
+        >
+          {pending ? <SharedSpinner className='size-5' /> : <UserRound className='size-5' aria-hidden='true' />}
+          <span className='max-sm:sr-only'>Staff</span>
+        </button>
       </div>
     </header>
   );
@@ -588,7 +563,7 @@ const MONTHS = [
  * with an icon, so it never relies on colour alone. Warnings ("not a standard number") keep
  * kiosk-notice with a triangle.
  */
-function KioskError({
+export function KioskError({
   id,
   className = 'text-lg',
   children,
@@ -616,7 +591,7 @@ function KioskError({
  *   (the name field is focused as the screen opens);
  * - invalid: the error red edge and halo, with the message and icon under the field.
  */
-const fieldClass =
+export const fieldClass =
   'h-18 rounded-[18px] border-2 border-kiosk-field bg-kiosk-surface px-5.5 text-[26px] font-semibold text-kiosk-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-kiosk-placeholder focus:border-kiosk-accent/70 focus:ring-4 focus:ring-kiosk-accent/15 aria-invalid:border-kiosk-error aria-invalid:ring-4 aria-invalid:ring-kiosk-error/15';
 
 export function SignupScreen({

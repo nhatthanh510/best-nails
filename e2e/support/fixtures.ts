@@ -29,6 +29,12 @@ export class Kiosk {
     return this.page.getByRole("button", { name: "Continue" });
   }
 
+  /** The header's Staff button, then one of its menu items (no kiosk PIN is set in the tests). */
+  async staff(item: "Gift card" | "Admin" | "Sign out") {
+    await this.page.getByRole("button", { name: "Staff", exact: true }).click();
+    await this.page.getByRole("dialog", { name: "Staff" }).getByRole("button", { name: new RegExp(`^${item}`) }).click();
+  }
+
   /** Taps the on-screen keypad. */
   async tap(digits: string) {
     for (const d of digits) await this.page.getByRole("button", { name: d, exact: true }).click();

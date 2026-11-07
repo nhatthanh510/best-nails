@@ -17,6 +17,9 @@ import type { KioskContent } from "@/lib/kiosk-content";
 import { SignOutConfirm } from "./sign-out-confirm";
 import { GiftCardMenu } from "./gift-card-menu";
 import { StillThere } from "./still-there";
+import { StaffPinDialog } from "./staff-pin";
+import { StaffMenu } from "./staff-menu";
+import { lockKiosk } from "@/app/kiosk/pin-actions";
 import {
   AlreadyScreen,
   EnterScreen,
@@ -56,12 +59,14 @@ export type Screen =
 
 /** How long "Still there?" counts down before the idle reset (at most half the idle time). */
 const WARNING_SECONDS = 15;
+/** How long the Staff menu or Gift card dialog may sit untouched before it closes and locks. */
+const STAFF_IDLE_SECONDS = 180;
 
 export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin: boolean }) {
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>({ name: "enter" });
   const [signingOut, setSigningOut] = useState(false);
-  // While the Gift card dialog is open, the idle reset waits.
+  // While the Gift card dialog is open, the idle reset waits longer (STAFF_IDLE_SECONDS).
   const [giftCardOpen, setGiftCardOpen] = useState(false);
   const [digits, setDigitsRaw] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
@@ -71,6 +76,19 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     setDigitsRaw(next);
   }, []);
   const [pending, startTransition] = useTransition();
+  // The staff PIN, asked before Gift card, Admin and Sign out when the shop has set one: what was
+  // tapped, and what to do once the PIN is right.
+  // The quiet Staff button: the shop PIN first (when one is set), then the Staff menu (Gift card,
+  // Admin, Sign out). The PIN unlocks the gift card actions until the menu or the Gift card
+  // dialog closes.
+  const [askingPin, setAskingPin] = useState(false);
+  const [staffMenu, setStaffMenu] = useState(false);
+  const [adminPending, startAdminNav] = useTransition();
+  const staffPin = content.staffPin;
+  const relock = () => {
+    if (staffPin) lockKiosk().catch(() => {});
+  };
+  const openStaff = () => (staffPin ? setAskingPin(true) : setStaffMenu(true));
   // Seconds left on the "Still there?" warning, while it shows.
   const [warningLeft, setWarningLeft] = useState<number | null>(null);
 
@@ -79,10 +97,14 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     setDigits("");
     setRedeemError(null);
     setGiftCardOpen(false);
+    setAskingPin(false);
+    setStaffMenu(false);
+    // In case staff walked away with the Staff menu open: lock the gift card actions again.
+    if (content.staffPin) lockKiosk().catch(() => {});
     setScreen({ name: "enter" });
     // Pick up promotions or settings changed in the admin since the last visit.
     router.refresh();
-  }, [router, setDigits]);
+  }, [router, setDigits, content.staffPin]);
 
   // Next keeps a page it leaves hidden (React <Activity>) with its state, so going to the admin and
   // back would reopen the last customer's step. Clear everything as the kiosk is hidden, so it
@@ -98,6 +120,8 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
       setRedeemError(null);
       setGiftCardOpen(false);
       setSigningOut(false);
+      setAskingPin(false);
+      setStaffMenu(false);
       setWarningLeft(null);
       setScreen({ name: "enter" });
     };
@@ -110,13 +134,21 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   // automatic return: no screen has a countdown of its own.
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const warningShown = warningLeft !== null;
+  const staffOpen = giftCardOpen || staffMenu;
   useEffect(() => {
     if (warningShown) return;
     const atRest = screen.name === "enter" && digits === "";
     const warning = Math.min(WARNING_SECONDS, Math.floor(content.idleSeconds / 2));
     const arm = () => {
       clearTimeout(idleTimer.current);
-      if (atRest || giftCardOpen) return;
+      // Staff tools open (the Staff menu or the Gift card dialog, both past the PIN): a longer wait
+      // with no warning (it couldn't be tapped through the dialog), then everything closes and
+      // locks, so staff who walk away don't leave them open for the next customer.
+      if (staffOpen) {
+        idleTimer.current = setTimeout(reset, Math.max(content.idleSeconds, STAFF_IDLE_SECONDS) * 1000);
+        return;
+      }
+      if (atRest) return;
       idleTimer.current = setTimeout(
         () => (warning > 0 ? setWarningLeft(warning) : reset()),
         (content.idleSeconds - warning) * 1000,
@@ -130,7 +162,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
       window.removeEventListener("pointerdown", arm);
       window.removeEventListener("keydown", arm);
     };
-  }, [screen.name, digits, content.idleSeconds, reset, giftCardOpen, warningShown]);
+  }, [screen.name, digits, content.idleSeconds, reset, staffOpen, warningShown]);
 
   // The warning's countdown, a second at a time, then the reset.
   useEffect(() => {
@@ -254,7 +286,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   // An Effect Event sees the latest digits (for Enter) without re-subscribing on every keypress.
   const onKeyboard = useEffectEvent((e: KeyboardEvent) => {
     // "Still there?" is up: only its buttons do anything.
-    if (warningLeft !== null) return;
+    if (warningLeft !== null || askingPin || staffMenu) return;
     if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable], [role=dialog], [role=alertdialog]")) return;
     if (/^[0-9]$/.test(e.key)) setDigits((d) => (d.length < MAX_KIOSK_DIGITS ? d + e.key : d));
     else if (e.key === "Backspace") setDigits((d) => d.slice(0, -1));
@@ -295,18 +327,48 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   return (
     // The number screen fits the screen exactly in landscape, so its keypad can fill the height.
     <div data-kiosk className={cn("flex min-h-dvh w-full flex-col bg-kiosk-bg", screen.name === "enter" && "lg:h-dvh lg:min-h-[600px]")}>
-      <KioskHeader
-        isAdmin={isAdmin}
-        onSignOut={() => setSigningOut(true)}
-        giftCard={
-          <GiftCardMenu
-            phone={linked ? digits : ""}
-            name={customerName}
-            onOpenChange={setGiftCardOpen}
-          />
-        }
-      />
+      <KioskHeader onStaff={openStaff} pending={adminPending} />
       {renderScreen()}
+      {askingPin && (
+        <StaffPinDialog
+          purpose="gift_card"
+          onClose={() => setAskingPin(false)}
+          onUnlocked={() => {
+            setAskingPin(false);
+            setStaffMenu(true);
+          }}
+        />
+      )}
+      {staffMenu && (
+        <StaffMenu
+          isAdmin={isAdmin}
+          onClose={() => {
+            setStaffMenu(false);
+            relock();
+          }}
+          onGiftCard={() => {
+            setStaffMenu(false);
+            setGiftCardOpen(true);
+          }}
+          onAdmin={() => {
+            setStaffMenu(false);
+            relock();
+            startAdminNav(() => router.push("/admin"));
+          }}
+          onSignOut={() => {
+            setStaffMenu(false);
+            relock();
+            setSigningOut(true);
+          }}
+        />
+      )}
+      <GiftCardMenu
+        open={giftCardOpen}
+        onOpenChange={setGiftCardOpen}
+        phone={linked ? digits : ""}
+        name={customerName}
+        relock={content.staffPin}
+      />
       {signingOut && <SignOutConfirm onClose={() => setSigningOut(false)} />}
       {warningLeft !== null && <StillThere secondsLeft={warningLeft} onStillHere={() => setWarningLeft(null)} onStartOver={reset} />}
     </div>

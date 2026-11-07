@@ -78,11 +78,14 @@ export function SellGiftCardButton({ variant, code, className }: { variant?: "de
   );
 }
 
-/** The gift card page's main action: opens the use form for that gift card, already checked. */
-export function UseThisGiftCardButton({ code }: { code: string }) {
+/**
+ * The gift card page's main action: opens the use form for that gift card. The page already has
+ * its balance, so the dialog opens complete instead of growing (and re-centring) after a check.
+ */
+export function UseThisGiftCardButton({ giftCard }: { giftCard: Extract<GiftCardCheck, { ok: true }> }) {
   return (
-    <FormDialog title={`Use ${code}`} description="Take today's service off this gift card." size="lg" trigger={<><WalletCards aria-hidden="true" />Use this gift card</>}>
-      {(close) => <UseGiftCard code={code} onDone={close} />}
+    <FormDialog title={`Use ${giftCard.code}`} description="Take today's service off this gift card." size="lg" trigger={<><WalletCards aria-hidden="true" />Use</>}>
+      {(close) => <UseGiftCard code={giftCard.code} initialCheck={giftCard} onDone={close} />}
     </FormDialog>
   );
 }
@@ -353,7 +356,10 @@ export function UseGiftCard({
   defaultPhone = "",
   giftCards = [],
   phoneKnown = false,
+  initialCheck,
 }: {
+  /** The balance already known (the gift card's own page), so it isn't checked again on open. */
+  initialCheck?: GiftCardCheck;
   code?: string;
   customerId?: string;
   compact?: boolean;
@@ -366,7 +372,7 @@ export function UseGiftCard({
   phoneKnown?: boolean;
 }) {
   const [code, setCode] = useState(fixedCode ?? "");
-  const [check, setCheck] = useState<GiftCardCheck | null>(null);
+  const [check, setCheck] = useState<GiftCardCheck | null>(initialCheck ?? null);
   const [amount, setAmount] = useState("");
   // After "Use the full balance": what's still owed for the service, taken at the till.
   const [tillCents, setTillCents] = useState(0);
@@ -394,9 +400,9 @@ export function UseGiftCard({
     setTillCents(0);
     runCheck(value);
   };
-  // A known gift card (its own page) is checked straight away.
+  // A known gift card is checked straight away, unless its balance came with it.
   useEffect(() => {
-    if (fixedCode) runCheck(fixedCode);
+    if (fixedCode && !initialCheck) runCheck(fixedCode);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the form opens
   }, []);
   const cents = parseDollars(amount);
@@ -682,7 +688,7 @@ export function TopUpButton({
 }: {
   code?: string;
   variant?: "default" | "outline";
-  /** "lg" beside Use this gift card on the gift card's page, so the two line up. */
+  /** "lg" beside Use on the gift card's page, so the two line up. */
   size?: "lg";
   className?: string;
 }) {

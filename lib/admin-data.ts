@@ -96,6 +96,15 @@ export const getSettings = cache(async (): Promise<Settings> => {
   return data;
 });
 
+/** Whether the kiosk's shop PIN is on, and when it last changed (the PIN itself is never read back). */
+export async function getKioskPinStatus(): Promise<{ isSet: boolean; updatedAt: string | null }> {
+  const { supabase } = await staffClient();
+  const { data, error } = await supabase.rpc("kiosk_pin_status");
+  if (error) throw error;
+  const r = data as { is_set?: boolean; updated_at?: string | null } | null;
+  return { isSet: r?.is_set === true, updatedAt: r?.updated_at ?? null };
+}
+
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
@@ -570,6 +579,8 @@ export type GiftCardRow = Tables["gift_cards"]["Row"] & {
   status: GiftCardStatus;
   /** The most recent spend still standing (not undone): when, how much (negative cents) and by which customer. */
   lastUse: { created_at: string; delta_cents: number; customer: Pick<Customer, "first_name" | "last_name"> | null } | null;
+  /** What's been put on it: the sale plus top-ups (as on its page); null before it's sold. */
+  loadedCents: number | null;
 };
 export type GiftCardTransaction = Tables["gift_card_transactions"]["Row"] & { customer: CustomerRef | null };
 
@@ -635,9 +646,12 @@ export async function listGiftCards({
   const today = isoDate(shopDate(await shopTimezone()));
   let query = supabase
     .from("gift_cards")
-    .select("*, customer:customers(id, first_name, last_name, phone), last_use:gift_card_transactions(created_at, delta_cents, customer:customers(first_name, last_name))", {
-      count: "exact",
-    })
+    .select(
+      "*, customer:customers(id, first_name, last_name, phone), last_use:gift_card_transactions(created_at, delta_cents, customer:customers(first_name, last_name)), top_ups:gift_card_transactions(delta_cents)",
+      { count: "exact" },
+    )
+    // Top-ups, for "Loaded" (the sale plus top-ups).
+    .eq("top_ups.kind", "top_up")
     // Only the latest spend that wasn't undone, for the list's "Last used" column.
     .eq("last_use.kind", "spend")
     .is("last_use.voided_at", null)
@@ -700,9 +714,14 @@ export async function listGiftCards({
   if (error?.code === PAST_END) return { giftCards: [] as GiftCardRow[], total: 0, pastEnd: true };
   if (error) throw error;
   return {
-    giftCards: (data as unknown as (Omit<GiftCardRow, "status" | "lastUse"> & { last_use: GiftCardRow["lastUse"][] })[]).map(
-      ({ last_use, ...v }) => ({ ...v, status: giftCardStatus(v, today), lastUse: last_use[0] ?? null }),
-    ),
+    giftCards: (
+      data as unknown as (Omit<GiftCardRow, "status" | "lastUse" | "loadedCents"> & { last_use: GiftCardRow["lastUse"][]; top_ups: { delta_cents: number }[] })[]
+    ).map(({ last_use, top_ups, ...v }) => ({
+      ...v,
+      status: giftCardStatus(v, today),
+      lastUse: last_use[0] ?? null,
+      loadedCents: v.amount_cents === null ? null : v.amount_cents + top_ups.reduce((sum, t) => sum + t.delta_cents, 0),
+    })),
     total: count ?? 0,
     pastEnd: false,
   };

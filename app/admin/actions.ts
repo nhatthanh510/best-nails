@@ -413,3 +413,37 @@ export async function saveSettings(_: ActionState, formData: FormData): Promise<
   refresh();
   return { ok: true, message: "Settings saved." };
 }
+
+/**
+ * The kiosk's shop PIN (admin): staff type it before Gift card, Admin or Sign out on the iPad, so
+ * a customer holding it can't open them. Stored hashed; nobody can read it back.
+ */
+export async function setKioskPin(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  // One field with Show (no "type it again"), as the Settings dialog has.
+  const pin = String(formData.get("pin") ?? "").trim();
+  if (!/^[0-9]{4,8}$/.test(pin)) return fail("The PIN must be 4 to 8 digits.");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_kiosk_pin", { p_pin: pin });
+  if (error) return dbError(error);
+  refresh();
+  return { ok: true, message: "Kiosk PIN saved. Staff type it to open the Staff menu." };
+}
+
+/** The kiosk PIN, for Settings → Show (admin). Null when no PIN is set (turned off meanwhile). */
+export async function revealKioskPin(): Promise<{ ok: true; pin: string | null } | { ok: false; message: string }> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("kiosk_pin_reveal");
+  if (error) return { ok: false, message: "Couldn't load the PIN. Please try again." };
+  return { ok: true, pin: data };
+}
+
+export async function clearKioskPin(): Promise<ActionState> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("clear_kiosk_pin");
+  if (error) return dbError(error);
+  refresh();
+  return { ok: true, message: "Kiosk PIN turned off." };
+}

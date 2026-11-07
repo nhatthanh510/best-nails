@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { Cake, Gift, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -356,7 +357,12 @@ export function BirthdayDiscountForm({
                   <BirthdayTierRow key={tier} tier={tier} settings={s} />
                 ))}
               </div>
-              <p className="text-[13px] text-muted-foreground">A percent or a dollar amount off. 0 means no birthday discount for that tier.</p>
+              <p className="text-[13px] text-muted-foreground">
+                A percent or a dollar amount off. 0 means no birthday discount for that tier. Who&apos;s in each tier is set in Settings:{" "}
+                <Link href="/admin/settings" className="font-semibold text-primary hover:underline">
+                  Change tiers
+                </Link>
+              </p>
             </fieldset>
             <div className="flex flex-col gap-2">
               <Label htmlFor="birthday_window_days">When it can be used</Label>

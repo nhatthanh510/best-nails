@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({
   db: null as unknown as ReturnType<typeof import("@/test/fake-supabase").fakeSupabase>,
   service: null as unknown as ReturnType<typeof import("@/test/fake-supabase").fakeSupabase>,
   customer: null as null | "missing" | { id: string; first_name: string; last_name: string | null },
+  locked: null as string | null,
 }));
 
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
@@ -15,6 +16,8 @@ vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ id: "admin-1", role: "admin" })),
   requireSignedIn: vi.fn(async () => ({ id: "staff-1", role: "staff" })),
 }));
+
+vi.mock("@/lib/kiosk-lock", () => ({ tillLocked: vi.fn(async () => h.locked) }));
 
 const actions = await import("./gift-card-actions");
 
@@ -28,6 +31,21 @@ beforeEach(() => {
   h.db = fakeSupabase();
   h.service = fakeSupabase();
   h.customer = null;
+  h.locked = null;
+});
+
+describe("kiosk PIN", () => {
+  it("refuses the staff gift card actions until the PIN is typed", async () => {
+    h.locked = "Enter the staff PIN first.";
+    const fail = { ok: false, message: "Enter the staff PIN first." };
+    expect(await actions.sellGiftCard(null, form({ amount: "100", code: "QA12345678", phone: "", notes: "" }))).toEqual(fail);
+    expect(await actions.topUpGiftCard(null, form({ code: "QA12345678", amount: "50" }))).toEqual(fail);
+    expect(await actions.spendGiftCard(null, form({ code: "QA12345678", amount: "35" }))).toEqual(fail);
+    expect(await actions.findGiftCard("QA12345678")).toEqual({ ...fail, canCreate: false });
+    expect(await actions.checkGiftCardCode("QA12345678")).toEqual(fail);
+    expect(await actions.generateGiftCardCode()).toEqual(fail);
+    expect(h.db.client.rpc).not.toHaveBeenCalled();
+  });
 });
 
 describe("sellGiftCard (GA-01)", () => {

@@ -1,14 +1,14 @@
 import { findGiftCard, seedCustomer, seedGiftCard, STAFF, testPhone } from "./support/db";
 import { expect, test } from "./support/fixtures";
 
-test.describe("Kiosk header: gift cards", () => {
+test.describe("Kiosk Staff menu: gift cards", () => {
   test("G-15 create a gift card for the customer on screen; the code stays up until Done", async ({ kiosk, page }) => {
     const customerId = await seedCustomer({ phone: testPhone(20), firstName: "Nia", checkedIn: true });
     await kiosk.goto();
     await kiosk.enter(testPhone(20));
     await expect(page.getByRole("heading", { name: "Welcome back, Nia!" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Gift card" }).click();
+    await kiosk.staff("Gift card");
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByText("For Nia · 0491 570 120")).toBeVisible();
     await dialog.getByRole("button", { name: /Create a gift card/ }).click();
@@ -34,7 +34,7 @@ test.describe("Kiosk header: gift cards", () => {
 
   test("an amount under $1 can't be created", async ({ kiosk, page }) => {
     await kiosk.goto();
-    await page.getByRole("button", { name: "Gift card" }).click();
+    await kiosk.staff("Gift card");
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: /Create a gift card/ }).click();
     await dialog.getByLabel("Other amount in dollars").fill("0.5");
@@ -45,7 +45,7 @@ test.describe("Kiosk header: gift cards", () => {
 
   test("Generate fills in a code with the shop's prefix and a valid check digit", async ({ kiosk, page }) => {
     await kiosk.goto();
-    await page.getByRole("button", { name: "Gift card" }).click();
+    await kiosk.staff("Gift card");
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: /Create a gift card/ }).click();
     await dialog.getByRole("button", { name: "Generate" }).click();
@@ -53,7 +53,7 @@ test.describe("Kiosk header: gift cards", () => {
   });
 });
 
-test.describe("Kiosk header: Admin", () => {
+test.describe("Kiosk Staff menu: Admin", () => {
   test("going to the admin and back starts the kiosk again at an empty keypad", async ({ kiosk, page }) => {
     await seedCustomer({ phone: testPhone(21), firstName: "Ola" });
     await kiosk.goto();
@@ -61,7 +61,7 @@ test.describe("Kiosk header: Admin", () => {
     // Not checked in yet today: straight to the first visit step, which greets them.
     await expect(page.getByText(/Welcome back, Ola/)).toBeVisible();
 
-    await page.getByRole("link", { name: "Admin" }).click();
+    await kiosk.staff("Admin");
     await expect(page).toHaveURL(/\/admin$/);
     await page.getByRole("link", { name: "Open kiosk" }).click();
 
@@ -70,16 +70,18 @@ test.describe("Kiosk header: Admin", () => {
   });
 });
 
-test.describe("Kiosk header: as a staff account", () => {
+test.describe("Kiosk Staff menu: as a staff account", () => {
   test.use({ storageState: "e2e/.auth/staff.json" });
 
   test("G-07 staff can check a balance and use part of a gift card", async ({ kiosk, page }) => {
     await seedGiftCard({ code: "QA30000001", amountCents: 10000 });
     await kiosk.goto();
-    // Staff accounts only get the kiosk, so there's no Admin button.
-    await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
+    // Staff accounts only get the kiosk, so the Staff menu has no Admin.
+    await page.getByRole("button", { name: "Staff", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Staff" }).getByRole("button", { name: /^Admin/ })).toHaveCount(0);
+    await page.keyboard.press("Escape");
 
-    await page.getByRole("button", { name: "Gift card" }).click();
+    await kiosk.staff("Gift card");
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: /Find a gift card/ }).click();
     await dialog.getByLabel("Gift card code").fill("qa-3000 0001");
@@ -96,13 +98,13 @@ test.describe("Kiosk header: as a staff account", () => {
 
   test(`KS-01 Sign out asks first, and Cancel keeps the kiosk running (${STAFF.name})`, async ({ kiosk, page }) => {
     await kiosk.goto();
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await kiosk.staff("Sign out");
     const confirm = page.getByRole("alertdialog", { name: "Sign out of the kiosk?" });
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button", { name: "Cancel" }).click();
     await expect(confirm).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await kiosk.staff("Sign out");
     await page.keyboard.press("Escape");
     await expect(confirm).toHaveCount(0);
     await expect(kiosk.continueButton).toBeVisible();

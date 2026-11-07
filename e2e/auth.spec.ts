@@ -54,7 +54,8 @@ test.describe("Staff accounts", () => {
       await page.goto(path);
       await expect(page, `${path} should send staff to the kiosk`).toHaveURL(/\/kiosk$/);
     }
-    await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Staff", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Staff" }).getByRole("button", { name: /^Admin/ })).toHaveCount(0);
   });
 });
 
@@ -112,7 +113,8 @@ test.describe("Signing out of the kiosk", () => {
     await signIn(page, email, PASSWORD);
     await expect(page).toHaveURL(/\/kiosk$/);
 
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Staff", exact: true }).click();
+    await page.getByRole("dialog", { name: "Staff" }).getByRole("button", { name: /^Sign out/ }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/admin\/login$/);
 

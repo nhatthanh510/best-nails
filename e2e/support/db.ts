@@ -5,7 +5,9 @@ import type { Database } from "@/lib/database.types";
 // tagged test data: customers in the fictional range 0491 570 1xx, gift cards whose code starts
 // with QA (or that belong to a test customer), rewards named "E2E …" and accounts e2e-…@bestnails.test.
 
-export const ADMIN = { email: "owner@bestnails.test", password: "bestnails-dev" };
+// Its own admin login, made by the setup (like STAFF), so a local database whose seed login was
+// changed or removed still runs the tests.
+export const ADMIN = { email: "e2e-admin@bestnails.test", password: "e2e-admin-pass", name: "E2E Admin" };
 export const STAFF = { email: "e2e-staff@bestnails.test", password: "e2e-staff-pass", name: "E2E Staff" };
 export const PASSWORD = "e2e-password-1";
 
@@ -84,6 +86,21 @@ export async function resetTestData() {
   check(await sb.from("promotions").update({ is_active: false }).eq("is_active", true).not("title", "like", "E2E%"), "pause shop rewards");
   await updateSettings(SETTINGS_DEFAULTS);
   await deleteAccounts(/^e2e-tmp-/);
+}
+
+/**
+ * The shop's kiosk PIN, taken off for the run (the tests open the Staff menu without one) and put
+ * back by the teardown exactly as it was. Null when none is set.
+ */
+export async function takeKioskPin() {
+  const sb = db();
+  const row = (await sb.from("kiosk_pin").select("*").maybeSingle()).data;
+  if (row) check(await sb.from("kiosk_pin").delete().eq("id", true), "take the kiosk PIN off");
+  return row;
+}
+
+export async function restoreKioskPin(row: Database["public"]["Tables"]["kiosk_pin"]["Row"]) {
+  check(await db().from("kiosk_pin").upsert(row), "put the kiosk PIN back");
 }
 
 /** Ids of the shop's own active rewards, saved by the setup so the teardown can turn them back on. */

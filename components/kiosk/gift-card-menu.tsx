@@ -1,11 +1,12 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
-import { ArrowLeft, Gift, Plus, Search } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, Plus, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SellGiftCardForm } from "@/components/admin/gift-card-forms";
 import { FindGiftCard } from "@/components/admin/find-gift-card";
 import { fillPhoneMask } from "@/lib/phone-mask";
+import { lockKiosk } from "@/app/kiosk/pin-actions";
 
 type View = "menu" | "sell" | "find";
 
@@ -19,44 +20,41 @@ const choice =
   "flex min-h-20 w-full items-center gap-4 rounded-2xl border border-border bg-card px-5 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none";
 
 /**
- * The kiosk's Gift card button, for whoever is signed in on the iPad (admin or staff): the
- * same Sell and Use forms as the admin, in one dialog. After a sale it stays on the kiosk.
- * Once a customer has typed their number, `phone` (and `name`) fill in who it's for, so the
- * gift card is linked to them. `onOpenChange` lets the kiosk pause its timers meanwhile.
+ * The kiosk's gift card dialog (Staff → Gift card), for whoever is signed in on the iPad (admin or
+ * staff): the same Create and Find forms as the admin. After a sale it stays on the kiosk. Once a
+ * customer has typed their number, `phone` (and `name`) fill in who it's for, so the gift card is
+ * linked to them. The kiosk opens and closes it; `relock` locks the gift card actions again on close.
  */
 export function GiftCardMenu({
+  open,
+  onOpenChange,
   phone = "",
   name,
-  onOpenChange,
+  relock = false,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   phone?: string;
   name?: string;
-  onOpenChange?: (open: boolean) => void;
+  /** A staff PIN is set: closing the dialog locks the gift card actions again. */
+  relock?: boolean;
 }) {
-  const [open, setOpenState] = useState(false);
   const [view, setView] = useState<View>("menu");
+  // Each time it opens, it starts at the menu.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setView("menu");
+  }
   const setOpen = (next: boolean) => {
-    setOpenState(next);
-    onOpenChange?.(next);
+    onOpenChange(next);
+    if (!next && relock) lockKiosk().catch(() => {});
   };
   const close = () => setOpen(false);
-  // Closed when the kiosk is hidden (a trip to the admin), so it doesn't reopen on the way back.
-  useLayoutEffect(() => () => setOpenState(false), []);
   const formatted = phone ? fillPhoneMask(phone).typed.trim() : "";
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => {
-          setView("menu");
-          setOpen(true);
-        }}
-        className="flex min-h-12 items-center gap-2 rounded-full border border-kiosk-line px-5 text-base font-bold text-kiosk-muted hover:text-kiosk-ink"
-      >
-        <Gift className="size-5" aria-hidden="true" />
-        <span className="max-sm:sr-only">Gift card</span>
-      </button>
       <Dialog open={open} onOpenChange={setOpen}>
         {/* Sized to fit an iPad (or a 13" laptop) without scrolling; it still scrolls on anything smaller. */}
         <DialogContent className="kiosk-theme max-h-[94dvh] overflow-y-auto rounded-3xl ring-kiosk-line sm:max-w-xl">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
+import { WalletCards } from "lucide-react";
 import { SearchBox } from "@/components/admin/search-box";
 import { FilterSelect } from "@/components/admin/filter-select";
 import { FilterSwitch } from "@/components/admin/filter-switch";
@@ -26,8 +27,6 @@ import { formatDate, fullName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "@/components/admin/copy-button";
 import { GiftCardRowActions } from "@/components/admin/gift-card-row-actions";
-import { giftCardBalanceUrl } from "@/lib/gift-card-link";
-import { ExternalLink } from "lucide-react";
 
 // The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
 // the current page still up (and the sidebar's loading line) rather than showing a skeleton.
@@ -183,31 +182,52 @@ async function GiftCardList({ params }: { params: Params }) {
               <th className={`${th} md:w-44`}>Code</th>
               <th className={`${th} hidden md:table-cell`}>Customer</th>
               <th className={`${th} w-28 text-right`}>Balance</th>
-              <th className={`${th} hidden w-28 text-right xl:table-cell`}>Amount</th>
+              <th className={`${th} hidden w-28 text-right xl:table-cell`}>Loaded</th>
               <th className={`${th} hidden w-32 xl:table-cell`}>Expires</th>
               <th className={`${th} hidden w-30 sm:table-cell`}>Status</th>
-              <th className={`${th} w-22 px-0`}>
+              <th className={`${th} w-12 px-0`}>
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {giftCards.length === 0 && (
-              <EmptyRow colSpan={8}>{q ? `No gift cards match “${q}”.` : usedToday ? "No gift cards here were used today." : filter === "inactive" ? "No blank cards waiting to be activated. Print some with Print blank cards." : "No gift cards here yet."}</EmptyRow>
+              <EmptyRow
+                colSpan={8}
+                icon={WalletCards}
+                hint={
+                  q
+                    ? "Check the code, or search by the customer's name or phone."
+                    : usedToday
+                      ? "Gift cards used today show up here, to check against the till."
+                      : filter === "inactive"
+                        ? "Print some with Print blank cards, then activate one when it's sold."
+                        : filter === "all"
+                          ? "Create one when a customer buys a gift card."
+                          : undefined
+                }
+              >
+                {q ? `No gift cards match “${q}”` : usedToday ? "No gift cards used today" : filter === "inactive" ? "No blank cards waiting" : "No gift cards here"}
+              </EmptyRow>
             )}
             {giftCards.map((v) => (
               // A used-up gift card gets a red tint, so staff spot at a glance that there's no credit left.
-              <tr key={v.id} className={v.status === "used_up" ? "bg-destructive/5 hover:bg-destructive/10" : "hover:bg-background/60"}>
-                <td className={`${td} hidden pr-0 sm:table-cell`}>
+              // The whole row opens the gift card (the code's link stretches over it); the checkbox,
+              // copy, customer and ⋯ sit above that link.
+              <tr key={v.id} className={cn("relative cursor-pointer", v.status === "used_up" ? "bg-destructive/5 hover:bg-destructive/10" : "hover:bg-background/60")}>
+                <td className={`${td} relative z-1 hidden pr-0 sm:table-cell`}>
                   {/* Only one nothing has been spent from can be deleted. */}
                   {!v.lastUse && <BulkCheckbox id={v.id} label={`Choose ${v.code}`} />}
                 </td>
                 <td className={td}>
                   <span className="flex items-center gap-0.5">
-                    <Link href={`/admin/gift-cards/${v.id}`} className="font-mono font-bold tracking-wider whitespace-nowrap hover:underline">
+                    <Link
+                      href={`/admin/gift-cards/${v.id}`}
+                      className="font-mono font-bold tracking-wider whitespace-nowrap after:absolute after:inset-0 hover:underline"
+                    >
                       {v.code}
                     </Link>
-                    <CopyButton text={v.code} label={`Copy ${v.code}`} className="-my-2" />
+                    <CopyButton text={v.code} label={`Copy ${v.code}`} className="relative z-1 -my-2" />
                   </span>
                   {/* Its last use (when and how much; the full history is on its page), at every width. */}
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
@@ -228,7 +248,7 @@ async function GiftCardList({ params }: { params: Params }) {
                 </td>
                 <td className={`${td} hidden md:table-cell`}>
                   {v.customer ? (
-                    <Link href={`/admin/customers/${v.customer.id}`} className="font-semibold hover:underline">
+                    <Link href={`/admin/customers/${v.customer.id}`} className="relative z-1 font-semibold hover:underline">
                       {fullName(v.customer)}
                     </Link>
                   ) : (
@@ -238,32 +258,19 @@ async function GiftCardList({ params }: { params: Params }) {
                   )}
                 </td>
                 <td className={cn(`${td} text-right whitespace-nowrap tabular-nums`, "font-extrabold", v.status === "used_up" && "text-destructive")}>
-                  {/* The balance page the card's QR opens (what the customer sees), in a new tab, for
-                      every gift card. A Not sold card has no balance yet, so it says so. */}
-                  <span className="inline-flex items-center gap-1">
-                    {v.status === "inactive" ? (
-                      <span className="text-[13px] font-semibold text-muted-foreground">No balance yet</span>
-                    ) : (
-                      formatMoney(v.balance_cents)
-                    )}
-                    <a
-                      href={giftCardBalanceUrl(v.public_token)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`Open the balance page for ${v.code}`}
-                      title="Open the balance page"
-                      className="-my-2 inline-flex size-7 items-center justify-center rounded-md font-normal text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <ExternalLink className="size-3.5" aria-hidden="true" />
-                    </a>
-                  </span>
+                  {/* A Not sold card has no balance yet, so it says so. */}
+                  {v.status === "inactive" ? (
+                    <span className="text-[13px] font-semibold text-muted-foreground">No balance yet</span>
+                  ) : (
+                    formatMoney(v.balance_cents)
+                  )}
                   {/* Phones: the status sits under the balance, so a row stays two lines. */}
                   <span className="mt-1 flex justify-end sm:hidden">
                     <GiftCardStatusPill status={v.status} />
                   </span>
                 </td>
                 <td className={`${td} hidden text-right whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell`}>
-                  {v.amount_cents === null ? "–" : formatMoney(v.amount_cents)}
+                  {v.loadedCents === null ? "–" : formatMoney(v.loadedCents)}
                 </td>
                 <td className={`${td} hidden whitespace-nowrap text-muted-foreground xl:table-cell`}>
                   {v.expires_on ? formatDate(`${v.expires_on}T12:00:00Z`, "UTC", { day: "numeric", month: "short", year: "numeric" }) : "–"}
@@ -271,9 +278,19 @@ async function GiftCardList({ params }: { params: Params }) {
                 <td className={`${td} hidden sm:table-cell`}>
                   <GiftCardStatusPill status={v.status} />
                 </td>
-                <td className={`${td} px-0`}>
+                <td className={`${td} relative z-1 px-0`}>
                   <GiftCardRowActions
-                    giftCard={{ id: v.id, code: v.code, status: v.status, token: v.public_token, expiresOn: v.expires_on, neverUsed: !v.lastUse }}
+                    giftCard={{
+                      id: v.id,
+                      code: v.code,
+                      status: v.status,
+                      token: v.public_token,
+                      expiresOn: v.expires_on,
+                      neverUsed: !v.lastUse,
+                      balanceCents: v.balance_cents,
+                      loadedCents: v.loadedCents,
+                      customerName: v.customer ? fullName(v.customer) : null,
+                    }}
                   />
                 </td>
               </tr>

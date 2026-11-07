@@ -79,7 +79,28 @@ export function FindGiftCard({
     return (
       <div className="flex flex-col gap-4">
         {back}
-        {mode === "use" && <UseGiftCard code={found} onDone={onDone} defaultPhone={defaultPhone} phoneKnown={phoneKnown} />}
+        {mode === "use" && (
+          <UseGiftCard
+            code={found}
+            // Its balance was just looked up, so the form opens complete rather than checking again.
+            initialCheck={
+              result?.ok && result.giftCard.expiresOn && result.giftCard.loadedCents !== null
+                ? {
+                    ok: true,
+                    id: result.giftCard.id,
+                    code: result.giftCard.code,
+                    balanceCents: result.giftCard.balanceCents,
+                    amountCents: result.giftCard.loadedCents,
+                    expiresOn: result.giftCard.expiresOn,
+                    customerName: result.giftCard.customerName,
+                  }
+                : undefined
+            }
+            onDone={onDone}
+            defaultPhone={defaultPhone}
+            phoneKnown={phoneKnown}
+          />
+        )}
         {mode === "top_up" && <TopUpForm code={found} onDone={onDone} />}
         {mode === "create" && (
           <SellGiftCardForm

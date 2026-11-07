@@ -22,12 +22,14 @@ export type KioskContent = {
   technicians: KioskTechnician[];
   idleSeconds: number;
   timezone: string;
+  /** A shop PIN is set: Gift card, Admin and Sign out ask for it first. */
+  staffPin: boolean;
 };
 
 /** Rewards, the service menu, technicians and program settings for the kiosk screens. Read by the kiosk page after the device check. */
 export async function loadKioskContent(): Promise<KioskContent> {
   const supabase = createAdminClient();
-  const [{ data: settings }, { data: rewards }, { data: categories }, { data: technicians }] = await Promise.all([
+  const [{ data: settings }, { data: rewards }, { data: categories }, { data: technicians }, { data: pin }] = await Promise.all([
     supabase.from("settings").select("*").single(),
     supabase.from("promotions").select("id, title, points_cost, discount_cents, cash_discount_cents, discount_percent, cash_discount_percent").eq("is_active", true).order("points_cost"),
     supabase
@@ -37,6 +39,7 @@ export async function loadKioskContent(): Promise<KioskContent> {
       .order("sort_order")
       .order("name"),
     supabase.from("technicians").select("id, name").eq("is_active", true).order("sort_order").order("name"),
+    supabase.rpc("kiosk_pin_status"),
   ]);
 
   const birthdayTiers: TierDiscount[] = settings
@@ -71,5 +74,6 @@ export async function loadKioskContent(): Promise<KioskContent> {
     technicians: technicians ?? [],
     idleSeconds: settings?.kiosk_idle_seconds ?? 60,
     timezone: settings?.timezone ?? "Australia/Hobart",
+    staffPin: (pin as { is_set?: boolean } | null)?.is_set === true,
   };
 }
