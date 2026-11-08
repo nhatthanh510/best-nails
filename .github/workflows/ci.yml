@@ -6,7 +6,8 @@
 #   SUPABASE_DB_PASSWORD   the production database password
 # and a "production" environment (Settings → Environments), where you can require an approval.
 #
-# Production is only ever changed forward with `db push` (never reset, never seeded).
+# Production is only ever changed forward with `db push` (never reset, never seeded), apart
+# from the one-off pre-launch reset step in deploy-migrations below.
 name: CI
 
 on:
@@ -93,6 +94,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx supabase link --project-ref "$SUPABASE_PROJECT_ID"
+      # One-off, before launch: the migrations were squashed into the initial schema, so production
+      # is reset to it and seeded once. It only runs while production's history still lists
+      # 20261106000000 (one of the squashed versions); the reset removes it, so every later run
+      # skips this step and only pushes. Delete this step in a follow-up PR once it has run.
+      - name: Reset production to the squashed schema (one-off)
+        run: |
+          if npx supabase migration list --linked | grep -q 20261106000000; then
+            echo "Production still has the pre-squash migrations: resetting it and running seed.sql."
+            npx supabase db reset --linked --yes
+          else
+            echo "Production is already on the squashed schema: nothing to reset."
+          fi
       - name: Migrations that will be applied
         run: npx supabase db push --dry-run
       - name: Apply them
