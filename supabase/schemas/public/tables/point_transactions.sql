@@ -1,8 +1,18 @@
 CREATE TABLE "public"."point_transactions" (
-  "id"            uuid    NOT NULL DEFAULT gen_random_uuid(),
-  "customer_id"   uuid    NOT NULL,
-  "delta"         integer NOT NULL,
-  "balance_after" integer NOT NULL,
+  "id"               uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "customer_id"      uuid                     NOT NULL,
+  "delta"            integer                  NOT NULL,
+  "balance_after"    integer                  NOT NULL,
+  "reason"           public.point_reason      NOT NULL,
+  "check_in_id"      uuid,
+  "promotion_id"     uuid,
+  "note"             text,
+  "created_by"       uuid,
+  "created_at"       timestamp with time zone NOT NULL DEFAULT now(),
+  "seq"              bigint                   GENERATED ALWAYS AS IDENTITY NOT NULL,
+  "payment_method"   public.payment_method,
+  "discount_cents"   integer,
+  "discount_percent" integer,
   CONSTRAINT "point_transactions_balance_after_check" CHECK ((balance_after >= 0)),
   CONSTRAINT "point_transactions_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE,
   CONSTRAINT "point_transactions_delta_check" CHECK ((delta <> 0)),
@@ -11,36 +21,6 @@ CREATE TABLE "public"."point_transactions" (
 
 ALTER TABLE "public"."point_transactions"
   ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "reason" public.point_reason NOT NULL;
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "check_in_id" uuid;
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "promotion_id" uuid;
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "note" text;
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "created_by" uuid;
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "created_at" timestamp WITH time zone NOT NULL DEFAULT now();
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "seq" bigint GENERATED ALWAYS AS IDENTITY NOT NULL;
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "payment_method" public.payment_method;
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "discount_cents" integer;
-
-ALTER TABLE "public"."point_transactions"
-  ADD COLUMN "discount_percent" integer;
 
 ALTER TABLE "public"."point_transactions"
   ADD CONSTRAINT "point_transactions_check_in_id_fkey" FOREIGN KEY (check_in_id) REFERENCES public.check_ins(id) ON DELETE SET NULL;

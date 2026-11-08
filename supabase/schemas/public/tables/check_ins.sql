@@ -1,7 +1,15 @@
 CREATE TABLE "public"."check_ins" (
-  "id"             uuid    NOT NULL DEFAULT gen_random_uuid(),
-  "customer_id"    uuid    NOT NULL,
-  "points_awarded" integer NOT NULL,
+  "id"              uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "customer_id"     uuid                     NOT NULL,
+  "points_awarded"  integer                  NOT NULL,
+  "source"          public.check_in_source   NOT NULL,
+  "created_by"      uuid,
+  "voided_at"       timestamp with time zone,
+  "voided_by"       uuid,
+  "created_at"      timestamp with time zone NOT NULL DEFAULT now(),
+  "technician_id"   uuid,
+  "technician_name" text,
+  "payment_method"  public.payment_method,
   CONSTRAINT "check_ins_pkey" PRIMARY KEY (id),
   CONSTRAINT "check_ins_points_awarded_check" CHECK ((points_awarded >= 0)),
   CONSTRAINT "check_ins_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE
@@ -9,30 +17,6 @@ CREATE TABLE "public"."check_ins" (
 
 ALTER TABLE "public"."check_ins"
   ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE "public"."check_ins"
-  ADD COLUMN "source" public.check_in_source NOT NULL;
-
-ALTER TABLE "public"."check_ins"
-  ADD COLUMN "created_by" uuid;
-
-ALTER TABLE "public"."check_ins"
-  ADD COLUMN "voided_at" timestamp WITH time zone;
-
-ALTER TABLE "public"."check_ins"
-  ADD COLUMN "voided_by" uuid;
-
-ALTER TABLE "public"."check_ins"
-  ADD COLUMN "created_at" timestamp WITH time zone NOT NULL DEFAULT now();
-
-ALTER TABLE "public"."check_ins"
-  ADD COLUMN "technician_id" uuid;
-
-ALTER TABLE "public"."check_ins"
-  ADD COLUMN "technician_name" text;
-
-ALTER TABLE "public"."check_ins"
-  ADD COLUMN "payment_method" public.payment_method;
 
 ALTER TABLE "public"."check_ins"
   ADD CONSTRAINT "check_ins_created_by_fkey" FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;

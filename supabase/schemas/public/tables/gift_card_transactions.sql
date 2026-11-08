@@ -1,43 +1,23 @@
 CREATE TABLE "public"."gift_card_transactions" (
-  "id"           uuid   NOT NULL DEFAULT gen_random_uuid(),
-  "seq"          bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  "gift_card_id" uuid   NOT NULL,
+  "id"                  uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "seq"                 bigint                   GENERATED ALWAYS AS IDENTITY NOT NULL,
+  "gift_card_id"        uuid                     NOT NULL,
+  "kind"                public.gift_card_entry   NOT NULL,
+  "delta_cents"         integer                  NOT NULL,
+  "balance_after_cents" integer                  NOT NULL,
+  "customer_id"         uuid,
+  "note"                text,
+  "undoes"              uuid,
+  "voided_at"           timestamp with time zone,
+  "voided_by"           uuid,
+  "created_by"          uuid,
+  "created_at"          timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT "gift_card_transactions_pkey" PRIMARY KEY (id),
   CONSTRAINT "gift_card_transactions_gift_card_id_fkey" FOREIGN KEY (gift_card_id) REFERENCES public.gift_cards(id) ON DELETE CASCADE
 );
 
 ALTER TABLE "public"."gift_card_transactions"
   ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "kind" public.gift_card_entry NOT NULL;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "delta_cents" integer NOT NULL;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "balance_after_cents" integer NOT NULL;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "customer_id" uuid;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "note" text;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "undoes" uuid;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "voided_at" timestamp WITH time zone;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "voided_by" uuid;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "created_by" uuid;
-
-ALTER TABLE "public"."gift_card_transactions"
-  ADD COLUMN "created_at" timestamp WITH time zone NOT NULL DEFAULT now();
 
 ALTER TABLE "public"."gift_card_transactions"
   ADD CONSTRAINT "gift_card_transactions_balance_after_cents_check" CHECK ((balance_after_cents >= 0));

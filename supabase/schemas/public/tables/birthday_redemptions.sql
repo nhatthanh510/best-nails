@@ -1,8 +1,12 @@
 CREATE TABLE "public"."birthday_redemptions" (
-  "id"            uuid     NOT NULL DEFAULT gen_random_uuid(),
-  "customer_id"   uuid     NOT NULL,
-  "birthday_year" smallint NOT NULL,
+  "id"            uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "customer_id"   uuid                     NOT NULL,
+  "birthday_year" smallint                 NOT NULL,
   "percent"       integer,
+  "source"        public.check_in_source   NOT NULL,
+  "created_by"    uuid,
+  "created_at"    timestamp with time zone NOT NULL DEFAULT now(),
+  "amount_cents"  integer,
   CONSTRAINT "birthday_redemptions_customer_id_birthday_year_key" UNIQUE (customer_id, birthday_year),
   CONSTRAINT "birthday_redemptions_percent_check" CHECK (((percent >= 1) AND (percent <= 100))),
   CONSTRAINT "birthday_redemptions_pkey" PRIMARY KEY (id),
@@ -11,18 +15,6 @@ CREATE TABLE "public"."birthday_redemptions" (
 
 ALTER TABLE "public"."birthday_redemptions"
   ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE "public"."birthday_redemptions"
-  ADD COLUMN "source" public.check_in_source NOT NULL;
-
-ALTER TABLE "public"."birthday_redemptions"
-  ADD COLUMN "created_by" uuid;
-
-ALTER TABLE "public"."birthday_redemptions"
-  ADD COLUMN "created_at" timestamp WITH time zone NOT NULL DEFAULT now();
-
-ALTER TABLE "public"."birthday_redemptions"
-  ADD COLUMN "amount_cents" integer;
 
 ALTER TABLE "public"."birthday_redemptions"
   ADD CONSTRAINT "birthday_redemptions_amount_cents_check" CHECK (((amount_cents >= 1) AND (amount_cents <= 100000)));

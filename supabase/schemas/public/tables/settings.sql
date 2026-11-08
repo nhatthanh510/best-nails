@@ -8,6 +8,12 @@ CREATE TABLE "public"."settings" (
   "tier_regular_points"       integer                  NOT NULL DEFAULT 10,
   "tier_vip_points"           integer                  NOT NULL DEFAULT 20,
   "code_prefix"               text                     NOT NULL DEFAULT 'BN'::text,
+  "birthday_kind_new"         public.discount_kind     NOT NULL DEFAULT 'percent'::public.discount_kind,
+  "birthday_value_new"        integer                  NOT NULL DEFAULT 10,
+  "birthday_kind_regular"     public.discount_kind     NOT NULL DEFAULT 'percent'::public.discount_kind,
+  "birthday_value_regular"    integer                  NOT NULL DEFAULT 10,
+  "birthday_kind_vip"         public.discount_kind     NOT NULL DEFAULT 'percent'::public.discount_kind,
+  "birthday_value_vip"        integer                  NOT NULL DEFAULT 10,
   CONSTRAINT "settings_birthday_window_days_check" CHECK (((birthday_window_days >= 0) AND (birthday_window_days <= 31))),
   CONSTRAINT "settings_code_prefix_check" CHECK ((code_prefix ~ '^[A-Z]{2,4}$'::text)),
   CONSTRAINT "settings_id_check" CHECK (id),
@@ -18,24 +24,6 @@ CREATE TABLE "public"."settings" (
 
 ALTER TABLE "public"."settings"
   ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE "public"."settings"
-  ADD COLUMN "birthday_kind_new" public.discount_kind NOT NULL DEFAULT 'percent'::public.discount_kind;
-
-ALTER TABLE "public"."settings"
-  ADD COLUMN "birthday_value_new" integer NOT NULL DEFAULT 10;
-
-ALTER TABLE "public"."settings"
-  ADD COLUMN "birthday_kind_regular" public.discount_kind NOT NULL DEFAULT 'percent'::public.discount_kind;
-
-ALTER TABLE "public"."settings"
-  ADD COLUMN "birthday_value_regular" integer NOT NULL DEFAULT 10;
-
-ALTER TABLE "public"."settings"
-  ADD COLUMN "birthday_kind_vip" public.discount_kind NOT NULL DEFAULT 'percent'::public.discount_kind;
-
-ALTER TABLE "public"."settings"
-  ADD COLUMN "birthday_value_vip" integer NOT NULL DEFAULT 10;
 
 ALTER TABLE "public"."settings"
   ADD CONSTRAINT "settings_birthday_new_check" CHECK (((birthday_value_new >= 0) AND (birthday_value_new <=

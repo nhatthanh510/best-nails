@@ -1,39 +1,21 @@
 CREATE TABLE "public"."promotions" (
-  "id"    uuid NOT NULL DEFAULT gen_random_uuid(),
-  "title" text NOT NULL,
+  "id"                    uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "title"                 text                     NOT NULL,
+  "type"                  public.promotion_type    NOT NULL DEFAULT 'reward'::public.promotion_type,
+  "points_cost"           integer                  NOT NULL,
+  "is_active"             boolean                  NOT NULL DEFAULT true,
+  "created_at"            timestamp with time zone NOT NULL DEFAULT now(),
+  "updated_at"            timestamp with time zone NOT NULL DEFAULT now(),
+  "discount_cents"        integer,
+  "cash_discount_cents"   integer,
+  "discount_percent"      integer,
+  "cash_discount_percent" integer,
   CONSTRAINT "promotions_pkey" PRIMARY KEY (id),
   CONSTRAINT "promotions_title_check" CHECK (((length(TRIM(BOTH FROM title)) >= 1) AND (length(TRIM(BOTH FROM title)) <= 80)))
 );
 
 ALTER TABLE "public"."promotions"
   ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE "public"."promotions"
-  ADD COLUMN "type" public.promotion_type NOT NULL DEFAULT 'reward'::public.promotion_type;
-
-ALTER TABLE "public"."promotions"
-  ADD COLUMN "points_cost" integer NOT NULL;
-
-ALTER TABLE "public"."promotions"
-  ADD COLUMN "is_active" boolean NOT NULL DEFAULT true;
-
-ALTER TABLE "public"."promotions"
-  ADD COLUMN "created_at" timestamp WITH time zone NOT NULL DEFAULT now();
-
-ALTER TABLE "public"."promotions"
-  ADD COLUMN "updated_at" timestamp WITH time zone NOT NULL DEFAULT now();
-
-ALTER TABLE "public"."promotions"
-  ADD COLUMN "discount_cents" integer;
-
-ALTER TABLE "public"."promotions"
-  ADD COLUMN "cash_discount_cents" integer;
-
-ALTER TABLE "public"."promotions"
-  ADD COLUMN "discount_percent" integer;
-
-ALTER TABLE "public"."promotions"
-  ADD COLUMN "cash_discount_percent" integer;
 
 ALTER TABLE "public"."promotions"
   ADD CONSTRAINT "promotions_discount_cents_check" CHECK ((((discount_cents IS NULL) AND (cash_discount_cents IS NULL)) OR ((cash_discount_cents IS
