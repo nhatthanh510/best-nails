@@ -17,6 +17,7 @@
     "test:db": "supabase test db",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local > lib/database.types.ts",
+    "db:migration": "supabase db schema declarative sync --no-apply --name",
     "db:next-day": "bash scripts/db-next-day.sh",
     "typecheck": "next typegen && tsc --noEmit",
     "test:e2e": "playwright test",
