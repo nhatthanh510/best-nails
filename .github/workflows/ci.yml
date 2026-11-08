@@ -70,6 +70,17 @@ jobs:
             echo "::error file=lib/database.types.ts::Out of date. Run 'npm run db:types' and commit the result."
             exit 1
           }
+      # supabase/schemas (what people read and edit) must describe exactly what the migrations build.
+      # sync writes a migration only when they differ, so any new file means one was forgotten.
+      - name: supabase/schemas matches the migrations
+        run: |
+          npx supabase db schema declarative sync --no-apply --name schema_drift
+          if [ -n "$(git status --porcelain supabase/migrations)" ]; then
+            git status --porcelain supabase/migrations
+            cat supabase/migrations/*_schema_drift.sql
+            echo "::error::supabase/schemas and supabase/migrations differ. Run 'npm run db:migration -- <name>' and commit the generated migration (or update supabase/schemas to match)."
+            exit 1
+          fi
 
   deploy-migrations:
     name: Apply migrations to production
