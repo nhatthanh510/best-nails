@@ -6,8 +6,9 @@
 #   SUPABASE_DB_PASSWORD   the production database password
 # and a "production" environment (Settings → Environments), where you can require an approval.
 #
-# Production is only ever changed forward with `db push` (never reset, never seeded), apart
-# from the one-off pre-launch reset step in deploy-migrations below.
+# Production is only ever changed forward with `db push`, except during development: while the
+# repository variable ALLOW_PRODUCTION_RESET is "true", a squash resets and seeds production (see
+# the reset step in deploy-migrations). Delete that variable at launch.
 name: CI
 
 on:
@@ -94,18 +95,30 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx supabase link --project-ref "$SUPABASE_PROJECT_ID"
-      # One-off, before launch: the migrations were squashed into the initial schema, so production
-      # is reset to it and seeded once. It only runs while production's history still lists
-      # 20261106000000 (one of the squashed versions); the reset removes it, so every later run
-      # skips this step and only pushes. Delete this step in a follow-up PR once it has run.
-      - name: Reset production to the squashed schema (one-off)
+      # Development only: after migrations are squashed (merged into fewer files), production still
+      # lists versions that are no longer in supabase/migrations, and `db push` refuses to run.
+      # Then production is reset to the files here and seed.sql runs, but only while the repository
+      # variable ALLOW_PRODUCTION_RESET is "true". Delete that variable at launch: from then on a
+      # squash fails the deploy here instead of wiping the shop's data. A normal new migration never
+      # triggers this (it's in the files, not only in production), so this step just checks and goes on.
+      - name: Reset production after a squash (development only)
+        shell: bash
+        env:
+          ALLOW_PRODUCTION_RESET: ${{ vars.ALLOW_PRODUCTION_RESET }}
         run: |
-          if npx supabase migration list --linked | grep -q 20261106000000; then
-            echo "Production still has the pre-squash migrations: resetting it and running seed.sql."
-            npx supabase db reset --linked --yes
-          else
-            echo "Production is already on the squashed schema: nothing to reset."
+          removed=$(npx supabase migration list --linked --output-format json 2>/dev/null | tail -n 1 \
+            | jq -r '[.migrations[] | select(.local == "" and .remote != "") | .remote] | join(" ")')
+          if [ -z "$removed" ]; then
+            echo "Production's migration history matches supabase/migrations: nothing to reset."
+            exit 0
           fi
+          echo "Production has migrations that are no longer in supabase/migrations: $removed"
+          if [ "$ALLOW_PRODUCTION_RESET" != "true" ]; then
+            echo "::error::Production lists migrations that were removed from the repository ($removed). It is not reset, because the ALLOW_PRODUCTION_RESET variable isn't \"true\" (the shop is live). Restore the files, or repair production's history."
+            exit 1
+          fi
+          echo "ALLOW_PRODUCTION_RESET is true: resetting production to supabase/migrations and running seed.sql."
+          npx supabase db reset --linked --yes
       - name: Migrations that will be applied
         run: npx supabase db push --dry-run
       - name: Apply them
