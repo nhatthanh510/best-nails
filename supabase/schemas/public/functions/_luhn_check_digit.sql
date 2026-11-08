@@ -31,8 +31,4 @@ GRANT EXECUTE ON FUNCTION "public"."_luhn_check_digit"(text) TO PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "public"."_luhn_check_digit"(text) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."_luhn_check_digit"(text) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_luhn_check_digit"(text) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."_luhn_check_digit"(text) FROM "anon", "authenticated";

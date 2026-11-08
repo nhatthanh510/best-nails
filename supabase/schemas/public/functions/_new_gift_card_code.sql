@@ -31,8 +31,4 @@ $function$;
 
 GRANT EXECUTE ON FUNCTION "public"."_new_gift_card_code"() TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."_new_gift_card_code"() FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_new_gift_card_code"() TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."_new_gift_card_code"() FROM PUBLIC, "anon", "authenticated";

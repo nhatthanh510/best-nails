@@ -22,8 +22,4 @@ $function$;
 
 GRANT EXECUTE ON FUNCTION "public"."kiosk_redeem_birthday"(text) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."kiosk_redeem_birthday"(text) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."kiosk_redeem_birthday"(text) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."kiosk_redeem_birthday"(text) FROM PUBLIC, "anon", "authenticated";

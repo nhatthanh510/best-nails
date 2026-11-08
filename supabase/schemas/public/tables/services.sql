@@ -11,6 +11,8 @@ CREATE TABLE "public"."services" (
   CONSTRAINT "services_pkey" PRIMARY KEY (id)
 );
 
+COMMENT ON TABLE "public"."services" IS 'The service menu on the kiosk. is_active = false hides one from the kiosk.';
+
 ALTER TABLE "public"."services"
   ENABLE ROW LEVEL SECURITY;
 
@@ -32,7 +34,3 @@ CREATE POLICY "staff_manage_services" ON "public"."services"
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."services" TO "anon", "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."services" TO "service_role";
-
-REVOKE ALL ON TABLE "public"."services" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."services" TO "postgres";

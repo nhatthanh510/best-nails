@@ -17,8 +17,4 @@ GRANT EXECUTE ON FUNCTION "public"."cash_visits_since_reward"(uuid) TO "authenti
 
 GRANT EXECUTE ON FUNCTION "public"."cash_visits_since_reward"(uuid) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."cash_visits_since_reward"(uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."cash_visits_since_reward"(uuid) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."cash_visits_since_reward"(uuid) FROM PUBLIC, "anon";

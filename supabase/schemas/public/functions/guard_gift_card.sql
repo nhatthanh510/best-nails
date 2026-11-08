@@ -28,12 +28,10 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."guard_gift_card"() IS 'Trigger: balance, amount, code, sold_on and blocked_at change only through the gift card functions, public_token never changes, and only an admin changes the expiry.';
+
 GRANT EXECUTE ON FUNCTION "public"."guard_gift_card"() TO PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "public"."guard_gift_card"() TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."guard_gift_card"() FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."guard_gift_card"() TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."guard_gift_card"() FROM "anon", "authenticated";

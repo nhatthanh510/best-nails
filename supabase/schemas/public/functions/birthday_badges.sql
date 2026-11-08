@@ -29,8 +29,4 @@ GRANT EXECUTE ON FUNCTION "public"."birthday_badges"(uuid[]) TO "authenticated";
 
 GRANT EXECUTE ON FUNCTION "public"."birthday_badges"(uuid[]) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."birthday_badges"(uuid[]) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."birthday_badges"(uuid[]) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."birthday_badges"(uuid[]) FROM PUBLIC, "anon";

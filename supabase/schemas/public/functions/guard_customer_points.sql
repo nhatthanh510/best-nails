@@ -16,10 +16,8 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."guard_customer_points"() IS 'Trigger: refuses changes to a customer''s cached point totals unless a points function set best_nails.ledger_write = on.';
+
 GRANT EXECUTE ON FUNCTION "public"."guard_customer_points"() TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."guard_customer_points"() FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."guard_customer_points"() TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."guard_customer_points"() FROM PUBLIC, "anon", "authenticated";

@@ -19,6 +19,8 @@ CREATE TABLE "public"."point_transactions" (
   CONSTRAINT "point_transactions_pkey" PRIMARY KEY (id)
 );
 
+COMMENT ON TABLE "public"."point_transactions" IS 'Append-only points ledger, ordered by seq rather than created_at: rows written in one transaction share a timestamp.';
+
 ALTER TABLE "public"."point_transactions"
   ENABLE ROW LEVEL SECURITY;
 
@@ -63,10 +65,6 @@ REVOKE ALL ON SEQUENCE "public"."point_transactions_seq_seq" FROM "authenticated
 
 GRANT SELECT, UPDATE, USAGE ON SEQUENCE "public"."point_transactions_seq_seq" TO "authenticated";
 
-REVOKE ALL ON SEQUENCE "public"."point_transactions_seq_seq" FROM "postgres";
-
-GRANT SELECT, UPDATE, USAGE ON SEQUENCE "public"."point_transactions_seq_seq" TO "postgres";
-
 REVOKE ALL ON SEQUENCE "public"."point_transactions_seq_seq" FROM "service_role";
 
 GRANT SELECT, UPDATE, USAGE ON SEQUENCE "public"."point_transactions_seq_seq" TO "service_role";
@@ -80,7 +78,3 @@ COMMENT ON COLUMN "public"."point_transactions"."discount_cents" IS 'Redeem rows
 COMMENT ON COLUMN "public"."point_transactions"."discount_percent" IS 'Redeem rows only: the percent off given, for a reward in percentages.';
 
 COMMENT ON COLUMN "public"."point_transactions"."payment_method" IS 'Adjust rows only: points added (or taken back) for a visit paid in cash or by card. Null = not a visit.';
-
-REVOKE ALL ON TABLE "public"."point_transactions" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."point_transactions" TO "postgres";

@@ -16,8 +16,4 @@ GRANT EXECUTE ON FUNCTION "public"."redeem_birthday"(uuid) TO "authenticated";
 
 GRANT EXECUTE ON FUNCTION "public"."redeem_birthday"(uuid) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."redeem_birthday"(uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."redeem_birthday"(uuid) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."redeem_birthday"(uuid) FROM PUBLIC, "anon";

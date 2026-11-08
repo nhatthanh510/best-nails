@@ -9,6 +9,8 @@ CREATE TABLE "public"."technicians" (
   CONSTRAINT "technicians_pkey" PRIMARY KEY (id)
 );
 
+COMMENT ON TABLE "public"."technicians" IS 'Nail technicians customers pick on the kiosk. Not sign-in accounts (that''s staff); check-ins copy the name.';
+
 ALTER TABLE "public"."technicians"
   ENABLE ROW LEVEL SECURITY;
 
@@ -28,7 +30,3 @@ CREATE POLICY "staff_manage_technicians" ON "public"."technicians"
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."technicians" TO "anon", "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."technicians" TO "service_role";
-
-REVOKE ALL ON TABLE "public"."technicians" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."technicians" TO "postgres";

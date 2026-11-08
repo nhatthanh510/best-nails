@@ -28,8 +28,4 @@ GRANT EXECUTE ON FUNCTION "public"."preview_gift_card_codes"(integer) TO "authen
 
 GRANT EXECUTE ON FUNCTION "public"."preview_gift_card_codes"(integer) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."preview_gift_card_codes"(integer) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."preview_gift_card_codes"(integer) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."preview_gift_card_codes"(integer) FROM PUBLIC, "anon";

@@ -37,8 +37,4 @@ GRANT EXECUTE ON FUNCTION "public"."create_inactive_gift_cards"(text[]) TO "auth
 
 GRANT EXECUTE ON FUNCTION "public"."create_inactive_gift_cards"(text[]) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."create_inactive_gift_cards"(text[]) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."create_inactive_gift_cards"(text[]) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."create_inactive_gift_cards"(text[]) FROM PUBLIC, "anon";

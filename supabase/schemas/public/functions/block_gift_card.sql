@@ -34,8 +34,4 @@ GRANT EXECUTE ON FUNCTION "public"."block_gift_card"(uuid, text) TO "authenticat
 
 GRANT EXECUTE ON FUNCTION "public"."block_gift_card"(uuid, text) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."block_gift_card"(uuid, text) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."block_gift_card"(uuid, text) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."block_gift_card"(uuid, text) FROM PUBLIC, "anon";

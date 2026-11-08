@@ -26,8 +26,4 @@ GRANT EXECUTE ON FUNCTION "public"."check_in_totals"(timestamp WITH time zone, p
 
 GRANT EXECUTE ON FUNCTION "public"."check_in_totals"(timestamp WITH time zone, public.check_in_source) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."check_in_totals"(timestamp WITH time zone, public.check_in_source) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."check_in_totals"(timestamp WITH time zone, public.check_in_source) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."check_in_totals"(timestamp WITH time zone, public.check_in_source) FROM PUBLIC, "anon";

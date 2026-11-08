@@ -13,8 +13,4 @@ GRANT EXECUTE ON FUNCTION "public"."normalize_gift_card_code"(text) TO PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "public"."normalize_gift_card_code"(text) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."normalize_gift_card_code"(text) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."normalize_gift_card_code"(text) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."normalize_gift_card_code"(text) FROM "anon", "authenticated";

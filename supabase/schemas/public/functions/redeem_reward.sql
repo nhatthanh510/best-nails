@@ -49,12 +49,10 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."redeem_reward"(uuid, uuid) IS 'Admin: spends a reward''s points for a customer.';
+
 GRANT EXECUTE ON FUNCTION "public"."redeem_reward"(uuid, uuid) TO "authenticated";
 
 GRANT EXECUTE ON FUNCTION "public"."redeem_reward"(uuid, uuid) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."redeem_reward"(uuid, uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."redeem_reward"(uuid, uuid) TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."redeem_reward"(uuid, uuid) FROM PUBLIC, "anon";

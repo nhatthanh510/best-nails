@@ -9,6 +9,8 @@ CREATE TABLE "public"."check_in_services" (
   CONSTRAINT "check_in_services_service_id_fkey" FOREIGN KEY (service_id) REFERENCES public.services(id) ON DELETE SET NULL
 );
 
+COMMENT ON TABLE "public"."check_in_services" IS 'The services a customer picked on a check-in. Names are copied, so renaming or deleting a service never changes history.';
+
 ALTER TABLE "public"."check_in_services"
   ENABLE ROW LEVEL SECURITY;
 
@@ -20,7 +22,3 @@ CREATE POLICY "staff_read_check_in_services" ON "public"."check_in_services"
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."check_in_services" TO "anon", "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."check_in_services" TO "service_role";
-
-REVOKE ALL ON TABLE "public"."check_in_services" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."check_in_services" TO "postgres";

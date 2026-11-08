@@ -20,8 +20,4 @@ GRANT EXECUTE ON FUNCTION "public"."set_check_in_payment"(uuid, public.payment_m
 
 GRANT EXECUTE ON FUNCTION "public"."set_check_in_payment"(uuid, public.payment_method) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."set_check_in_payment"(uuid, public.payment_method) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."set_check_in_payment"(uuid, public.payment_method) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."set_check_in_payment"(uuid, public.payment_method) FROM PUBLIC, "anon";

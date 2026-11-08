@@ -43,11 +43,9 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."_post_points"(uuid, integer, public.point_reason, uuid, uuid, text, uuid, public.payment_method, integer, integer) IS 'Writes one points ledger row and updates the customer''s cached totals together. The only way points change.';
+
 GRANT EXECUTE ON FUNCTION "public"."_post_points"(uuid, integer, public.point_reason, uuid, uuid, text, uuid, public.payment_method, integer, integer) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."_post_points"(uuid, integer, public.point_reason, uuid, uuid, text, uuid, public.payment_method, integer, integer) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_post_points"(uuid, integer, public.point_reason, uuid, uuid, text, uuid, public.payment_method, integer, integer) TO "postgres";
 
 REVOKE ALL
   ON FUNCTION "public"."_post_points"(uuid, integer, public.point_reason, uuid, uuid, text, uuid, public.payment_method, integer, integer)

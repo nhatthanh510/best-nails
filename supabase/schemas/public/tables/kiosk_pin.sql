@@ -21,8 +21,4 @@ COMMENT ON COLUMN "public"."kiosk_pin"."pin" IS 'The PIN itself, for Settings â†
 
 COMMENT ON TABLE "public"."kiosk_pin" IS 'The shop PIN for the kiosk''s staff controls (one row, or none when not set). Read only through check_kiosk_pin / kiosk_pin_status / kiosk_pin_reveal.';
 
-REVOKE ALL ON TABLE "public"."kiosk_pin" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."kiosk_pin" TO "postgres";
-
 REVOKE ALL ON TABLE "public"."kiosk_pin" FROM "anon", "authenticated";

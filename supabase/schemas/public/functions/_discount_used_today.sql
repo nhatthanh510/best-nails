@@ -19,10 +19,8 @@ CREATE OR REPLACE FUNCTION public._discount_used_today (
   );
 $function$;
 
+COMMENT ON FUNCTION "public"."_discount_used_today"(uuid) IS 'One discount per visit: true when the customer already used a points reward or birthday discount this shop day.';
+
 GRANT EXECUTE ON FUNCTION "public"."_discount_used_today"(uuid) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."_discount_used_today"(uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_discount_used_today"(uuid) TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."_discount_used_today"(uuid) FROM PUBLIC, "anon", "authenticated";

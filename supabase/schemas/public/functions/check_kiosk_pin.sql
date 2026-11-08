@@ -31,8 +31,4 @@ $function$;
 
 GRANT EXECUTE ON FUNCTION "public"."check_kiosk_pin"(text) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."check_kiosk_pin"(text) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."check_kiosk_pin"(text) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."check_kiosk_pin"(text) FROM PUBLIC, "anon", "authenticated";

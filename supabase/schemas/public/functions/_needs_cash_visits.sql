@@ -14,8 +14,4 @@ $function$;
 
 GRANT EXECUTE ON FUNCTION "public"."_needs_cash_visits"(public.promotions, jsonb) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."_needs_cash_visits"(public.promotions, jsonb) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_needs_cash_visits"(public.promotions, jsonb) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."_needs_cash_visits"(public.promotions, jsonb) FROM PUBLIC, "anon", "authenticated";

@@ -13,10 +13,8 @@ CREATE OR REPLACE FUNCTION public._checked_in_recently (
   );
 $function$;
 
+COMMENT ON FUNCTION "public"."_checked_in_recently"(uuid) IS 'Kiosk redemptions need a check-in within the last 12 hours.';
+
 GRANT EXECUTE ON FUNCTION "public"."_checked_in_recently"(uuid) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."_checked_in_recently"(uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_checked_in_recently"(uuid) TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."_checked_in_recently"(uuid) FROM PUBLIC, "anon", "authenticated";

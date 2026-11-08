@@ -14,8 +14,4 @@ GRANT EXECUTE ON FUNCTION "public"."generate_gift_card_code"() TO "authenticated
 
 GRANT EXECUTE ON FUNCTION "public"."generate_gift_card_code"() TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."generate_gift_card_code"() FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."generate_gift_card_code"() TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."generate_gift_card_code"() FROM PUBLIC, "anon";

@@ -12,12 +12,10 @@ CREATE OR REPLACE FUNCTION public.shop_day_start (
    where s.id;
 $function$;
 
+COMMENT ON FUNCTION "public"."shop_day_start"(integer) IS 'Start of the shop day p_days_ago days back, in settings.timezone.';
+
 GRANT EXECUTE ON FUNCTION "public"."shop_day_start"(integer) TO "authenticated";
 
 GRANT EXECUTE ON FUNCTION "public"."shop_day_start"(integer) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."shop_day_start"(integer) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."shop_day_start"(integer) TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."shop_day_start"(integer) FROM PUBLIC, "anon";

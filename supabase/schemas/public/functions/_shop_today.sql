@@ -12,8 +12,4 @@ GRANT EXECUTE ON FUNCTION "public"."_shop_today"() TO "authenticated";
 
 GRANT EXECUTE ON FUNCTION "public"."_shop_today"() TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."_shop_today"() FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_shop_today"() TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."_shop_today"() FROM PUBLIC, "anon";

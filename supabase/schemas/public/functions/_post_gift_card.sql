@@ -27,10 +27,8 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."_post_gift_card"(uuid, public.gift_card_entry, integer, uuid, text, uuid) IS 'Writes one gift card ledger row and updates balance_cents together. The only way a balance changes.';
+
 GRANT EXECUTE ON FUNCTION "public"."_post_gift_card"(uuid, public.gift_card_entry, integer, uuid, text, uuid) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."_post_gift_card"(uuid, public.gift_card_entry, integer, uuid, text, uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_post_gift_card"(uuid, public.gift_card_entry, integer, uuid, text, uuid) TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."_post_gift_card"(uuid, public.gift_card_entry, integer, uuid, text, uuid) FROM PUBLIC, "anon", "authenticated";

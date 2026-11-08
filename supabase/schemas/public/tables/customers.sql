@@ -27,6 +27,8 @@ CREATE TABLE "public"."customers" (
   CONSTRAINT "customers_visit_count_check" CHECK ((visit_count >= 0))
 );
 
+COMMENT ON TABLE "public"."customers" IS 'Loyalty members, found by phone (stored as +<digits>). points_balance, lifetime_points, visit_count and last_visit_at are cached totals: only the points functions change them (guard_customer_points).';
+
 ALTER TABLE "public"."customers"
   ENABLE ROW LEVEL SECURITY;
 
@@ -70,7 +72,3 @@ CREATE POLICY "staff_update_customers" ON "public"."customers"
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."customers" TO "anon", "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."customers" TO "service_role";
-
-REVOKE ALL ON TABLE "public"."customers" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."customers" TO "postgres";

@@ -9,6 +9,8 @@ CREATE TABLE "public"."service_categories" (
   CONSTRAINT "service_categories_pkey" PRIMARY KEY (id)
 );
 
+COMMENT ON TABLE "public"."service_categories" IS 'Groups of services on the kiosk''s "What are you in for today?" step.';
+
 ALTER TABLE "public"."service_categories"
   ENABLE ROW LEVEL SECURITY;
 
@@ -28,7 +30,3 @@ CREATE POLICY "staff_manage_service_categories" ON "public"."service_categories"
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."service_categories" TO "anon", "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."service_categories" TO "service_role";
-
-REVOKE ALL ON TABLE "public"."service_categories" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."service_categories" TO "postgres";

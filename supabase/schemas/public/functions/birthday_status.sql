@@ -17,8 +17,4 @@ GRANT EXECUTE ON FUNCTION "public"."birthday_status"(uuid) TO "authenticated";
 
 GRANT EXECUTE ON FUNCTION "public"."birthday_status"(uuid) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."birthday_status"(uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."birthday_status"(uuid) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."birthday_status"(uuid) FROM PUBLIC, "anon";

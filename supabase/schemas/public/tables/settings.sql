@@ -22,6 +22,8 @@ CREATE TABLE "public"."settings" (
   CONSTRAINT "settings_tiers_check" CHECK (((tier_regular_points >= 1) AND (tier_vip_points > tier_regular_points) AND (tier_vip_points <= 10000)))
 );
 
+COMMENT ON TABLE "public"."settings" IS 'Shop settings: exactly one row (id = true). Timezone, tiers, birthday discount, kiosk idle time and gift card prefix.';
+
 ALTER TABLE "public"."settings"
   ENABLE ROW LEVEL SECURITY;
 
@@ -77,7 +79,3 @@ COMMENT ON COLUMN "public"."settings"."code_prefix" IS 'Business prefix for gene
 COMMENT ON COLUMN "public"."settings"."tier_regular_points" IS 'Lifetime points from which a customer is Regular (admin only).';
 
 COMMENT ON COLUMN "public"."settings"."tier_vip_points" IS 'Lifetime points from which a customer is VIP (admin only).';
-
-REVOKE ALL ON TABLE "public"."settings" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."settings" TO "postgres";

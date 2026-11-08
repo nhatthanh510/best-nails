@@ -19,8 +19,4 @@ $function$;
 
 GRANT EXECUTE ON FUNCTION "public"."kiosk_today"(uuid) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."kiosk_today"(uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."kiosk_today"(uuid) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."kiosk_today"(uuid) FROM PUBLIC, "anon", "authenticated";

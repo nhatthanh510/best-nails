@@ -9,6 +9,8 @@ CREATE TABLE "public"."staff" (
   CONSTRAINT "staff_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
+COMMENT ON TABLE "public"."staff" IS 'Sign-in accounts: admin (admin pages and kiosk) or staff (kiosk only). removed_at keeps the name on history and signs the account out; keep_an_admin keeps at least one active admin.';
+
 ALTER TABLE "public"."staff"
   ENABLE ROW LEVEL SECURITY;
 
@@ -36,7 +38,3 @@ CREATE POLICY "staff_read_staff" ON "public"."staff"
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."staff" TO "anon", "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."staff" TO "service_role";
-
-REVOKE ALL ON TABLE "public"."staff" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."staff" TO "postgres";

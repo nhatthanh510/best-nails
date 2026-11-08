@@ -15,6 +15,8 @@ CREATE TABLE "public"."check_ins" (
   CONSTRAINT "check_ins_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE
 );
 
+COMMENT ON TABLE "public"."check_ins" IS 'One row per kiosk visit, at most one per customer per shop day (settings.timezone). Rows with voided_at are older undone check-ins, left out of lists and totals.';
+
 ALTER TABLE "public"."check_ins"
   ENABLE ROW LEVEL SECURITY;
 
@@ -41,7 +43,3 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."check_ins" TO "service_role";
 
 COMMENT ON COLUMN "public"."check_ins"."payment_method" IS 'How the customer said they''re paying for this visit (kiosk). Null on older visits: not cash.';
-
-REVOKE ALL ON TABLE "public"."check_ins" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."check_ins" TO "postgres";

@@ -16,12 +16,10 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."keep_an_admin"() IS 'Trigger: refuses removing, demoting or deleting the last active admin.';
+
 GRANT EXECUTE ON FUNCTION "public"."keep_an_admin"() TO PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "public"."keep_an_admin"() TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."keep_an_admin"() FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."keep_an_admin"() TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."keep_an_admin"() FROM "anon", "authenticated";

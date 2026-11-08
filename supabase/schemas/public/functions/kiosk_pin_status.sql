@@ -15,8 +15,4 @@ GRANT EXECUTE ON FUNCTION "public"."kiosk_pin_status"() TO "authenticated";
 
 GRANT EXECUTE ON FUNCTION "public"."kiosk_pin_status"() TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."kiosk_pin_status"() FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."kiosk_pin_status"() TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."kiosk_pin_status"() FROM PUBLIC, "anon";

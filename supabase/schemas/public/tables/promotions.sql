@@ -14,6 +14,8 @@ CREATE TABLE "public"."promotions" (
   CONSTRAINT "promotions_title_check" CHECK (((length(TRIM(BOTH FROM title)) >= 1) AND (length(TRIM(BOTH FROM title)) <= 80)))
 );
 
+COMMENT ON TABLE "public"."promotions" IS 'Rewards customers redeem with points: a dollar amount or a percentage, optionally a bigger one when enough recent visits were paid in cash.';
+
 ALTER TABLE "public"."promotions"
   ENABLE ROW LEVEL SECURITY;
 
@@ -60,7 +62,3 @@ COMMENT ON COLUMN "public"."promotions"."cash_discount_percent" IS 'Percent off 
 COMMENT ON COLUMN "public"."promotions"."discount_cents" IS 'Discount in cents (e.g. 1000 = $10 off). Null for a reward described only by its title, or for one that gives a discount only for cash (cash_discount_cents set).';
 
 COMMENT ON COLUMN "public"."promotions"."discount_percent" IS 'Percent off (e.g. 10 = 10% off), instead of discount_cents. Null for a cash-only percent reward or a reward that isn''t a percentage.';
-
-REVOKE ALL ON TABLE "public"."promotions" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."promotions" TO "postgres";

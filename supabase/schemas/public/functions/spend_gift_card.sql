@@ -52,8 +52,4 @@ GRANT EXECUTE ON FUNCTION "public"."spend_gift_card"(text, integer, uuid, text) 
 
 GRANT EXECUTE ON FUNCTION "public"."spend_gift_card"(text, integer, uuid, text) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."spend_gift_card"(text, integer, uuid, text) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."spend_gift_card"(text, integer, uuid, text) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."spend_gift_card"(text, integer, uuid, text) FROM PUBLIC, "anon";

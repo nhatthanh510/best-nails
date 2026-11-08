@@ -16,6 +16,8 @@ CREATE TABLE "public"."gift_card_transactions" (
   CONSTRAINT "gift_card_transactions_gift_card_id_fkey" FOREIGN KEY (gift_card_id) REFERENCES public.gift_cards(id) ON DELETE CASCADE
 );
 
+COMMENT ON TABLE "public"."gift_card_transactions" IS 'Append-only gift card ledger: every balance change (sale, top_up, spend, adjust; undo only in older history), ordered by seq.';
+
 ALTER TABLE "public"."gift_card_transactions"
   ENABLE ROW LEVEL SECURITY;
 
@@ -58,10 +60,6 @@ REVOKE ALL ON SEQUENCE "public"."gift_card_transactions_seq_seq" FROM "authentic
 
 GRANT SELECT, UPDATE, USAGE ON SEQUENCE "public"."gift_card_transactions_seq_seq" TO "authenticated";
 
-REVOKE ALL ON SEQUENCE "public"."gift_card_transactions_seq_seq" FROM "postgres";
-
-GRANT SELECT, UPDATE, USAGE ON SEQUENCE "public"."gift_card_transactions_seq_seq" TO "postgres";
-
 REVOKE ALL ON SEQUENCE "public"."gift_card_transactions_seq_seq" FROM "service_role";
 
 GRANT SELECT, UPDATE, USAGE ON SEQUENCE "public"."gift_card_transactions_seq_seq" TO "service_role";
@@ -69,7 +67,3 @@ GRANT SELECT, UPDATE, USAGE ON SEQUENCE "public"."gift_card_transactions_seq_seq
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."gift_card_transactions" TO "anon", "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."gift_card_transactions" TO "service_role";
-
-REVOKE ALL ON TABLE "public"."gift_card_transactions" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."gift_card_transactions" TO "postgres";

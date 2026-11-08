@@ -23,8 +23,4 @@ $function$;
 
 GRANT EXECUTE ON FUNCTION "public"."_reward_value"(uuid, uuid) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."_reward_value"(uuid, uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_reward_value"(uuid, uuid) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."_reward_value"(uuid, uuid) FROM PUBLIC, "anon", "authenticated";

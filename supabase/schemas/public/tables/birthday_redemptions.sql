@@ -13,6 +13,8 @@ CREATE TABLE "public"."birthday_redemptions" (
   CONSTRAINT "birthday_redemptions_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE
 );
 
+COMMENT ON TABLE "public"."birthday_redemptions" IS 'Birthday discounts used: at most one per customer per birthday year. Records the percent or amount_cents given (exactly one).';
+
 ALTER TABLE "public"."birthday_redemptions"
   ENABLE ROW LEVEL SECURITY;
 
@@ -35,7 +37,3 @@ CREATE POLICY "staff_read_birthday" ON "public"."birthday_redemptions"
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."birthday_redemptions" TO "anon", "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."birthday_redemptions" TO "service_role";
-
-REVOKE ALL ON TABLE "public"."birthday_redemptions" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."birthday_redemptions" TO "postgres";

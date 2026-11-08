@@ -12,10 +12,8 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."assert_staff"() IS 'Raises forbidden unless the caller is an active admin.';
+
 GRANT EXECUTE ON FUNCTION "public"."assert_staff"() TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."assert_staff"() FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."assert_staff"() TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."assert_staff"() FROM PUBLIC, "anon", "authenticated";

@@ -68,10 +68,8 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."kiosk_check_in"(text, text, text, smallint, smallint, uuid[], uuid, public.payment_method) IS 'Kiosk: finds or signs up the customer by phone and records the day''s check-in with services, technician and payment method. Service role only.';
+
 GRANT EXECUTE ON FUNCTION "public"."kiosk_check_in"(text, text, text, smallint, smallint, uuid[], uuid, public.payment_method) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."kiosk_check_in"(text, text, text, smallint, smallint, uuid[], uuid, public.payment_method) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."kiosk_check_in"(text, text, text, smallint, smallint, uuid[], uuid, public.payment_method) TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."kiosk_check_in"(text, text, text, smallint, smallint, uuid[], uuid, public.payment_method) FROM PUBLIC, "anon", "authenticated";

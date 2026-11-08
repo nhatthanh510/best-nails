@@ -61,10 +61,8 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."_award_check_in"(uuid, public.check_in_source, uuid) IS 'The day''s check-in: 1 point and a visit, at most once per customer per shop day. Locks the customer row, so double taps can''t count twice.';
+
 GRANT EXECUTE ON FUNCTION "public"."_award_check_in"(uuid, public.check_in_source, uuid) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."_award_check_in"(uuid, public.check_in_source, uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_award_check_in"(uuid, public.check_in_source, uuid) TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."_award_check_in"(uuid, public.check_in_source, uuid) FROM PUBLIC, "anon", "authenticated";

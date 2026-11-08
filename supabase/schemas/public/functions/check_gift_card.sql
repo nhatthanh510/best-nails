@@ -45,8 +45,4 @@ GRANT EXECUTE ON FUNCTION "public"."check_gift_card"(text) TO "authenticated";
 
 GRANT EXECUTE ON FUNCTION "public"."check_gift_card"(text) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."check_gift_card"(text) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."check_gift_card"(text) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."check_gift_card"(text) FROM PUBLIC, "anon";

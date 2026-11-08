@@ -24,8 +24,4 @@ GRANT EXECUTE ON FUNCTION "public"."top_services"(timestamp WITH time zone, inte
 
 GRANT EXECUTE ON FUNCTION "public"."top_services"(timestamp WITH time zone, integer) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."top_services"(timestamp WITH time zone, integer) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."top_services"(timestamp WITH time zone, integer) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."top_services"(timestamp WITH time zone, integer) FROM PUBLIC, "anon";

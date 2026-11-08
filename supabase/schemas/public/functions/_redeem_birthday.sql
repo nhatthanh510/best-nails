@@ -38,8 +38,4 @@ $function$;
 
 GRANT EXECUTE ON FUNCTION "public"."_redeem_birthday"(uuid, public.check_in_source, uuid) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."_redeem_birthday"(uuid, public.check_in_source, uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."_redeem_birthday"(uuid, public.check_in_source, uuid) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."_redeem_birthday"(uuid, public.check_in_source, uuid) FROM PUBLIC, "anon", "authenticated";

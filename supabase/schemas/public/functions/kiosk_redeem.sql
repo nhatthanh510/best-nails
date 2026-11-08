@@ -55,10 +55,8 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."kiosk_redeem"(text, uuid) IS 'Kiosk: spends a reward''s points after today''s check-in. Service role only.';
+
 GRANT EXECUTE ON FUNCTION "public"."kiosk_redeem"(text, uuid) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."kiosk_redeem"(text, uuid) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."kiosk_redeem"(text, uuid) TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."kiosk_redeem"(text, uuid) FROM PUBLIC, "anon", "authenticated";

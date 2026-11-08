@@ -30,6 +30,8 @@ CREATE TABLE "public"."gift_cards" (
   CONSTRAINT "gift_cards_sold_by_fkey" FOREIGN KEY (sold_by) REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
+COMMENT ON TABLE "public"."gift_cards" IS 'Prepaid credit spent over several visits. balance_cents changes only through the gift card functions (guard_gift_card). No amount_cents, sold_on or expires_on means a Not sold blank card. public_token is the unguessable link behind the QR code.';
+
 ALTER TABLE "public"."gift_cards"
   ENABLE ROW LEVEL SECURITY;
 
@@ -68,7 +70,3 @@ CREATE POLICY "staff_update_gift_cards" ON "public"."gift_cards"
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."gift_cards" TO "anon", "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."gift_cards" TO "service_role";
-
-REVOKE ALL ON TABLE "public"."gift_cards" FROM "postgres";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."gift_cards" TO "postgres";

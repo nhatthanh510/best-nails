@@ -36,8 +36,4 @@ GRANT EXECUTE ON FUNCTION "public"."adjust_points"(uuid, integer, text, public.p
 
 GRANT EXECUTE ON FUNCTION "public"."adjust_points"(uuid, integer, text, public.payment_method) TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."adjust_points"(uuid, integer, text, public.payment_method) FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."adjust_points"(uuid, integer, text, public.payment_method) TO "postgres";
-
 REVOKE ALL ON FUNCTION "public"."adjust_points"(uuid, integer, text, public.payment_method) FROM PUBLIC, "anon";

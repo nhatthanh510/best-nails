@@ -12,12 +12,10 @@ begin
 end;
 $function$;
 
+COMMENT ON FUNCTION "public"."assert_signed_in"() IS 'Raises forbidden unless the caller is an active account of either role. For the gift card functions staff accounts can use.';
+
 GRANT EXECUTE ON FUNCTION "public"."assert_signed_in"() TO PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "public"."assert_signed_in"() TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."assert_signed_in"() FROM "postgres";
-
-GRANT EXECUTE ON FUNCTION "public"."assert_signed_in"() TO "postgres";
 
 REVOKE ALL ON FUNCTION "public"."assert_signed_in"() FROM "anon", "authenticated";
