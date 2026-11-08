@@ -6,8 +6,8 @@
 #   SUPABASE_DB_PASSWORD   the production database password
 # and a "production" environment (Settings → Environments), where you can require an approval.
 #
-# Production is only ever changed forward with `db push` (never reset, never seeded), apart
-# from the one-off pre-launch reset step in deploy-migrations below.
+# Production is only ever changed forward with `db push`. The one exception is a PR labelled
+# "reset-production" (development only): its merge resets and seeds production first.
 name: CI
 
 on:
@@ -78,6 +78,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
+    permissions:
+      contents: read
+      pull-requests: read # to read the merged PR's labels
     # Never two deploys at once, and never cancel one halfway.
     concurrency:
       group: deploy-migrations
@@ -94,18 +97,23 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx supabase link --project-ref "$SUPABASE_PROJECT_ID"
-      # One-off, before launch: the migrations were squashed into the initial schema, so production
-      # is reset to it and seeded once. It only runs while production's history still lists
-      # 20261106000000 (one of the squashed versions); the reset removes it, so every later run
-      # skips this step and only pushes. Delete this step in a follow-up PR once it has run.
-      - name: Reset production to the squashed schema (one-off)
+      # Development only: merging a PR labelled "reset-production" wipes production, applies every
+      # migration from scratch and runs seed.sql (e.g. after squashing migrations into one file).
+      # Never use the label once the shop is live. Every other merge skips this step.
+      - name: Reset production if the PR asks for it
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if npx supabase migration list --linked | grep -q 20261106000000; then
-            echo "Production still has the pre-squash migrations: resetting it and running seed.sql."
-            npx supabase db reset --linked --yes
-          else
-            echo "Production is already on the squashed schema: nothing to reset."
+          # The PR this push merged (the one whose merge commit is this commit), and its labels.
+          labels=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+            --jq '.[] | select(.merge_commit_sha == env.GITHUB_SHA) | .labels[].name')
+          if ! grep -qx reset-production <<<"$labels"; then
+            echo "The merged PR isn't labelled reset-production: nothing to reset."
+            exit 0
           fi
+          echo "Labelled reset-production: resetting production and running seed.sql."
+          npx supabase db reset --linked --yes
       - name: Migrations that will be applied
         run: npx supabase db push --dry-run
       - name: Apply them
