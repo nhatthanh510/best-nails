@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BlockGiftCardForm, SellGiftCardForm, TopUpForm, UseGiftCard } from "@/components/admin/gift-card-forms";
 import { printGiftCardNodes, PrintedGiftCard } from "@/components/admin/printed-gift-card";
+import { useGiftCardFormat } from "@/lib/gift-card-format";
+import { GIFT_CARD_FORMATS } from "@/lib/gift-card-sheet";
 import { deleteGiftCard, unblockGiftCard } from "@/app/admin/gift-card-actions";
 import { giftCardBalanceUrl } from "@/lib/gift-card-link";
 import type { GiftCardStatus } from "@/lib/gift-cards";
@@ -48,11 +50,12 @@ export function GiftCardRowActions({ giftCard: v }: { giftCard: Row }) {
   const [printing, setPrinting] = useState(false);
   const [pending, start] = useTransition();
   const card = useRef<HTMLDivElement>(null);
+  const [format] = useGiftCardFormat();
 
   // Print draws the card off screen (synchronously, so it's there to copy), prints it, then drops it.
   const print = () => {
     flushSync(() => setPrinting(true));
-    if (card.current) printGiftCardNodes([card.current]);
+    if (card.current) printGiftCardNodes([card.current], format);
     setPrinting(false);
   };
 
@@ -129,7 +132,7 @@ export function GiftCardRowActions({ giftCard: v }: { giftCard: Row }) {
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={print}>
             <Printer aria-hidden="true" />
-            Print
+            Print {GIFT_CARD_FORMATS[format].name.toLowerCase()}
           </DropdownMenuItem>
           {(sold || v.neverUsed) && <DropdownMenuSeparator />}
           {sold && v.status !== "blocked" && (
@@ -191,7 +194,7 @@ export function GiftCardRowActions({ giftCard: v }: { giftCard: Row }) {
       {/* The card to print, drawn off screen only while printing. */}
       {printing && (
         <div aria-hidden="true" className="fixed top-0 -left-[10000px] w-[560px]">
-          <PrintedGiftCard ref={card} code={v.code} expiresOn={v.expiresOn} token={v.token} />
+          <PrintedGiftCard ref={card} code={v.code} expiresOn={v.expiresOn} token={v.token} format={format} />
         </div>
       )}
     </div>

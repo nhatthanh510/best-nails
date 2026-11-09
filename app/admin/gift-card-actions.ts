@@ -128,6 +128,22 @@ export async function previewGiftCardCodes(count: number): Promise<{ ok: true; c
   return { ok: true, codes: data };
 }
 
+export type PrintableGiftCardData = BlankGiftCard & { expiresOn: string | null };
+
+/**
+ * The chosen gift cards again, to print or download a new PDF (e.g. a batch's PDF was lost),
+ * in code order. Same codes and QR as before, so a reprint replaces a lost copy.
+ */
+export async function giftCardsToPrint(ids: string[]): Promise<{ ok: true; giftCards: PrintableGiftCardData[] } | { ok: false; message: string }> {
+  await requireAdmin();
+  const valid = (Array.isArray(ids) ? ids : []).filter((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+  if (!valid.length) return { ok: false, message: "Choose the gift cards to print." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("gift_cards").select("code, public_token, expires_on").in("id", valid).order("code");
+  if (error) return dbError(error) as { ok: false; message: string };
+  return { ok: true, giftCards: data.map((v) => ({ code: v.code, token: v.public_token, expiresOn: v.expires_on })) };
+}
+
 /** Saves the previewed codes as inactive gift cards; their QR tokens come back for printing. */
 export async function createInactiveGiftCards(codes: string[]): Promise<{ ok: true; giftCards: BlankGiftCard[] } | { ok: false; message: string }> {
   await requireAdmin();

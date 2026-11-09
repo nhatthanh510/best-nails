@@ -1,39 +1,39 @@
 /**
- * Gift cards as a PDF, for a shop without a printer: download it and print it elsewhere. Each
- * card (a PrintedGiftCard on the page, so the PDF matches the screen exactly) becomes a sharp image,
- * laid out on A4 like the printed sheet (`lib/gift-card-sheet.ts`): credit-card size, 2 × 5 to a
- * page, touching, with crop marks. One gift card goes in the first slot, the same size. The
- * libraries load only when someone downloads.
+ * Gift cards as a PDF: one card per page, each page the card plus a 2 mm bleed on every side
+ * (`cardPage` in `lib/gift-card-sheet.ts`: 94 × 59 mm for a business card, 152 × 109 mm for A6),
+ * the same pages as Print. Each card (a PrintedGiftCard on the page, so the PDF matches the screen
+ * exactly) becomes a sharp image placed at the trim size on a page filled with the cards' ivory
+ * (the bleed). The libraries load only when someone downloads.
  */
 
-import { A4, CARD, cardSlot, cropMarks, sheetPages } from "@/lib/gift-card-sheet";
+import { BLEED, BLEED_RGB, cardPage, GIFT_CARD_FORMATS, type GiftCardFormat } from "@/lib/gift-card-sheet";
 
-export async function downloadGiftCardPdf(cards: HTMLElement[], filename: string) {
+export async function downloadGiftCardPdf(cards: HTMLElement[], format: GiftCardFormat, filename: string) {
+  if (!cards.length) return;
   const [{ toJpeg }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
-  const pdf = new jsPDF({ unit: "mm", format: [A4.w, A4.h], compress: true });
+  const { card: trim } = GIFT_CARD_FORMATS[format];
+  const page = cardPage(format);
+  const orientation = page.w > page.h ? "landscape" : "portrait";
+  const pdf = new jsPDF({ unit: "mm", format: [page.w, page.h], orientation, compress: true });
 
   // About 400 dpi at the printed size, so the QR codes scan. The card's wrapper is captured;
-  // `data-capture` gives the card its printed edge (square corners, no outline; globals.css).
+  // `data-capture` gives the card its printed edge (square corners, no border; globals.css).
   const image = async (card: HTMLElement) => {
     const el = card.parentElement ?? card;
     el.dataset.capture = "";
     try {
-      return await toJpeg(el, { quality: 0.95, pixelRatio: Math.max(2, 1400 / el.offsetWidth), backgroundColor: "#ffffff" });
+      const px = (trim.w / 25.4) * 400;
+      return await toJpeg(el, { quality: 0.95, pixelRatio: Math.max(2, px / el.offsetWidth), backgroundColor: "#fbf8f2" });
     } finally {
       delete el.dataset.capture;
     }
   };
 
-  let index = 0;
-  for (const [p, page] of sheetPages(cards).entries()) {
-    if (p > 0) pdf.addPage();
-    for (const card of page) {
-      const { x, y } = cardSlot(index++);
-      pdf.addImage(await image(card), "JPEG", x, y, CARD.w, CARD.h);
-    }
-    pdf.setDrawColor(0);
-    pdf.setLineWidth(0.2);
-    for (const m of cropMarks(page.length)) pdf.line(m.x1, m.y1, m.x2, m.y2);
+  for (const [i, card] of cards.entries()) {
+    if (i > 0) pdf.addPage([page.w, page.h], orientation);
+    pdf.setFillColor(...BLEED_RGB);
+    pdf.rect(0, 0, page.w, page.h, "F");
+    pdf.addImage(await image(card), "JPEG", BLEED, BLEED, trim.w, trim.h);
   }
   pdf.save(filename);
 }

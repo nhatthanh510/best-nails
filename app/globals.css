@@ -270,10 +270,9 @@
 
 
 /* Printing gift cards (printGiftCardNodes in components/admin/printed-gift-card.tsx): copies of the
-   cards go into #print-root, and only that prints. Each [data-page] is one A4 sheet: credit-card-size
-   cards placed at their mm positions from lib/gift-card-sheet.ts (the PDF uses the same), touching,
-   with crop marks drawn by its SVG. The page has no margin, since the positions are from the
-   paper's edge; the cards and marks stay at least 6 mm in. */
+   cards go into #print-root, and only that prints. Each [data-page] is one page, the card plus a
+   2 mm ivory bleed (the root's own @page and inline sizes from lib/gift-card-sheet.ts), the same as
+   the PDF. The page has no margin, since the card's position is from the paper's edge. */
 @media screen {
   #print-root {
     display: none;
@@ -281,7 +280,6 @@
 }
 @media print {
   @page {
-    size: A4;
     margin: 0;
   }
   body:has(> #print-root) > :not(#print-root) {
@@ -291,35 +289,24 @@
     margin: 0;
     background: #fff;
   }
-  /* A hair under 297 mm, so rounding never spills a sheet onto an extra blank page. */
   #print-root > [data-page] {
     position: relative;
-    width: 210mm;
-    height: 296mm;
     overflow: hidden;
     break-after: page;
   }
   #print-root > [data-page]:last-child {
     break-after: auto;
   }
-  #print-root > [data-page] > svg {
-    position: absolute;
-    inset: 0;
-    width: 210mm;
-    height: 297mm;
-    stroke: #000;
-    stroke-width: 0.2;
-  }
   #print-root > [data-page] > div {
     position: absolute;
   }
 }
-/* The printed edge of a gift card: square corners and no outline, so the cuts along the crop marks
-   are straight and a cut slightly off shows only more ivory. Printing and the PDF capture
+/* The printed edge of a gift card: square corners and no outline, so the cut is straight and a cut
+   slightly off shows only more ivory. Printing and the PDF capture
    (data-capture, lib/gift-card-pdf.ts) use it; on screen the card keeps a card's rounded corners. */
 #print-root [data-printed-gift-card],
 [data-capture] [data-printed-gift-card] {
-  border-color: transparent;
+  border-width: 0;
   border-radius: 0;
 }
 
