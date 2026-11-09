@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { flushSync } from "react-dom";
+import { Printer, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/admin/action-button";
-import { deleteGiftCards } from "@/app/admin/gift-card-actions";
+import { DownloadGiftCardPdfButton, PrintedGiftCard, printedGiftCardsIn, printGiftCardNodes } from "@/components/admin/printed-gift-card";
+import { deleteGiftCards, giftCardsToPrint, type PrintableGiftCardData } from "@/app/admin/gift-card-actions";
+import { useGiftCardFormat } from "@/lib/gift-card-format";
+import { downloadGiftCardPdf } from "@/lib/gift-card-pdf";
+import { GIFT_CARD_FORMATS, isGiftCardFormat, type GiftCardFormat } from "@/lib/gift-card-sheet";
 
 /**
- * Choosing several gift cards in the list to delete at once. The rows stay server-rendered:
+ * Choosing several gift cards in the list to print again, download as a PDF again (when a batch's
+ * file is lost) or delete at once. The rows stay server-rendered:
  * each one that can be deleted has a plain checkbox (BulkCheckbox), and these two read and set
  * them in the list panel they're in, so a new page, filter or search starts with none chosen.
  */
@@ -64,7 +71,7 @@ export function BulkSelectAll() {
   );
 }
 
-/** Shown once any are chosen: how many, Clear, and Delete (after a confirmation). */
+/** Shown once any are chosen: how many, Clear, the card size, Print, PDF and Delete (after a confirmation). */
 export function BulkActions() {
   const ref = useRef<HTMLDivElement>(null);
   const [ids, setIds] = useState<string[]>([]);
@@ -87,6 +94,25 @@ export function BulkActions() {
     };
   }, []);
 
+  const [format, setFormat] = useGiftCardFormat();
+  const [cards, setCards] = useState<PrintableGiftCardData[]>([]);
+  const [printing, startPrint] = useTransition();
+  const sheet = useRef<HTMLDivElement>(null);
+
+  // Fetch the chosen cards and draw them off screen, then `output` prints or captures them.
+  const withCards = async (output: (nodes: HTMLElement) => Promise<void> | void) => {
+    try {
+      const result = await giftCardsToPrint(ids);
+      if (!result.ok) return void toast.error(result.message);
+      flushSync(() => setCards(result.giftCards));
+      if (sheet.current) await output(sheet.current);
+    } finally {
+      setCards([]);
+    }
+  };
+  const print = () => startPrint(() => withCards((el) => printGiftCardNodes([...el.children], format)));
+  const download = () => withCards((el) => downloadGiftCardPdf(printedGiftCardsIn(el), format, `gift-cards-${ids.length}-${format}.pdf`));
+
   const clear = () => {
     const panel = panelOf(ref.current);
     for (const b of boxes(panel)) b.checked = false;
@@ -103,10 +129,26 @@ export function BulkActions() {
           <Button type="button" variant="ghost" size="sm" onClick={clear}>
             Clear
           </Button>
+          <select
+            aria-label="Card size"
+            value={format}
+            onChange={(e) => isGiftCardFormat(e.target.value) && setFormat(e.target.value)}
+            className="ml-auto h-9 rounded-lg border border-input bg-card pr-8 pl-2.5 text-sm font-semibold"
+          >
+            {(Object.keys(GIFT_CARD_FORMATS) as GiftCardFormat[]).map((f) => (
+              <option key={f} value={f}>
+                {GIFT_CARD_FORMATS[f].name} ({GIFT_CARD_FORMATS[f].size})
+              </option>
+            ))}
+          </select>
+          <Button type="button" variant="outline" size="sm" pending={printing} onClick={print}>
+            <Printer aria-hidden="true" />
+            Print
+          </Button>
+          <DownloadGiftCardPdfButton size="sm" label="PDF" download={download} />
           <ConfirmButton
             variant="danger"
             size="sm"
-            className="ml-auto"
             title={`Delete ${ids.length} gift card${ids.length === 1 ? "" : "s"}?`}
             description="For blank cards that are lost or misprinted, or gift cards created by mistake (refund those at the till). Any that have been used are kept. This can't be undone."
             confirmLabel={`Delete ${ids.length}`}
@@ -115,6 +157,14 @@ export function BulkActions() {
             <Trash2 aria-hidden="true" />
             Delete {ids.length}
           </ConfirmButton>
+        </div>
+      )}
+      {/* The chosen cards, drawn off screen only while printing or making the PDF. */}
+      {cards.length > 0 && (
+        <div ref={sheet} aria-hidden="true" className="fixed top-0 -left-[10000px] flex w-[640px] flex-col gap-4">
+          {cards.map((v) => (
+            <PrintedGiftCard key={v.code} code={v.code} expiresOn={v.expiresOn} token={v.token} format={format} />
+          ))}
         </div>
       )}
     </div>

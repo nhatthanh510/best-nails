@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SellGiftCardButton } from "@/components/admin/gift-card-forms";
-import { printGiftCardNodes, PrintedGiftCard, printedGiftCardsIn } from "@/components/admin/printed-gift-card";
+import { DownloadGiftCardPdfButton, GiftCardFormatPicker, printGiftCardNodes, PrintedGiftCard, printedGiftCardsIn } from "@/components/admin/printed-gift-card";
+import { useGiftCardFormat } from "@/lib/gift-card-format";
 import { createInactiveGiftCards, previewGiftCardCodes, type BlankGiftCard } from "@/app/admin/gift-card-actions";
 import { downloadGiftCardPdf } from "@/lib/gift-card-pdf";
 import { cn } from "@/lib/utils";
@@ -93,11 +94,11 @@ function BlankCards({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [previewing, startPreview] = useTransition();
   const [saving, startSave] = useTransition();
-  const [downloading, startDownload] = useTransition();
   // Print once the saved cards are drawn (off screen, below); `n` asks again for each Print click.
   // The PDF is never automatic: Save shows a preview, and Download PDF makes it.
   const [printRequest, setPrintRequest] = useState(0);
   const sheet = useRef<HTMLDivElement>(null);
+  const [format] = useGiftCardFormat();
 
   const preview = (n: number) =>
     startPreview(async () => {
@@ -111,14 +112,15 @@ function BlankCards({ onDone }: { onDone: () => void }) {
   useEffect(() => preview(10), []);
 
   const cards = () => (sheet.current ? printedGiftCardsIn(sheet.current) : []);
-  const download = () =>
-    startDownload(async () => {
-      const list = cards();
-      if (list.length) await downloadGiftCardPdf(list, `blank-cards-${list.length}.pdf`);
-    });
+  const download = async () => {
+    const list = cards();
+    await downloadGiftCardPdf(list, format, `blank-cards-${list.length}-${format}.pdf`);
+  };
 
   useEffect(() => {
-    if (printRequest && sheet.current) printGiftCardNodes([...sheet.current.children]);
+    if (printRequest && sheet.current) printGiftCardNodes([...sheet.current.children], format);
+    // Only a new Print click prints, not a change of size.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [printRequest]);
 
   const [saveKind, setSaveKind] = useState<"pdf" | "print">("print");
@@ -146,15 +148,13 @@ function BlankCards({ onDone }: { onDone: () => void }) {
             {saved[0].code} to {saved.at(-1)!.code}. Each becomes Active when it&apos;s activated.
           </span>
         </div>
+        <GiftCardFormatPicker />
         <div className="grid grid-cols-2 gap-2">
           <Button type="button" variant="outline" onClick={() => setPrintRequest((n) => n + 1)}>
             <Printer aria-hidden="true" />
             Print
           </Button>
-          <Button type="button" variant="outline" pending={downloading} onClick={download}>
-            <Download aria-hidden="true" />
-            Download PDF
-          </Button>
+          <DownloadGiftCardPdfButton download={download} />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Link href="/admin/gift-cards?filter=inactive" onClick={onDone} className="text-sm font-bold text-primary hover:underline">
@@ -167,7 +167,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
         {/* The cards to print or capture: drawn off screen (a PDF needs them laid out), one per row. */}
         <div ref={sheet} aria-hidden="true" className="fixed top-0 -left-[10000px] flex w-[640px] flex-col gap-4">
           {saved.map((v) => (
-            <PrintedGiftCard key={v.code} code={v.code} expiresOn={null} token={v.token} />
+            <PrintedGiftCard key={v.code} code={v.code} expiresOn={null} token={v.token} format={format} />
           ))}
         </div>
       </div>
@@ -194,10 +194,12 @@ function BlankCards({ onDone }: { onDone: () => void }) {
             </button>
           ))}
         </div>
-        <p className="text-[13px] text-muted-foreground">10 fit on an A4 page, with a gap to cut between.</p>
       </fieldset>
 
+      <GiftCardFormatPicker />
       <PrintedGiftCard code={codes?.[0] ?? ""} expiresOn={null} token={null} className="mx-auto max-w-[280px]" />
+      <p className="-mt-2 text-center text-[13px] text-muted-foreground">
+        Print and the PDF have one card per page, with a 2 mm bleed for a print shop.</p>
 
       <section aria-labelledby="bc-codes" aria-busy={previewing} className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">

@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import { useFormSubmit } from "@/lib/use-form-submit";
 import { cleanNumber, numberInput } from "@/lib/number-input";
 import { AddRemoveToggle, type Direction } from "@/components/admin/add-remove-toggle";
-import { PrintGiftCardButton, PrintedGiftCard } from "@/components/admin/printed-gift-card";
+import { GiftCardFormatPicker, PrintGiftCardButton, PrintedGiftCard } from "@/components/admin/printed-gift-card";
 
 const segment = (active: boolean) =>
   cn(
@@ -306,6 +306,7 @@ function GiftCardCreated({ giftCard: v, onDone, onOpen }: { giftCard: CreatedGif
         {v.preprinted ? `Gift card ${v.code} activated · hand over the printed card` : `Gift card ${v.code} created · print it, or write the code on a card`}
       </p>
       <PrintedGiftCard ref={card} code={v.code} expiresOn={v.expiresOn || null} token={v.publicToken} className="mx-auto max-w-md" />
+      <GiftCardFormatPicker />
       <div className="grid grid-cols-2 gap-2">
         <Button type="button" variant="outline" onClick={copy}>
           {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
