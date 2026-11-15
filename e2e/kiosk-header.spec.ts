@@ -24,7 +24,7 @@ test.describe("Kiosk Staff menu: gift cards", () => {
     // The printable gift card, with the QR that opens its balance page.
     await expect(dialog.getByRole("img", { name: "QR code to check the balance" })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Print" })).toBeVisible();
-    await expect(dialog.getByText("$50.00 · take payment at the till")).toBeVisible();
+    await expect(dialog.getByText("$50 · take payment at the till")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Open gift card" })).toHaveCount(0);
 
     expect(await findGiftCard("QA20000001")).toMatchObject({ balance_cents: 5000, customer_id: customerId });

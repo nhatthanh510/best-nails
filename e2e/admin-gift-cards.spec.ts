@@ -148,7 +148,7 @@ test.describe("Admin: creating gift cards", () => {
     await page.getByRole("button", { name: "Create gift card", exact: true }).click();
     const dialog = await settled(page.getByRole("dialog", { name: "Create a gift card" }));
     await dialog.getByLabel("Code").fill("qa-4000-0002");
-    await dialog.getByRole("button", { name: /^Create \$100\.00 gift card$/ }).click();
+    await dialog.getByRole("button", { name: /^Create \$100 gift card$/ }).click();
     await expect(alert(page, "The code QA40000002 is already used.")).toBeVisible();
     await expect(dialog.getByLabel("Code")).toHaveValue("QA-4000-0002");
   });
