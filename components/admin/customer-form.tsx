@@ -71,6 +71,8 @@ export function CustomerForm({
           name="phone"
           type="tel"
           {...numberInput("phone")}
+          // Someone else's details: the browser shouldn't offer the staff member's own.
+          autoComplete="off"
           required
           autoFocus={!customer}
           placeholder="0412 345 678"
@@ -104,16 +106,20 @@ export function CustomerForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Label htmlFor="first_name">First name</Label>
-          <Input id="first_name" name="first_name" required maxLength={50} defaultValue={customer?.first_name} />
+          <Input id="first_name" name="first_name" autoComplete="off" required maxLength={50} defaultValue={customer?.first_name} />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="last_name">Last name</Label>
-          <Input id="last_name" name="last_name" maxLength={50} defaultValue={customer?.last_name ?? ""} />
+          <Label htmlFor="last_name">
+            Last name <span className="font-medium text-muted-foreground">(optional)</span>
+          </Label>
+          <Input id="last_name" name="last_name" autoComplete="off" maxLength={50} defaultValue={customer?.last_name ?? ""} />
         </div>
       </div>
       <fieldset className="flex flex-col gap-2">
         {/* Day before month, as on the kiosk and as dates are written in Australia. */}
-        <legend className="mb-2 text-sm font-bold">Birthday</legend>
+        <legend className="mb-2 text-sm font-bold">
+          Birthday <span className="font-medium text-muted-foreground">(optional)</span>
+        </legend>
         <div className="flex gap-3">
           <select name="birthday_day" aria-label="Birthday day" value={day} onChange={(e) => setDay(e.target.value)} className={selectClass}>
             <option value="">Day</option>
@@ -143,7 +149,9 @@ export function CustomerForm({
         </div>
       </fieldset>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="notes">Notes</Label>
+        <Label htmlFor="notes">
+          Notes <span className="font-medium text-muted-foreground">(optional)</span>
+        </Label>
         <Textarea id="notes" name="notes" rows={3} maxLength={2000} defaultValue={customer?.notes ?? ""} placeholder="Preferences, allergies…" />
       </div>
       {state && !state.ok && (

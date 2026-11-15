@@ -10,7 +10,7 @@ import { FormDialog } from "@/components/admin/form-dialog";
 import { GiftCardStatusPill } from "@/components/admin/gift-card-status";
 import { SellGiftCardForm, TopUpForm, UseGiftCard } from "@/components/admin/gift-card-forms";
 import { findGiftCard, type FindResult } from "@/app/admin/gift-card-actions";
-import { formatMoney } from "@/lib/gift-cards";
+import { formatDollars, formatMoney } from "@/lib/gift-cards";
 
 const dateLabel = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -67,7 +67,7 @@ export function FindGiftCard({
     });
   };
   const back = (
-    <button type="button" onClick={() => setMode("found")} className="flex w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline">
+    <button type="button" onClick={() => setMode("found")} className="-my-1.5 flex min-h-11 w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline">
       <ArrowLeft className="size-4" aria-hidden="true" />
       Back to {result?.ok ? result.giftCard.code : code}
     </button>
@@ -179,7 +179,7 @@ export function FindGiftCard({
             <div className="flex flex-col gap-1">
               <span className="text-[36px] leading-none font-extrabold tabular-nums">{formatMoney(v.balanceCents)}</span>
               <span className="text-sm text-muted-foreground">
-                left{v.loadedCents !== null && ` of ${formatMoney(v.loadedCents)} loaded`}
+                left{v.loadedCents !== null && ` of ${formatDollars(v.loadedCents)} loaded`}
                 {v.expiresOn && ` · ${v.status === "expired" ? "expired" : "valid until"} ${dateLabel(v.expiresOn)}`}
                 {v.customerName && ` · ${v.customerName}`}
               </span>
@@ -224,7 +224,7 @@ export function FindGiftCard({
           </div>
 
           {!onKiosk && (
-            <Link href={`/admin/gift-cards/${v.id}`} onClick={onDone} className="flex w-fit items-center gap-1 text-sm font-bold text-primary hover:underline">
+            <Link href={`/admin/gift-cards/${v.id}`} onClick={onDone} className="-my-1.5 flex min-h-11 w-fit items-center gap-1 text-sm font-bold text-primary hover:underline">
               Open its page: history, print, details
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>

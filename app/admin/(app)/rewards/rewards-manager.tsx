@@ -36,7 +36,7 @@ export function RewardsManager({ items }: { items: Item[] }) {
       </div>
       <p className="text-sm text-muted-foreground">
         A reward&apos;s points are also the visits it takes. Give it a cash discount to pay more to customers who pay cash for
-        those visits; the kiosk then asks &ldquo;Cash or card?&rdquo; at check-in.
+        those visits. The kiosk asks how each visit is paid at check-in.
       </p>
 
       {items.length === 0 && <p className="text-sm text-muted-foreground">No rewards yet.</p>}

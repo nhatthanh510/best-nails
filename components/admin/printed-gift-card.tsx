@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { useRef, useTransition } from "react";
 import { Download, ExternalLink, Printer, QrCode } from "lucide-react";
 import { encode } from "uqr";
@@ -88,8 +89,8 @@ function PromoCardFace({ code, expiry, qr, qrLabel }: { code: React.ReactNode; e
  * yet (`expiresOn` null): it starts at the sale. Two formats (`lib/gift-card-sheet.ts`): a
  * business card (90 × 55 mm, left-aligned like a bank card) and an A6 promo card (148 × 105 mm
  * landscape, `PromoCardFace`); without `format` it's the one last picked (`useGiftCardFormat`). Both
- * ivory with a gold double frame 3 mm in from the edge, in the serif wordmark and italic of the
- * app's headings. On screen it has a
+ * ivory with a gold double frame in from the edge and the logo as a faint watermark behind the QR,
+ * in the serif wordmark and italic of the app's headings. On screen it has a
  * card's rounded corners and a faint edge; printed (and in the PDF) it's square with no outline,
  * for straight cuts. Its own fixed colours, so it looks the same in the admin, on the kiosk and on
  * paper. Sizes are in container units (1cqw = 0.9 mm printed on a business card, 1.48 mm on A6):
@@ -133,10 +134,15 @@ export function PrintedGiftCard({
 
   return (
     <div ref={ref} className={cn("@container w-full", className)}>
-      <div data-printed-gift-card className={cn(face, "aspect-[90/55] justify-between rounded-[3.5cqw] px-[7.4cqw] py-[6.5cqw]")}>
+      <div
+        data-printed-gift-card
+        className={cn(face, "aspect-[90/55] justify-between rounded-[3.5cqw] bg-[radial-gradient(ellipse_at_80%_55%,rgb(201_162_74/0.14),transparent_60%)] px-[7.4cqw] py-[6.5cqw]")}
+      >
         {/* A double gold frame, 2 mm in from the edge: on a card this small 3 mm looked wide next to the A6 card. */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-[2.25cqw] rounded-[1.6cqw] border-[0.21cqw] border-gold" />
         <div aria-hidden="true" className="pointer-events-none absolute inset-[3.15cqw] rounded-[0.95cqw] border-[0.15cqw] border-gold/70" />
+        {/* The logo, large and faint, behind the QR, as on the promo card. */}
+        <BrandMark className="pointer-events-none absolute top-1/2 right-[2cqw] size-[50cqw] -translate-y-1/2 rounded-full opacity-[0.08]" sizes="320px" />
 
         {/* Left-aligned like a bank card: the brand top-left, the details bottom-left, the QR bottom-right. */}
         <div className="relative flex items-center gap-[2cqw]">
@@ -166,9 +172,34 @@ export function PrintedGiftCard({
   );
 }
 
-/** Business card or A6 promo card: what Print and Download PDF make, remembered on this device. */
-export function GiftCardFormatPicker({ className }: { className?: string }) {
+/**
+ * Business card or A6 promo card: what Print and Download PDF make, remembered on this device.
+ * `compact`: a slim two-way toggle that sits under a card preview (the create form), instead of
+ * two labelled tiles.
+ */
+export function GiftCardFormatPicker({ className, compact = false }: { className?: string; compact?: boolean }) {
   const [format, setFormat] = useGiftCardFormat();
+  if (compact) {
+    return (
+      <div role="group" aria-label="Card size" className={cn("grid grid-cols-2 rounded-[10px] bg-muted p-1", className)}>
+        {(Object.keys(GIFT_CARD_FORMATS) as GiftCardFormat[]).map((f) => (
+          <button
+            key={f}
+            type="button"
+            aria-pressed={format === f}
+            onClick={() => setFormat(f)}
+            title={GIFT_CARD_FORMATS[f].size}
+            className={cn(
+              "min-h-9 rounded-[7px] px-2 text-[13px] font-bold transition-colors",
+              format === f ? "bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {GIFT_CARD_FORMATS[f].name}
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
     <fieldset className={cn("flex flex-col gap-1.5", className)}>
       <legend className="mb-1.5 text-[13px] font-semibold">Card size</legend>
@@ -255,8 +286,17 @@ export function DownloadGiftCardPdfButton({
   className?: string;
 }) {
   const [pending, start] = useTransition();
+  // The PDF libraries load on demand, so a dropped connection fails here: say so, rather than
+  // letting the error take the page down.
+  const run = async () => {
+    try {
+      await download();
+    } catch {
+      toast.error("Couldn't make the PDF. Check the connection and try again, or use Print.");
+    }
+  };
   return (
-    <Button type="button" variant="outline" size={size} pending={pending} onClick={() => start(download)} className={className}>
+    <Button type="button" variant="outline" size={size} pending={pending} onClick={() => start(run)} className={className}>
       <Download aria-hidden="true" />
       {label}
     </Button>

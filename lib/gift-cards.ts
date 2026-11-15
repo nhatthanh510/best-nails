@@ -9,9 +9,21 @@ export type GiftCardStatus = "inactive" | "active" | "used_up" | "expired" | "bl
 
 const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
 
-/** 6500 → "$65.00". */
+/** 6500 → "$65.00". For amounts that can have cents (balances, uses), so a column lines up. */
 export function formatMoney(cents: number) {
   return money.format(cents / 100);
+}
+
+const wholeMoney = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
+
+/**
+ * 15000 → "$150", 6550 → "$65.50": no pointless ".00". For amounts that are whole dollars by rule
+ * (what a gift card is created, activated or topped up with, and what's been loaded on it) and for
+ * totals that stand on their own (Unused credit, "Paid with gift cards"); figures in a column that
+ * can have cents (balances, uses, history) keep formatMoney, so they line up.
+ */
+export function formatDollars(cents: number) {
+  return cents % 100 === 0 ? wholeMoney.format(cents / 100) : money.format(cents / 100);
 }
 
 /** "65", "65.5", "$65.50" or "1,000" → cents; null if it isn't a dollar amount. */
@@ -21,6 +33,16 @@ export function parseDollars(input: string): number | null {
   // Whole and fractional parts separately, so 0.29 doesn't become 28.999… cents.
   const [whole, fraction = ""] = s.split(".");
   return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+}
+
+/**
+ * The earliest expiry a gift card created today may have: 3 years from today in the shop's
+ * timezone (Australian Consumer Law), as YYYY-MM-DD. A 29 Feb today gives 28 Feb, as Postgres does.
+ * It's the forms' default and minimum; the database checks it again with the shop's own timezone.
+ */
+export function minGiftCardExpiry(timeZone = "Australia/Hobart", now = new Date()) {
+  const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now).split("-");
+  return `${Number(y) + 3}-${m}-${m === "02" && d === "29" ? "28" : d}`;
 }
 
 /** As the database stores and compares codes: upper-case letters and digits only. */
@@ -50,10 +72,11 @@ export const CODE_PREFIX_PATTERN = /^[A-Z]{2,4}$/;
 
 /** `today` is YYYY-MM-DD in the shop's timezone. */
 export function giftCardStatus(
-  v: { balance_cents: number; expires_on: string | null; blocked_at?: string | null },
+  v: { balance_cents: number; sold_on: string | null; expires_on: string | null; blocked_at?: string | null },
   today: string,
 ): GiftCardStatus {
-  if (v.expires_on === null) return "inactive";
+  // Not sold yet (a blank card): it gets its expiry when it's activated.
+  if (v.sold_on === null || v.expires_on === null) return "inactive";
   if (v.blocked_at) return "blocked";
   if (v.expires_on < today) return "expired";
   if (v.balance_cents === 0) return "used_up";

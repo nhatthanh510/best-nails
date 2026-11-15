@@ -31,12 +31,12 @@ test.describe("Admin: creating gift cards", () => {
     await page.getByRole("button", { name: "Create gift card", exact: true }).click();
     const dialog = await settled(page.getByRole("dialog", { name: "Create a gift card" }));
 
-    await dialog.getByLabel("Other amount in dollars").fill("75");
+    await dialog.getByLabel("Other amount in whole dollars").fill("75");
     await dialog.getByLabel("Code").fill("QA40000001");
     await dialog.getByLabel(/Customer phone/).fill("0491 570 140");
     await dialog.getByRole("button", { name: "Add a note" }).click();
     await dialog.getByLabel(/Notes/).fill("Bought by her sister");
-    await dialog.getByRole("button", { name: "Create $75.00 gift card" }).click();
+    await dialog.getByRole("button", { name: "Create $75 gift card" }).click();
 
     await expect(dialog.getByRole("status")).toContainText("QA40000001");
     await expect(dialog.getByText("Abby Card")).toBeVisible();
@@ -88,9 +88,9 @@ test.describe("Admin: creating gift cards", () => {
     await expect(dialog.getByLabel("Code")).not.toBeEditable();
     await expect(dialog.getByRole("button", { name: "Generate" })).toHaveCount(0);
     await dialog.getByRole("button", { name: "$50", exact: true }).click();
-    await dialog.getByRole("button", { name: "Activate $50.00 gift card" }).click();
+    await dialog.getByRole("button", { name: "Activate $50 gift card" }).click();
     // The page turns into the active gift card, with the reminder to take payment as a toast.
-    await expect(page.getByText("Activated QA40000020 for $50.00. Take payment at the till.")).toBeVisible();
+    await expect(page.getByText("Activated QA40000020 for $50. Take payment at the till.")).toBeVisible();
     await expect(dialog).toHaveCount(0);
     await expect(page.getByText("Active", { exact: true }).first()).toBeVisible();
 
@@ -121,8 +121,8 @@ test.describe("Admin: creating gift cards", () => {
     await page.getByRole("button", { name: "Top up" }).click();
     const dialog = await settled(page.getByRole("dialog", { name: "Top up QA40000023" }));
     await dialog.getByRole("button", { name: "$100", exact: true }).click();
-    await dialog.getByRole("button", { name: "Top up $100.00" }).click();
-    await expect(dialog.getByRole("status")).toContainText("Topped up QA40000023 with $100.00 · take payment at the till");
+    await dialog.getByRole("button", { name: "Top up $100" }).click();
+    await expect(dialog.getByRole("status")).toContainText("Topped up QA40000023 with $100 · take payment at the till");
     await expect(dialog.getByRole("status")).toContainText("$150.00");
     await dialog.getByRole("button", { name: "Done" }).click();
     await expect(page.getByText("Topped up", { exact: true })).toBeVisible();
@@ -172,7 +172,8 @@ test.describe("Admin: using gift cards", () => {
     await expect(dialog.getByText("$100.00 left")).toBeVisible();
     await dialog.getByLabel("Today's service").fill("40.50");
     await dialog.getByRole("button", { name: "Use $40.50" }).click();
-    await expect(page.getByText("Used $40.50 from QA41000001. $59.50 left.")).toBeVisible();
+    await expect(dialog.getByText("Used $40.50 from QA41000001")).toBeVisible();
+    await expect(dialog.getByText("$59.50")).toBeVisible();
     expect(await findGiftCard("QA41000001")).toMatchObject({ balance_cents: 5950 });
   });
 
@@ -187,7 +188,8 @@ test.describe("Admin: using gift cards", () => {
     await expect(dialog.getByLabel("Today's service")).toHaveValue("50.00");
     await expect(dialog.getByText("Uses all of it. Take $10.00 at the till.")).toBeVisible();
     await dialog.getByRole("button", { name: "Use $50.00" }).click();
-    await expect(page.getByText("Used $50.00 from QA41000002. $0.00 left. Take $10.00 at the till.")).toBeVisible();
+    await expect(dialog.getByText("Used $50.00 from QA41000002")).toBeVisible();
+    await expect(dialog.getByText("Take $10.00 at the till", { exact: true })).toBeVisible();
     expect(await findGiftCard("QA41000002")).toMatchObject({ balance_cents: 0 });
   });
 
@@ -311,7 +313,7 @@ test.describe("Admin: managing a gift card", () => {
     await expect(menu.getByRole("menuitem", { name: "Activate gift card" })).toHaveCount(0);
     await menu.getByRole("menuitem", { name: "Top up" }).click();
     const dialog = await settled(page.getByRole("dialog", { name: "Top up QA42000007" }));
-    await dialog.getByRole("button", { name: "Top up $50.00" }).click();
+    await dialog.getByRole("button", { name: "Top up $50" }).click();
     await expect(dialog.getByRole("status")).toContainText("$70.00");
     expect(await findGiftCard("QA42000007")).toMatchObject({ balance_cents: 7000 });
   });

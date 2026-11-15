@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, Download, Printer, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, Printer, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -14,6 +14,8 @@ import { downloadGiftCardPdf } from "@/lib/gift-card-pdf";
 import { cn } from "@/lib/utils";
 
 const COUNTS = [10, 20, 50];
+/** What one run can hold (`preview_gift_card_codes` and `create_inactive_gift_cards` check it too). */
+const MAX_COUNT = 100;
 
 const segment = (active: boolean) =>
   cn(
@@ -95,7 +97,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
   const [previewing, startPreview] = useTransition();
   const [saving, startSave] = useTransition();
   // Print once the saved cards are drawn (off screen, below); `n` asks again for each Print click.
-  // The PDF is never automatic: Save shows a preview, and Download PDF makes it.
+  // Saving only saves: the next step offers Print and Download PDF.
   const [printRequest, setPrintRequest] = useState(0);
   const sheet = useRef<HTMLDivElement>(null);
   const [format] = useGiftCardFormat();
@@ -111,6 +113,23 @@ function BlankCards({ onDone }: { onDone: () => void }) {
   // The first preview, for the default count.
   useEffect(() => preview(10), []);
 
+  // "Other": what's typed in its box, kept apart from `count` so "5" on the way to "50" doesn't
+  // jump to the 50 preset. Its codes are fetched once typing pauses, not on every key.
+  const [other, setOther] = useState<string | null>(null);
+  const otherTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(otherTimer.current), []);
+  const typeOther = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 3);
+    setOther(digits);
+    clearTimeout(otherTimer.current);
+    const n = Number(digits);
+    if (!digits || n < 1 || n > MAX_COUNT) return;
+    setCount(n);
+    otherTimer.current = setTimeout(() => preview(n), 400);
+  };
+  const otherCount = other === null || other === "" ? null : Number(other);
+  const otherInvalid = otherCount !== null && (otherCount < 1 || otherCount > MAX_COUNT);
+
   const cards = () => (sheet.current ? printedGiftCardsIn(sheet.current) : []);
   const download = async () => {
     const list = cards();
@@ -123,17 +142,14 @@ function BlankCards({ onDone }: { onDone: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [printRequest]);
 
-  const [saveKind, setSaveKind] = useState<"pdf" | "print">("print");
-  // Save & PDF saves and shows the cards; the PDF is only made when Download PDF is clicked.
-  const save = (kind: "pdf" | "print") =>
+  // One step: save them as Not sold, then choose Print or Download PDF on the screen that follows.
+  const save = () =>
     startSave(async () => {
-      setSaveKind(kind);
       if (!codes) return;
       const result = await createInactiveGiftCards(codes);
       if (!result.ok) return setError(result.message);
       setError(null);
       setSaved(result.giftCards);
-      if (kind === "print") setPrintRequest(1);
     });
 
   if (saved) {
@@ -148,7 +164,7 @@ function BlankCards({ onDone }: { onDone: () => void }) {
             {saved[0].code} to {saved.at(-1)!.code}. Each becomes Active when it&apos;s activated.
           </span>
         </div>
-        <GiftCardFormatPicker />
+        {/* The size was picked on the form; Print and the PDF use it. */}
         <div className="grid grid-cols-2 gap-2">
           <Button type="button" variant="outline" onClick={() => setPrintRequest((n) => n + 1)}>
             <Printer aria-hidden="true" />
@@ -175,71 +191,90 @@ function BlankCards({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-semibold">How many?</legend>
-        <div className="grid grid-cols-3 gap-2">
-          {COUNTS.map((n) => (
-            <button
-              key={n}
-              type="button"
-              aria-pressed={count === n}
-              onClick={() => {
-                setCount(n);
-                preview(n);
-              }}
-              className={segment(count === n)}
+    // Like the create form: from a wide dialog (`data-wide-form`) the preview sits beside the
+    // choices and codes, so it fits without scrolling; narrower, it's one column.
+    <div data-wide-form className="@container flex flex-col gap-4">
+      <div className="grid gap-4 @2xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] @2xl:gap-7">
+        {/* The card as it will be printed, in the size picked here. */}
+        <div className="flex flex-col gap-2.5 @2xl:sticky @2xl:top-0 @2xl:self-start">
+          <PrintedGiftCard code={codes?.[0] ?? ""} expiresOn={null} token={null} className="mx-auto max-w-[280px] @2xl:max-w-none" />
+          <GiftCardFormatPicker compact className="mx-auto w-full max-w-[280px] @2xl:max-w-none" />
+          <p className="text-center text-[13px] text-muted-foreground">One card per page, with a 2 mm bleed for a print shop.</p>
+        </div>
+        <div className="flex flex-col gap-4">
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-2 text-sm font-semibold">How many?</legend>
+            <div className="grid grid-cols-4 gap-2">
+              {COUNTS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  aria-pressed={other === null && count === n}
+                  onClick={() => {
+                    clearTimeout(otherTimer.current);
+                    setOther(null);
+                    setCount(n);
+                    preview(n);
+                  }}
+                  className={segment(other === null && count === n)}
+                >
+                  {n}
+                </button>
+              ))}
+              <input
+                aria-label={`Other number of cards, 1 to ${MAX_COUNT}`}
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={3}
+                placeholder="Other"
+                value={other ?? ""}
+                onChange={(e) => typeOther(e.target.value)}
+                aria-invalid={otherInvalid || undefined}
+                className={cn(
+                  "min-h-11 w-full min-w-0 rounded-[10px] border bg-card px-3 text-center text-sm font-bold tabular-nums outline-none placeholder:font-medium placeholder:text-placeholder focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive",
+                  other !== null && !otherInvalid && other !== "" ? "border-primary ring-1 ring-primary" : "border-input",
+                )}
+              />
+            </div>
+            {otherInvalid && <p className="text-[13px] font-semibold text-destructive">Between 1 and {MAX_COUNT} at a time.</p>}
+          </fieldset>
+          <section aria-labelledby="bc-codes" aria-busy={previewing} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 id="bc-codes" className="text-sm font-semibold">
+                Codes {codes && <span className="font-medium text-muted-foreground">({codes.length})</span>}
+              </h3>
+              <Button type="button" variant="ghost" size="sm" onClick={() => preview(count)} disabled={previewing || saving}>
+                <RefreshCw className={cn(previewing && "animate-spin")} aria-hidden="true" />
+                New codes
+              </Button>
+            </div>
+            <ol
+              className={cn(
+                "grid max-h-52 grid-cols-2 gap-x-4 gap-y-1 overflow-y-auto rounded-xl border border-border bg-background px-4 py-3 sm:grid-cols-3",
+                previewing && "opacity-50",
+              )}
             >
-              {n}
-            </button>
-          ))}
+              {(codes ?? Array.from({ length: count }, () => "")).map((code, i) => (
+                <li key={code || i} className="flex items-baseline gap-2 py-0.5">
+                  <span className="w-5 text-right text-[11px] text-muted-foreground tabular-nums">{i + 1}</span>
+                  <span className="font-mono text-sm font-bold tracking-wider">{code || "··········"}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-[13px] text-muted-foreground">Nothing is saved until you press Save. Then print them or download a PDF.</p>
+          </section>
         </div>
-      </fieldset>
-
-      <GiftCardFormatPicker />
-      <PrintedGiftCard code={codes?.[0] ?? ""} expiresOn={null} token={null} className="mx-auto max-w-[280px]" />
-      <p className="-mt-2 text-center text-[13px] text-muted-foreground">
-        Print and the PDF have one card per page, with a 2 mm bleed for a print shop.</p>
-
-      <section aria-labelledby="bc-codes" aria-busy={previewing} className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <h3 id="bc-codes" className="text-sm font-semibold">
-            Codes {codes && <span className="font-medium text-muted-foreground">({codes.length})</span>}
-          </h3>
-          <Button type="button" variant="ghost" size="sm" onClick={() => preview(count)} disabled={previewing || saving}>
-            <RefreshCw className={cn(previewing && "animate-spin")} aria-hidden="true" />
-            New codes
-          </Button>
-        </div>
-        <ol
-          className={cn(
-            "grid max-h-52 grid-cols-2 gap-x-4 gap-y-1 overflow-y-auto rounded-xl border border-border bg-background px-4 py-3 sm:grid-cols-3",
-            previewing && "opacity-50",
-          )}
-        >
-          {(codes ?? Array.from({ length: count }, () => "")).map((code, i) => (
-            <li key={code || i} className="flex items-baseline gap-2 py-0.5">
-              <span className="w-5 text-right text-[11px] text-muted-foreground tabular-nums">{i + 1}</span>
-              <span className="font-mono text-sm font-bold tracking-wider">{code || "··········"}</span>
-            </li>
-          ))}
-        </ol>
-        <p className="text-[13px] text-muted-foreground">Nothing is saved until you choose Save &amp; PDF or Save &amp; print.</p>
-      </section>
+      </div>
 
       {error && (
         <p role="alert" className="text-sm font-semibold text-destructive">
           {error}
         </p>
       )}
-      <div className="sticky -bottom-4 -mx-4 -mb-4 grid grid-cols-2 gap-2 border-t border-border bg-popover px-4 pt-3 pb-4">
-        <Button type="button" variant="outline" size="lg" pending={saving && saveKind === "pdf"} disabled={!codes || previewing || saving} onClick={() => save("pdf")}>
-          <Download aria-hidden="true" />
-          Save &amp; PDF
-        </Button>
-        <Button type="button" size="lg" pending={saving && saveKind === "print"} disabled={!codes || previewing || saving} onClick={() => save("print")}>
-          <Printer aria-hidden="true" />
-          Save &amp; print
+      <div className="sticky -bottom-4 -mx-4 -mb-4 border-t border-border bg-popover px-4 pt-3 pb-4">
+        <Button type="button" size="lg" pending={saving} disabled={!codes || codes.length !== count || previewing || saving || otherInvalid || other === ""} onClick={save} className="w-full">
+          <Check aria-hidden="true" />
+          {saving ? "Saving…" : otherInvalid || other === "" ? "Save blank cards" : `Save ${codes?.length ?? count} blank cards`}
         </Button>
       </div>
     </div>

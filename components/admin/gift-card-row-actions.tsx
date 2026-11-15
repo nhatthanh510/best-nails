@@ -34,7 +34,7 @@ type Open = "use" | "top_up" | "create" | "block" | "delete" | null;
 const TITLES: Record<Exclude<Open, null>, (code: string) => { title: string; description: string }> = {
   use: (code) => ({ title: `Use ${code}`, description: "Take today's service off this gift card." }),
   top_up: (code) => ({ title: `Top up ${code}`, description: "Put more money on a gift card the customer already has. Take payment at the till as usual." }),
-  create: (code) => ({ title: `Activate ${code}`, description: "Take payment at the till as usual. The gift card is valid for 3 years." }),
+  create: (code) => ({ title: `Activate ${code}`, description: "Take payment at the till as usual." }),
   block: (code) => ({ title: `Block ${code}?`, description: "If it's lost or stolen, so nobody else can use it. The balance is kept, and you can unblock it later." }),
   delete: (code) => ({ title: `Delete ${code}?`, description: "For a gift card created by mistake (refund it at the till) or a blank card that's lost or spoiled. This can't be undone." }),
 };

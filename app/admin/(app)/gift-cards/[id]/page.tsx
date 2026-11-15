@@ -17,7 +17,7 @@ import { deleteGiftCard, unblockGiftCard } from "@/app/admin/gift-card-actions";
 import { PrintableGiftCard } from "@/components/admin/printed-gift-card";
 import { requireAdmin } from "@/lib/auth";
 import { getGiftCard, getSettings, giftCardCode, staffNames, type GiftCardRow, type GiftCardTransaction } from "@/lib/admin-data";
-import { formatMoney } from "@/lib/gift-cards";
+import { formatDollars, formatMoney } from "@/lib/gift-cards";
 import { formatDate, formatTime, fullName } from "@/lib/format";
 
 // The kiosk changes what this page shows, so it's never cached: a click waits for fresh data with
@@ -144,7 +144,7 @@ async function GiftCardDetail({ params }: { params: PageProps<"/admin/gift-cards
               {formatMoney(v.balance_cents)}
             </span>
             <span className="text-sm text-muted-foreground">
-              of {formatMoney(loaded)} loaded · {formatMoney(used)} used
+              of {formatDollars(loaded)} loaded · {formatMoney(used)} used
             </span>
           </div>
 
@@ -190,19 +190,18 @@ async function GiftCardDetail({ params }: { params: PageProps<"/admin/gift-cards
           {/* Only the till actions that fit: Use needs a balance; Top up works on an active or used-up gift card. */}
           {(v.status === "active" || v.status === "used_up") && (
             <div className="grid grid-cols-2 gap-2">
-              {v.status === "active" && (
-                <UseThisGiftCardButton
-                  giftCard={{
-                    ok: true,
-                    id: v.id,
-                    code: v.code,
-                    balanceCents: v.balance_cents,
-                    amountCents: loaded,
-                    expiresOn,
-                    customerName: v.customer ? fullName(v.customer) : null,
-                  }}
-                />
-              )}
+              <UseThisGiftCardButton
+                available={v.status === "active"}
+                giftCard={{
+                  ok: true,
+                  id: v.id,
+                  code: v.code,
+                  balanceCents: v.balance_cents,
+                  amountCents: loaded,
+                  expiresOn,
+                  customerName: v.customer ? fullName(v.customer) : null,
+                }}
+              />
               <TopUpButton
                 code={v.code}
                 size="lg"
@@ -333,8 +332,8 @@ function NotSoldGiftCard({ giftCard: v, printedBy, tz, isAdmin }: { giftCard: Gi
           </div>
           <p className="text-sm text-muted-foreground">
             A blank card printed {formatDate(v.created_at, tz, { day: "numeric", month: "short", year: "numeric" })} by {printedBy}. It has no balance
-            until a customer buys it: activate it with the amount they pay. Its 3 years start that day, and the QR code on the card then shows the
-            balance.
+            until a customer buys it: activate it with the amount they pay and its expiry, at least 3 years from that day. The QR code on the card then
+            shows the balance.
           </p>
           <SellGiftCardButton code={v.code} className="w-full" />
         </Card>

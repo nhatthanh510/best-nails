@@ -16,6 +16,7 @@ import {
   generateGiftCardCode,
   sellGiftCard,
   spendGiftCard,
+  type SpendState,
   updateGiftCard,
   topUpGiftCard,
   blockGiftCard,
@@ -25,7 +26,7 @@ import {
   type SellState,
 } from "@/app/admin/gift-card-actions";
 import type { ActionState } from "@/app/admin/actions";
-import { formatMoney, GIFT_CARD_PRESETS, parseDollars } from "@/lib/gift-cards";
+import { formatDollars, formatMoney, GIFT_CARD_PRESETS, minGiftCardExpiry, parseDollars } from "@/lib/gift-cards";
 import { formatPhoneInput } from "@/lib/phone-mask";
 import { cn } from "@/lib/utils";
 import { GiftCardStatusPill } from "@/components/admin/gift-card-status";
@@ -65,7 +66,7 @@ export function SellGiftCardButton({ variant, code, className }: { variant?: "de
       variant={variant}
       className={className}
       title={code ? `Activate ${code}` : "Create a gift card"}
-      description="Take payment at the till as usual. The gift card is valid for 3 years."
+      description="Take payment at the till as usual."
       trigger={
         <>
           {code ? <Gift aria-hidden="true" /> : <Plus aria-hidden="true" />}
@@ -82,9 +83,25 @@ export function SellGiftCardButton({ variant, code, className }: { variant?: "de
  * The gift card page's main action: opens the use form for that gift card. The page already has
  * its balance, so the dialog opens complete instead of growing (and re-centring) after a check.
  */
-export function UseThisGiftCardButton({ giftCard }: { giftCard: Extract<GiftCardCheck, { ok: true }> }) {
+export function UseThisGiftCardButton({
+  giftCard,
+  available = true,
+}: {
+  giftCard: Extract<GiftCardCheck, { ok: true }>;
+  /**
+   * False once nothing is left to use: the button goes, but the dialog stays mounted, so the result
+   * of the use that emptied the gift card (and what to take at the till) is still shown until Done.
+   */
+  available?: boolean;
+}) {
   return (
-    <FormDialog title={`Use ${giftCard.code}`} description="Take today's service off this gift card." size="lg" trigger={<><WalletCards aria-hidden="true" />Use</>}>
+    <FormDialog
+      title={`Use ${giftCard.code}`}
+      description="Take today's service off this gift card."
+      size="lg"
+      className={available ? undefined : "hidden"}
+      trigger={<><WalletCards aria-hidden="true" />Use</>}
+    >
       {(close) => <UseGiftCard code={giftCard.code} initialCheck={giftCard} onDone={close} />}
     </FormDialog>
   );
@@ -93,45 +110,104 @@ export function UseThisGiftCardButton({ giftCard }: { giftCard: Extract<GiftCard
 /**
  * The amount for a new gift card or added value: the presets and "Other" are one row of choices, so
  * a typed amount reads as the custom one (a separate full-width box would repeat the selected
- * preset). It posts `amount` in dollars.
+ * preset). Whole dollars only, as gift cards are sold in round amounts. It posts `amount` in dollars.
  */
 function AmountPicker({ amount, onChange, legend = "Amount" }: { amount: string; onChange: (amount: string) => void; legend?: string }) {
   const cents = parseDollars(amount);
-  // Anything other than a preset (including an empty box being typed into) is the "Other" amount.
-  const isOther = !GIFT_CARD_PRESETS.some((p) => p === cents) && amount !== "";
+  // Whether the amount came from the Other box. Kept as its own state, not worked out from the
+  // amount: "50" on the way to "500" equals a preset, and must stay in the box while it's typed.
+  const [typed, setTyped] = useState(() => amount !== "" && !GIFT_CARD_PRESETS.some((p) => p === cents));
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="mb-2 text-sm font-semibold">{legend}</legend>
       <input type="hidden" name="amount" value={amount} />
       <div className="grid grid-cols-4 gap-2">
         {GIFT_CARD_PRESETS.map((p) => (
-          <button key={p} type="button" aria-pressed={cents === p} onClick={() => onChange(String(p / 100))} className={segment(cents === p)}>
-            {formatMoney(p).replace(".00", "")}
+          <button
+            key={p}
+            type="button"
+            aria-pressed={!typed && cents === p}
+            onClick={() => {
+              setTyped(false);
+              onChange(String(p / 100));
+            }}
+            className={segment(!typed && cents === p)}
+          >
+            {formatDollars(p)}
           </button>
         ))}
         <label
           className={cn(
             "flex min-h-11 min-w-0 items-center gap-1 rounded-[10px] border px-2.5 text-sm font-bold focus-within:ring-3 focus-within:ring-ring/50",
-            isOther ? "border-primary bg-card" : "border-input bg-card",
+            typed && amount !== "" ? "border-primary bg-card" : "border-input bg-card",
           )}
         >
           <span className="text-muted-foreground" aria-hidden="true">
             $
           </span>
           <input
-            aria-label="Other amount in dollars"
-            {...numberInput("money")}
-            maxLength={7}
+            aria-label="Other amount in whole dollars"
+            {...numberInput("digits")}
+            maxLength={4}
             autoComplete="off"
             placeholder="Other"
-            value={isOther ? amount : ""}
-            onChange={(e) => onChange(cleanNumber("money", e.target.value))}
-            className="w-full min-w-0 bg-transparent tabular-nums outline-none placeholder:font-semibold placeholder:text-muted-foreground"
+            value={typed ? amount : ""}
+            onChange={(e) => {
+              setTyped(true);
+              onChange(cleanNumber("digits", e.target.value));
+            }}
+            className="w-full min-w-0 bg-transparent tabular-nums outline-none placeholder:font-medium placeholder:text-placeholder"
           />
         </label>
       </div>
-      {isOther && cents !== null && cents < 100 && <p className="text-[13px] font-semibold text-destructive">At least $1.</p>}
+      {typed && cents !== null && cents < 100 && <p className="text-[13px] font-semibold text-destructive">At least $1.</p>}
     </fieldset>
+  );
+}
+
+/**
+ * The expiry to create gift cards with: 3 years from today by default (the legal minimum), and
+ * any later date. `name` posts it as YYYY-MM-DD.
+ */
+export function GiftCardExpiryField({
+  id,
+  value,
+  onChange,
+  name,
+  label = "Valid until",
+  hint = "At least 3 years from today, as Australian law requires.",
+  autoFocus,
+}: {
+  autoFocus?: boolean;
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  name?: string;
+  label?: string;
+  hint?: React.ReactNode;
+}) {
+  const min = minGiftCardExpiry();
+  const tooSoon = value !== "" && value < min;
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        name={name}
+        type="date"
+        required
+        autoFocus={autoFocus}
+        min={min}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={tooSoon || undefined}
+        aria-describedby={`${id}-hint`}
+        className="w-full sm:w-56"
+      />
+      <p id={`${id}-hint`} className={cn("text-[13px]", tooSoon ? "font-semibold text-destructive" : "text-muted-foreground")}>
+        {tooSoon ? "Pick a date at least 3 years from today." : hint}
+      </p>
+    </div>
   );
 }
 
@@ -165,6 +241,9 @@ export function SellGiftCardForm({
 }) {
   const router = useRouter();
   const [amount, setAmount] = useState("100");
+  // Set here, also when activating a blank card (printed without an expiry): 3 years by default.
+  const [expiresOn, setExpiresOn] = useState(() => minGiftCardExpiry());
+  const expiryOk = expiresOn !== "" && expiresOn >= minGiftCardExpiry();
   const [code, setCode] = useState(defaultCode);
   const [codeError, setCodeError] = useState<string | null>(null);
   // Notes are rare, so they open on demand and the form fits an iPad screen without scrolling.
@@ -205,76 +284,88 @@ export function SellGiftCardForm({
     );
   }
   return (
-    <form {...formSubmit} className="flex flex-col gap-4">
-      {/* What the printed gift card will look like, as the code is chosen. */}
-      <PrintedGiftCard code={code.trim()} expiresOn={null} token={null} className="mx-auto max-w-[300px]" />
-      <AmountPicker amount={amount} onChange={setAmount} />
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="gv-code">Code</Label>
-        <div className="flex gap-2">
-          <Input
-            id="gv-code"
-            name="code"
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            maxLength={40}
-            required
-            readOnly={activate}
-            placeholder={generating ? "Generating…" : "Number on the card"}
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            className={cn(
-              "font-mono text-base tracking-wider uppercase placeholder:font-sans placeholder:tracking-normal placeholder:normal-case",
-              activate && "bg-muted text-muted-foreground focus-visible:ring-0",
-            )}
-          />
-          {!activate && (
-            <Button type="button" variant="outline" onClick={generate} disabled={generating}>
-              <RefreshCw className={cn(generating && "animate-spin")} aria-hidden="true" />
-              Generate
-            </Button>
+    // From a wide dialog (lg; `data-wide-form` widens it, see components/ui/dialog.tsx) the preview
+    // sits beside the fields, so the form fits without scrolling; narrower, it's one column.
+    <form {...formSubmit} data-wide-form className="@container flex flex-col gap-4">
+      <div className="grid gap-4 @2xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] @2xl:gap-7">
+        {/* What the printed gift card will look like, in the size it will be printed. */}
+        <div className="flex flex-col gap-2.5 @2xl:sticky @2xl:top-0 @2xl:self-start">
+          <PrintedGiftCard code={code.trim()} expiresOn={expiresOn || null} token={null} className="mx-auto max-w-[300px] @2xl:max-w-none" />
+          {/* Picked here, before it's created; the Created screen's Print uses it. */}
+          <GiftCardFormatPicker compact className="mx-auto w-full max-w-[300px] @2xl:max-w-none" />
+        </div>
+        {/* The fields most gift cards need first; the rarely changed ones after. */}
+        <div className="flex flex-col gap-4">
+          <AmountPicker amount={amount} onChange={setAmount} />
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="gv-code">Code</Label>
+            <div className="flex gap-2">
+              <Input
+                id="gv-code"
+                name="code"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                maxLength={40}
+                required
+                readOnly={activate}
+                placeholder={generating ? "Generating…" : "Number on the card"}
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                className={cn(
+                  "font-mono text-base tracking-wider uppercase placeholder:font-sans placeholder:tracking-normal placeholder:normal-case",
+                  activate && "bg-muted text-muted-foreground focus-visible:ring-0",
+                )}
+              />
+              {!activate && (
+                <Button type="button" variant="outline" onClick={generate} disabled={generating}>
+                  <RefreshCw className={cn(generating && "animate-spin")} aria-hidden="true" />
+                  Generate
+                </Button>
+              )}
+            </div>
+            <p className={cn("text-[13px]", codeError ? "font-semibold text-destructive" : "text-muted-foreground")}>
+              {codeError ??
+                (activate ? "The code printed on this blank card. It stays the same." : "Type the number printed on the gift card, or press Generate.")}
+            </p>
+          </div>
+          {phoneKnown ? (
+            <input type="hidden" name="phone" value={defaultPhone} />
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="gv-phone">
+                Customer phone <span className="font-medium text-muted-foreground">(optional)</span>
+              </Label>
+              <Input id="gv-phone" name="phone" type="tel" {...numberInput("phone")} placeholder="0412 345 678" defaultValue={defaultPhone} />
+              <p className="text-[13px] text-muted-foreground">Leave blank for a present for someone who isn&apos;t a member yet.</p>
+            </div>
+          )}
+          <GiftCardExpiryField id="gv-expires" name="expires_on" value={expiresOn} onChange={setExpiresOn} />
+          {showNotes ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="gv-notes">
+                Notes <span className="font-medium text-muted-foreground">(optional)</span>
+              </Label>
+              <Textarea id="gv-notes" name="notes" rows={2} maxLength={500} autoFocus placeholder="e.g. Bought by Sarah for her mum" />
+            </div>
+          ) : (
+            <button type="button" onClick={() => setShowNotes(true)} className="flex min-h-11 w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline">
+              <Plus className="size-4" aria-hidden="true" />
+              Add a note
+            </button>
           )}
         </div>
-        <p className={cn("text-[13px]", codeError ? "font-semibold text-destructive" : "text-muted-foreground")}>
-          {codeError ??
-            (activate ? "The code printed on this blank card. It stays the same." : "Type the number printed on the gift card, or press Generate.")}
-        </p>
       </div>
-      {phoneKnown ? (
-        <input type="hidden" name="phone" value={defaultPhone} />
-      ) : (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="gv-phone">
-            Customer phone <span className="font-medium text-muted-foreground">(optional)</span>
-          </Label>
-          <Input id="gv-phone" name="phone" type="tel" {...numberInput("phone")} placeholder="0412 345 678" defaultValue={defaultPhone} />
-          <p className="text-[13px] text-muted-foreground">Leave blank for a present for someone who isn&apos;t a member yet.</p>
-        </div>
-      )}
-      {showNotes ? (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="gv-notes">
-            Notes <span className="font-medium text-muted-foreground">(optional)</span>
-          </Label>
-          <Textarea id="gv-notes" name="notes" rows={2} maxLength={500} autoFocus placeholder="e.g. Bought by Sarah for her mum" />
-        </div>
-      ) : (
-        <button type="button" onClick={() => setShowNotes(true)} className="flex min-h-11 w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline">
-          <Plus className="size-4" aria-hidden="true" />
-          Add a note
-        </button>
-      )}
       <FormError state={state} />
       {/* Kept in view at the bottom of the dialog, however short the screen. */}
       <div className="sticky -bottom-4 -mx-4 -mb-4 border-t border-border bg-popover px-4 pt-3 pb-4">
-        <Button type="submit" size="lg" pending={pending} disabled={cents === null || cents < 100 || !code.trim()} className="w-full">
+        <Button type="submit" size="lg" pending={pending} disabled={cents === null || cents < 100 || !code.trim() || !expiryOk} className="w-full">
           <Gift aria-hidden="true" />
           {pending
             ? activate
               ? "Activating…"
               : "Creating…"
-            : `${activate ? "Activate" : "Create"} ${cents && cents >= 100 ? `${formatMoney(cents)} gift card` : "gift card"}`}
+            : `${activate ? "Activate" : "Create"} ${cents && cents >= 100 ? `${formatDollars(cents)} gift card` : "gift card"}`}
         </Button>
       </div>
     </form>
@@ -306,7 +397,6 @@ function GiftCardCreated({ giftCard: v, onDone, onOpen }: { giftCard: CreatedGif
         {v.preprinted ? `Gift card ${v.code} activated · hand over the printed card` : `Gift card ${v.code} created · print it, or write the code on a card`}
       </p>
       <PrintedGiftCard ref={card} code={v.code} expiresOn={v.expiresOn || null} token={v.publicToken} className="mx-auto max-w-md" />
-      <GiftCardFormatPicker />
       <div className="grid grid-cols-2 gap-2">
         <Button type="button" variant="outline" onClick={copy}>
           {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
@@ -316,7 +406,7 @@ function GiftCardCreated({ giftCard: v, onDone, onOpen }: { giftCard: CreatedGif
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
         <dt className="text-muted-foreground">Amount</dt>
-        <dd className="font-bold">{formatMoney(v.amountCents)} · take payment at the till</dd>
+        <dd className="font-bold">{formatDollars(v.amountCents)} · take payment at the till</dd>
         {v.customerName && (
           <>
             <dt className="text-muted-foreground">For</dt>
@@ -364,7 +454,10 @@ export function UseGiftCard({
   code?: string;
   customerId?: string;
   compact?: boolean;
-  /** Called after a successful spend, e.g. to close the dialog. */
+  /**
+   * Closes the dialog the form is in. With it, a successful use stays on screen (what's left, and
+   * what to take at the till) until Done; without it (a customer's page) the result is a toast.
+   */
   onDone?: () => void;
   /** Who is using it, e.g. the number typed on the kiosk. */
   defaultPhone?: string;
@@ -379,7 +472,7 @@ export function UseGiftCard({
   const [tillCents, setTillCents] = useState(0);
   const [checking, startCheck] = useTransition();
 
-  const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
+  const [state, formAction, pending] = useActionState(async (prev: SpendState, fd: FormData) => {
     const result = await spendGiftCard(prev, fd);
     if (result?.ok) {
       setAmount("");
@@ -389,7 +482,8 @@ export function UseGiftCard({
     }
     return result;
   }, null);
-  useActionToast(state, { onSuccess: onDone });
+  // Errors are printed in the form (a toast fades before it's read, away from the field).
+  useActionToast(state, { errors: false, success: !onDone });
 
   const runCheck = (value = code) => {
     if (!value.trim()) return;
@@ -412,6 +506,32 @@ export function UseGiftCard({
   const over = cents !== null && cents > balance;
 
   const formSubmit = useFormSubmit(state, formAction);
+  if (onDone && state?.ok && state.used) {
+    const u = state.used;
+    return (
+      <div className="flex flex-col gap-4">
+        <div role="status" className="flex flex-col items-center gap-2 rounded-xl bg-success-soft px-4 py-5 text-center">
+          <span className="flex size-10 items-center justify-center rounded-full bg-success text-background">
+            <Check className="size-5" aria-hidden="true" />
+          </span>
+          <span className="text-sm font-bold text-success">
+            Used {formatMoney(u.spentCents)} from {u.code}
+          </span>
+          <span className="text-[34px] leading-tight font-extrabold tabular-nums">{formatMoney(u.balanceCents)}</span>
+          <span className="text-sm text-muted-foreground">Left on the gift card</span>
+        </div>
+        {u.tillCents > 0 && (
+          <p className="flex items-center justify-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-center text-[15px] font-bold text-warning">
+            <TriangleAlert className="size-4.5 flex-none" aria-hidden="true" />
+            Take {formatMoney(u.tillCents)} at the till
+          </p>
+        )}
+        <Button type="button" size="lg" onClick={onDone} autoFocus className="self-end">
+          Done
+        </Button>
+      </div>
+    );
+  }
   return (
     <form {...formSubmit} className="flex flex-col gap-3.5">
       {customerId && <input type="hidden" name="customer_id" value={customerId} />}
@@ -422,7 +542,7 @@ export function UseGiftCard({
               <Link href={`/admin/gift-cards/${g.id}`} className="flex min-w-0 flex-col gap-0.5 hover:underline">
                 <span className="font-mono text-sm font-bold tracking-wider">{g.code}</span>
                 <span className="text-[13px] text-muted-foreground">
-                  {g.status === "active" ? `${formatMoney(g.balanceCents)} left of ${formatMoney(g.amountCents)}` : `of ${formatMoney(g.amountCents)}`}
+                  {g.status === "active" ? `${formatMoney(g.balanceCents)} left of ${formatDollars(g.amountCents)}` : `of ${formatDollars(g.amountCents)}`}
                 </span>
               </Link>
               {g.status === "active" ? (
@@ -493,7 +613,7 @@ export function UseGiftCard({
                 <span className="font-mono text-sm font-bold whitespace-nowrap text-muted-foreground">{check.code}</span>
               </span>
               <span className="text-sm text-muted-foreground">
-                of {formatMoney(check.amountCents)} · expires {dateLabel(check.expiresOn)}
+                of {formatDollars(check.amountCents)} · expires {dateLabel(check.expiresOn)}
                 {check.customerName && ` · ${check.customerName}`}
               </span>
             </div>
@@ -582,6 +702,7 @@ export function UseGiftCard({
           </div>
         </div>
       )}
+      <FormError state={state} />
     </form>
   );
 }
@@ -668,6 +789,7 @@ export function AdjustGiftCardForm({ id, balanceCents }: { id: string; balanceCe
         <Input name="amount" aria-label="Amount in dollars" {...numberInput("money")} maxLength={7} autoComplete="off" value={amount} onChange={(e) => setAmount(cleanNumber("money", e.target.value))} className="pl-7 tabular-nums" />
       </div>
       <Textarea name="note" rows={2} maxLength={200} required aria-label="Reason" placeholder="Reason, saved to the history" />
+      {preview < 0 && <p className="text-sm font-semibold text-destructive">Only {formatMoney(preview + cents)} on the gift card.</p>}
       <FormError state={state} />
       <Button type="submit" pending={pending} disabled={cents <= 0 || preview < 0} className="self-end">
         {cents > 0 ? `Save · new balance ${formatMoney(preview)}` : "Save"}
@@ -732,7 +854,7 @@ export function TopUpForm({ code: fixedCode, onDone }: { code?: string; onDone: 
             <Check className="size-5" aria-hidden="true" />
           </span>
           <span className="text-sm font-bold text-success">
-            Topped up {t.code} with {formatMoney(t.addedCents)} · take payment at the till
+            Topped up {t.code} with {formatDollars(t.addedCents)} · take payment at the till
           </span>
           <span className="text-[34px] leading-tight font-extrabold tabular-nums">{formatMoney(t.balanceCents)}</span>
           <span className="text-sm text-muted-foreground">New balance · valid until {dateLabel(t.expiresOn)}</span>
@@ -769,7 +891,7 @@ export function TopUpForm({ code: fixedCode, onDone }: { code?: string; onDone: 
       <FormError state={state} />
       <Button type="submit" size="lg" pending={pending} disabled={cents === null || cents < 100 || !code.trim()} className="w-full">
         <Plus aria-hidden="true" />
-        {pending ? "Topping up…" : cents && cents >= 100 ? `Top up ${formatMoney(cents)}` : "Top up"}
+        {pending ? "Topping up…" : cents && cents >= 100 ? `Top up ${formatDollars(cents)}` : "Top up"}
       </Button>
     </form>
   );

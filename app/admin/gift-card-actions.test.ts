@@ -54,6 +54,8 @@ describe("sellGiftCard (GA-01)", () => {
   it("needs at least $1 and a code", async () => {
     expect(await sell({ amount: "0.50" })).toEqual({ ok: false, message: "Enter the gift card amount, e.g. 100." });
     expect(await sell({ amount: "abc" })).toEqual({ ok: false, message: "Enter the gift card amount, e.g. 100." });
+    // Whole dollars only: the Amount box doesn't take cents.
+    expect(await sell({ amount: "100.50" })).toEqual({ ok: false, message: "Enter a whole dollar amount, e.g. 100." });
     expect(await sell({ code: "  " })).toEqual({ ok: false, message: "Enter the code on the gift card, or press Generate." });
     expect(h.db.client.rpc).not.toHaveBeenCalled();
   });
@@ -70,7 +72,7 @@ describe("sellGiftCard (GA-01)", () => {
     h.service.next.query = { data: { expires_on: "2029-10-26", public_token: "abcdefghijklmnopqrstuv" }, error: null };
     expect(await sell({ amount: "$150", notes: "For mum" })).toEqual({
       ok: true,
-      message: "Created QA12345678 for $150.00. Take payment at the till.",
+      message: "Created QA12345678 for $150. Take payment at the till.",
       href: "/admin/gift-cards/v1",
       giftCard: { id: "v1", code: "QA12345678", amountCents: 15000, expiresOn: "2029-10-26", publicToken: "abcdefghijklmnopqrstuv", preprinted: false, customerName: "Alice Ng" },
     });
@@ -80,6 +82,13 @@ describe("sellGiftCard (GA-01)", () => {
       p_customer_id: "c1",
       p_notes: "For mum",
     });
+  });
+
+  it("passes a picked expiry date to the database", async () => {
+    h.db.next.rpc = { data: { id: "v1", code: "QA12345678" }, error: null };
+    h.service.next.query = { data: { expires_on: "2031-01-31", public_token: "abcdefghijklmnopqrstuv" }, error: null };
+    expect(await sell({ expires_on: "2031-01-31" })).toMatchObject({ ok: true, giftCard: { expiresOn: "2031-01-31" } });
+    expect(h.db.client.rpc).toHaveBeenCalledWith("sell_gift_card", expect.objectContaining({ p_expires_on: "2031-01-31" }));
   });
 
   it("shows the database's reason, e.g. a code already used", async () => {
@@ -148,6 +157,8 @@ describe("spendGiftCard (GA-02)", () => {
     expect(await spend({ amount: "20", till: "15.00" })).toEqual({
       ok: true,
       message: "Used $20.00 from QA12345678. $0.00 left. Take $15.00 at the till.",
+      // What the Use dialog keeps on screen until Done.
+      used: { code: "QA12345678", spentCents: 2000, balanceCents: 0, tillCents: 1500 },
     });
     expect(h.db.client.rpc).toHaveBeenCalledWith("spend_gift_card", { p_code: "QA12345678", p_amount_cents: 2000, p_customer_id: undefined, p_note: undefined });
   });

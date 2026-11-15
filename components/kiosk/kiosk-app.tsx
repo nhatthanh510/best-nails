@@ -23,12 +23,12 @@ import { lockKiosk } from "@/app/kiosk/pin-actions";
 import {
   AlreadyScreen,
   EnterScreen,
-  ErrorScreen,
   FoundScreen,
   KioskHeader,
   PaymentScreen,
   RedeemedScreen,
   ServicesScreen,
+  SignedOutScreen,
   SignupScreen,
   StaffScreen,
   SuccessScreen,
@@ -48,14 +48,17 @@ type Visit = { from: Extract<Screen, { name: "found" | "signup" }>; signup?: Sig
 export type Screen =
   | { name: "enter" }
   | { name: "found"; customer: KioskCustomer }
-  | { name: "signup"; formattedPhone: string; nonStandard: boolean; initial?: SignupInput }
+  | { name: "signup"; formattedPhone: string; nonStandard: boolean; initial?: SignupInput; picks?: VisitPicks }
   | { name: "services"; visit: Visit }
   | { name: "staff"; visit: Visit }
   | { name: "payment"; visit: Visit }
   | { name: "success"; result: Extract<CheckInResult, { status: "checked_in" }>; summary: VisitSummary }
   | { name: "already"; result: Extract<CheckInResult, { status: "already_checked_in" }> }
   | { name: "redeemed"; result: Extract<RedeemResult, { status: "redeemed" }> }
-  | { name: "error"; message: string };
+  /** Only when the kiosk has been signed out: anything else is shown on the step it happened on. */
+  | { name: "signed_out" };
+
+const OFFLINE = "We can't reach rewards right now. Please try again.";
 
 /** How long "Still there?" counts down before the idle reset (at most half the idle time). */
 const WARNING_SECONDS = 15;
@@ -71,6 +74,8 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   const [digits, setDigitsRaw] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [redeemError, setRedeemError] = useState<string | null>(null);
+  // A check-in that didn't go through: shown on the payment step, which keeps everything picked.
+  const [checkInError, setCheckInError] = useState<string | null>(null);
   const setDigits = useCallback((next: string | ((d: string) => string)) => {
     setPhoneError(null);
     setDigitsRaw(next);
@@ -96,7 +101,9 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     setWarningLeft(null);
     setDigits("");
     setRedeemError(null);
+    setCheckInError(null);
     setGiftCardOpen(false);
+    setSigningOut(false);
     setAskingPin(false);
     setStaffMenu(false);
     // In case staff walked away with the Staff menu open: lock the gift card actions again.
@@ -118,6 +125,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
       setDigitsRaw("");
       setPhoneError(null);
       setRedeemError(null);
+      setCheckInError(null);
       setGiftCardOpen(false);
       setSigningOut(false);
       setAskingPin(false);
@@ -134,7 +142,8 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   // automatic return: no screen has a countdown of its own.
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const warningShown = warningLeft !== null;
-  const staffOpen = giftCardOpen || staffMenu;
+  // Sign out's confirm and the PIN prompt count too: left open, they'd wait for the next customer.
+  const staffOpen = giftCardOpen || staffMenu || signingOut || askingPin;
   useEffect(() => {
     if (warningShown) return;
     const atRest = screen.name === "enter" && digits === "";
@@ -174,8 +183,9 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   const handleResult = (result: CheckInResult, summary: VisitSummary) => {
     if (result.status === "checked_in") setScreen({ name: "success", result, summary });
     else if (result.status === "already_checked_in") setScreen({ name: "already", result });
-    else if (result.status === "error") setScreen({ name: "error", message: result.message });
-    else setScreen({ name: "error", message: "We couldn't find that number. Please try again." });
+    else if (result.status === "error" && result.signedOut) setScreen({ name: "signed_out" });
+    // Anything else stays on the payment step with what was picked, so trying again is one tap.
+    else setCheckInError(result.status === "error" ? result.message : "We couldn't find that number. Please start over.");
   };
 
 
@@ -193,16 +203,18 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
         }
         else if (result.status === "not_found")
           setScreen({ name: "signup", formattedPhone: result.formattedPhone, nonStandard: result.nonStandard });
-        else if (result.status === "invalid_phone") setPhoneError(result.message);
-        else setScreen({ name: "error", message: result.message });
+        else if (result.status === "error" && result.signedOut) setScreen({ name: "signed_out" });
+        // The number stays on the keypad, so Continue tries again.
+        else setPhoneError(result.message);
       } catch {
-        setScreen({ name: "error", message: "We can't reach rewards right now." });
+        setPhoneError(OFFLINE);
       }
     });
   };
 
   const submitCheckIn = (visit: Visit) => {
     if (pending) return;
+    setCheckInError(null);
     const summary: VisitSummary = {
       services: content.services.flatMap((c) => c.services).filter((sv) => visit.serviceIds.includes(sv.id)).map((sv) => sv.name),
       technician: content.technicians.find((t) => t.id === visit.technicianId)?.name,
@@ -219,7 +231,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
           summary,
         );
       } catch {
-        setScreen({ name: "error", message: "We can't reach rewards right now." });
+        setCheckInError(OFFLINE);
       }
     });
   };
@@ -231,8 +243,9 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   const hasServices = content.services.length > 0;
   const hasStaff = content.technicians.length > 0;
   const cashReward = content.rewards.find(hasCashBonus) ?? null;
-  const startVisit = (from: Visit["from"], signup?: SignupInput) => {
-    const visit: Visit = { from, signup, serviceIds: [], technicianId: null, paymentMethod: null };
+  const startVisit = (from: Visit["from"], signup?: SignupInput, picks?: VisitPicks) => {
+    // `picks`: what a new customer had chosen before going back to the sign-up form.
+    const visit: Visit = { from, signup, serviceIds: [], technicianId: null, ...picks, paymentMethod: null };
     if (hasServices) setScreen({ name: "services", visit });
     else afterServices(visit);
   };
@@ -244,9 +257,15 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
     setScreen({ name: "payment", visit });
   };
   const backFrom = (step: "services" | "staff" | "payment", visit: Visit) => {
+    setCheckInError(null);
     if (step === "payment" && hasStaff) setScreen({ name: "staff", visit });
     else if (step !== "services" && hasServices) setScreen({ name: "services", visit });
-    else if (visit.from.name === "signup") setScreen({ ...visit.from, initial: visit.signup });
+    else if (visit.from.name === "signup")
+      setScreen({
+        ...visit.from,
+        initial: visit.signup,
+        picks: { serviceIds: visit.serviceIds, technicianId: visit.technicianId, paymentMethod: null },
+      });
     else reset();
   };
 
@@ -276,7 +295,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
         if (result.status === "redeemed") setScreen({ name: "redeemed", result });
         else setRedeemError(result.message);
       } catch {
-        setRedeemError("We can't reach rewards right now. Please ask the front desk.");
+        setRedeemError(OFFLINE);
       }
     });
   };
@@ -286,7 +305,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
   // An Effect Event sees the latest digits (for Enter) without re-subscribing on every keypress.
   const onKeyboard = useEffectEvent((e: KeyboardEvent) => {
     // "Still there?" is up: only its buttons do anything.
-    if (warningLeft !== null || askingPin || staffMenu) return;
+    if (warningLeft !== null || askingPin || staffMenu || signingOut) return;
     if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable], [role=dialog], [role=alertdialog]")) return;
     if (/^[0-9]$/.test(e.key)) setDigits((d) => (d.length < MAX_KIOSK_DIGITS ? d + e.key : d));
     else if (e.key === "Backspace") setDigits((d) => d.slice(0, -1));
@@ -407,7 +426,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
             birthday={content.birthday}
             pending={pending}
             initial={screen.initial}
-            onSubmit={(signup) => startVisit({ ...screen, initial: undefined }, signup)}
+            onSubmit={(signup) => startVisit({ ...screen, initial: undefined, picks: undefined }, signup, screen.picks)}
             onBack={reset}
           />
         );
@@ -454,6 +473,7 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
           <PaymentScreen
             reward={cashReward}
             pending={pending}
+            error={checkInError}
             onPick={(method) => {
               const next = { ...visit, paymentMethod: method };
               setScreen({ name: "payment", visit: next });
@@ -477,8 +497,8 @@ export function KioskApp({ content, isAdmin }: { content: KioskContent; isAdmin:
         return <AlreadyScreen result={screen.result} timezone={content.timezone} onDone={reset} {...redeemProps} />;
       case "redeemed":
         return <RedeemedScreen result={screen.result} timezone={content.timezone} onDone={reset} />;
-      case "error":
-        return <ErrorScreen message={screen.message} onDone={reset} />;
+      case "signed_out":
+        return <SignedOutScreen />;
     }
   }
 }
