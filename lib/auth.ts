@@ -9,13 +9,11 @@ export type Staff = {
   displayName: string;
   role: Database["public"]["Enums"]["staff_role"];
   email: string;
-  /** Signed in with a password an admin set (new account or reset): choose their own before anything else. */
-  mustChangePassword: boolean;
   /** Signed in from a "forgot password" email link, so they can set a new one without the old one. */
   fromResetLink: boolean;
 };
 
-type Claims = { sub?: string; email?: string; app_metadata?: { temp_password?: boolean }; amr?: { method: string }[] };
+type Claims = { sub?: string; email?: string; amr?: { method: string }[] };
 
 /**
  * The signed-in account, or null. Verifies the JWT rather than trusting the cookie. Two roles:
@@ -42,7 +40,6 @@ export const getStaff = cache(async (): Promise<Staff | null> => {
     displayName: staff.display_name,
     role: staff.role,
     email: claims.email ?? "",
-    mustChangePassword: claims.app_metadata?.temp_password === true,
     fromResetLink: claims.amr?.some((a) => a.method === "recovery") ?? false,
   };
 });
@@ -54,7 +51,6 @@ export const getStaff = cache(async (): Promise<Staff | null> => {
 export async function requireAdmin(): Promise<Staff> {
   const staff = await getStaff();
   if (!staff) redirect("/admin/login");
-  if (staff.mustChangePassword) redirect("/account");
   if (staff.role !== "admin") redirect("/kiosk");
   return staff;
 }
@@ -66,7 +62,6 @@ export async function requireAdmin(): Promise<Staff> {
 export async function requireSignedIn(): Promise<Staff> {
   const staff = await getStaff();
   if (!staff) redirect("/admin/login");
-  if (staff.mustChangePassword) redirect("/account");
   return staff;
 }
 

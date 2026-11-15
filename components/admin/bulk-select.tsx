@@ -15,7 +15,7 @@ import { GIFT_CARD_FORMATS, isGiftCardFormat, type GiftCardFormat } from "@/lib/
 /**
  * Choosing several gift cards in the list to print again, download as a PDF again (when a batch's
  * file is lost) or delete at once. The rows stay server-rendered:
- * each one that can be deleted has a plain checkbox (BulkCheckbox), and these two read and set
+ * each one that can be deleted has a plain checkbox (BulkCheckbox), and these read and set
  * them in the list panel they're in, so a new page, filter or search starts with none chosen.
  */
 
@@ -72,17 +72,28 @@ export function BulkSelectAll() {
 }
 
 /** Shown once any are chosen: how many, Clear, the card size, Print, PDF and Delete (after a confirmation). */
-export function BulkActions() {
+export function BulkActions({ batch }: { batch?: string[] } = {}) {
   const ref = useRef<HTMLDivElement>(null);
-  const [ids, setIds] = useState<string[]>([]);
+  const [ticked, setIds] = useState<string[]>([]);
+  const last = useRef<string[]>([]);
+  // Every box on the page is ticked (the moment to offer the rest of the batch).
+  const [allOnPage, setAllOnPage] = useState(false);
+  // "Choose all in this batch": the ticked cards stand for every card of `batch` that can be chosen.
+  const [wholeBatch, setWholeBatch] = useState(false);
 
   useEffect(() => {
     const panel = panelOf(ref.current);
     if (!panel) return;
     const sync = () => {
-      const next = boxes(panel).filter((b) => b.checked).map((b) => b.value);
+      const all = boxes(panel);
+      const next = all.filter((b) => b.checked).map((b) => b.value);
+      setAllOnPage(all.length > 0 && next.length === all.length);
       // Only on a real change: this bar's own render is a DOM change the observer sees too.
-      setIds((prev) => (prev.join() === next.join() ? prev : next));
+      if (last.current.join() === next.join()) return;
+      last.current = next;
+      setIds(next);
+      // Changing the ticks by hand goes back to just what's ticked.
+      setWholeBatch(false);
     };
     sync();
     panel.addEventListener("change", sync);
@@ -94,29 +105,17 @@ export function BulkActions() {
     };
   }, []);
 
-  const [format, setFormat] = useGiftCardFormat();
-  const [cards, setCards] = useState<PrintableGiftCardData[]>([]);
-  const [printing, startPrint] = useTransition();
-  const sheet = useRef<HTMLDivElement>(null);
-
-  // Fetch the chosen cards and draw them off screen, then `output` prints or captures them.
-  const withCards = async (output: (nodes: HTMLElement) => Promise<void> | void) => {
-    try {
-      const result = await giftCardsToPrint(ids);
-      if (!result.ok) return void toast.error(result.message);
-      flushSync(() => setCards(result.giftCards));
-      if (sheet.current) await output(sheet.current);
-    } finally {
-      setCards([]);
-    }
-  };
-  const print = () => startPrint(() => withCards((el) => printGiftCardNodes([...el.children], format)));
-  const download = () => withCards((el) => downloadGiftCardPdf(printedGiftCardsIn(el), format, `gift-cards-${ids.length}-${format}.pdf`));
+  const ids = wholeBatch && batch ? batch : ticked;
+  const moreInBatch = !wholeBatch && allOnPage && !!batch && batch.length > ticked.length;
+  const { format, setFormat, printing, print: printCards, download: downloadCards, offscreen } = useGiftCardPrinting();
+  const print = () => printCards(ids);
+  const download = () => downloadCards(ids, `gift-cards-${ids.length}`);
 
   const clear = () => {
     const panel = panelOf(ref.current);
     for (const b of boxes(panel)) b.checked = false;
     panel?.dispatchEvent(new Event("change"));
+    setWholeBatch(false);
   };
 
   return (
@@ -124,8 +123,14 @@ export function BulkActions() {
       {ids.length > 0 && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-accent/60 px-4 py-2">
           <span className="text-sm font-bold">
-            {ids.length} chosen
+            {wholeBatch ? `All ${ids.length} in this batch chosen` : `${ids.length} chosen`}
           </span>
+          {/* As in email apps: the page's ticks can stand for the whole batch, across pages. */}
+          {moreInBatch && (
+            <Button type="button" variant="link" size="sm" onClick={() => setWholeBatch(true)} className="px-1">
+              Choose all {batch!.length} in this batch
+            </Button>
+          )}
           <Button type="button" variant="ghost" size="sm" onClick={clear}>
             Clear
           </Button>
@@ -159,14 +164,43 @@ export function BulkActions() {
           </ConfirmButton>
         </div>
       )}
-      {/* The chosen cards, drawn off screen only while printing or making the PDF. */}
-      {cards.length > 0 && (
-        <div ref={sheet} aria-hidden="true" className="fixed top-0 -left-[10000px] flex w-[640px] flex-col gap-4">
-          {cards.map((v) => (
-            <PrintedGiftCard key={v.code} code={v.code} expiresOn={v.expiresOn} token={v.token} format={format} />
-          ))}
-        </div>
-      )}
+      {offscreen}
     </div>
   );
+}
+
+/**
+ * Printing or downloading a PDF of saved gift cards by id, in the size chosen on this device (the
+ * same codes and QR as before, so a reprint replaces a lost copy). Render `offscreen` somewhere: the
+ * cards are drawn there, off screen, only while printing or making the PDF.
+ */
+export function useGiftCardPrinting() {
+  const [format, setFormat] = useGiftCardFormat();
+  const [cards, setCards] = useState<PrintableGiftCardData[]>([]);
+  const [printing, startPrint] = useTransition();
+  const sheet = useRef<HTMLDivElement>(null);
+
+  // Fetch the cards and draw them off screen, then `output` prints or captures them.
+  const withCards = async (ids: string[], output: (nodes: HTMLElement) => Promise<void> | void) => {
+    try {
+      const result = await giftCardsToPrint(ids);
+      if (!result.ok) return void toast.error(result.message);
+      flushSync(() => setCards(result.giftCards));
+      if (sheet.current) await output(sheet.current);
+    } finally {
+      setCards([]);
+    }
+  };
+  const print = (ids: string[]) => startPrint(() => withCards(ids, (el) => printGiftCardNodes([...el.children], format)));
+  const download = (ids: string[], name: string) => withCards(ids, (el) => downloadGiftCardPdf(printedGiftCardsIn(el), format, `${name}-${format}.pdf`));
+
+  const offscreen =
+    cards.length > 0 ? (
+      <div ref={sheet} aria-hidden="true" className="fixed top-0 -left-[10000px] flex w-[640px] flex-col gap-4">
+        {cards.map((v) => (
+          <PrintedGiftCard key={v.code} code={v.code} expiresOn={v.expiresOn} token={v.token} format={format} />
+        ))}
+      </div>
+    ) : null;
+  return { format, setFormat, printing, print, download, offscreen };
 }

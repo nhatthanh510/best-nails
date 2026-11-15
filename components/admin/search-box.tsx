@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LoaderCircle, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { startNavProgress } from "./nav-progress";
+import { announceTyping } from "./instant-filter";
 
 const DEBOUNCE_MS = 300;
 
@@ -12,7 +13,9 @@ const DEBOUNCE_MS = 300;
  * A GET search form that also searches as you type. Hidden inputs passed as children (filter,
  * sort…) are kept, and the page goes back to 1. Enter searches straight away, and without
  * JavaScript it's a plain form. `replace` keeps each keystroke out of the Back history, and the
- * transition keeps the current list on screen (and the input focused) while results load.
+ * transition keeps the current list on screen (and the input focused) while results load. Each
+ * keystroke is also announced to the list panel, so a list with an InstantFilter narrows the rows
+ * already on screen straight away.
  */
 export function SearchBox({
   action,
@@ -85,7 +88,8 @@ export function SearchBox({
         defaultValue={defaultValue}
         placeholder={placeholder}
         autoComplete="off"
-        onChange={() => {
+        onChange={(e) => {
+          announceTyping(e.currentTarget, e.currentTarget.value);
           clearTimeout(timer.current);
           timer.current = setTimeout(search, DEBOUNCE_MS);
         }}

@@ -109,6 +109,20 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"gift_card_batches": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"gift_card_transactions": {
                   Row: {
                     "balance_after_cents": number,"created_at": string,"created_by": string | null,"customer_id": string | null,"delta_cents": number,"gift_card_id": string,"id": string,"kind": Database["public"]['Enums']["gift_card_entry"],"note": string | null,"seq": number,"undoes": string | null,"voided_at": string | null,"voided_by": string | null
@@ -143,17 +157,23 @@ isOneToOne: false
                   ]
                 },"gift_cards": {
                   Row: {
-                    "amount_cents": number | null,"balance_cents": number,"blocked_at": string | null,"blocked_by": string | null,"blocked_reason": string | null,"code": string,"created_at": string,"customer_id": string | null,"expires_on": string | null,"id": string,"notes": string | null,"public_token": string,"sold_by": string | null,"sold_on": string | null,"updated_at": string
+                    "amount_cents": number | null,"balance_cents": number,"batch_id": string | null,"blocked_at": string | null,"blocked_by": string | null,"blocked_reason": string | null,"code": string,"created_at": string,"customer_id": string | null,"expires_on": string | null,"id": string,"notes": string | null,"public_token": string,"sold_by": string | null,"sold_on": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount_cents"?: number | null,"balance_cents": number,"blocked_at"?: string | null,"blocked_by"?: string | null,"blocked_reason"?: string | null,"code": string,"created_at"?: string,"customer_id"?: string | null,"expires_on"?: string | null,"id"?: string,"notes"?: string | null,"public_token"?: string,"sold_by"?: string | null,"sold_on"?: string | null,"updated_at"?: string
+                    "amount_cents"?: number | null,"balance_cents": number,"batch_id"?: string | null,"blocked_at"?: string | null,"blocked_by"?: string | null,"blocked_reason"?: string | null,"code": string,"created_at"?: string,"customer_id"?: string | null,"expires_on"?: string | null,"id"?: string,"notes"?: string | null,"public_token"?: string,"sold_by"?: string | null,"sold_on"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "amount_cents"?: number | null,"balance_cents"?: number,"blocked_at"?: string | null,"blocked_by"?: string | null,"blocked_reason"?: string | null,"code"?: string,"created_at"?: string,"customer_id"?: string | null,"expires_on"?: string | null,"id"?: string,"notes"?: string | null,"public_token"?: string,"sold_by"?: string | null,"sold_on"?: string | null,"updated_at"?: string
+                    "amount_cents"?: number | null,"balance_cents"?: number,"batch_id"?: string | null,"blocked_at"?: string | null,"blocked_by"?: string | null,"blocked_reason"?: string | null,"code"?: string,"created_at"?: string,"customer_id"?: string | null,"expires_on"?: string | null,"id"?: string,"notes"?: string | null,"public_token"?: string,"sold_by"?: string | null,"sold_on"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
+      foreignKeyName: "gift_cards_batch_id_fkey"
+      columns: ["batch_id"]
+isOneToOne: false
+      referencedRelation: "gift_card_batches"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "gift_cards_customer_id_fkey"
       columns: ["customer_id"]
 isOneToOne: false

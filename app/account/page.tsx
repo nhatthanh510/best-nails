@@ -11,8 +11,8 @@ import { PasswordForm } from "./password-form";
 
 export const metadata = { title: "Your account" };
 
-// Any account, admin or staff, changes its own password here. It's also where a temporary
-// password (set by an admin) and a "forgot password" link send people to choose a new one.
+// Any account, admin or staff, changes its own password here. It's also where a "forgot
+// password" link sends people to choose a new one.
 export default function AccountPage() {
   return (
     <main className="flex flex-1 items-center justify-center bg-background px-4 py-12">
@@ -34,17 +34,15 @@ async function Account() {
   await connection();
   const me = await getStaff();
   if (!me) redirect("/admin/login?next=/account");
-  const reason = me.mustChangePassword ? "temporary" : me.fromResetLink ? "reset" : null;
+  const reason = me.fromResetLink ? "reset" : null;
   const home = homeFor(me.role);
   return (
     <>
       <PasswordForm reason={reason} email={me.email} name={me.displayName} role={me.role} />
-      {!me.mustChangePassword && (
-        <Link href={home} className="mx-auto flex min-h-11 items-center gap-2 text-sm font-bold text-primary hover:underline">
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          <LinkPending>Back to {home === "/admin" ? "the admin" : "the kiosk"}</LinkPending>
-        </Link>
-      )}
+      <Link href={home} className="mx-auto flex min-h-11 items-center gap-2 text-sm font-bold text-primary hover:underline">
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        <LinkPending>Back to {home === "/admin" ? "the admin" : "the kiosk"}</LinkPending>
+      </Link>
     </>
   );
 }

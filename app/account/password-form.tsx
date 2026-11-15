@@ -11,7 +11,6 @@ import { MIN_PASSWORD } from "@/lib/accounts";
 import { useFormSubmit } from "@/lib/use-form-submit";
 
 const COPY = {
-  temporary: { title: "Choose your password", text: "You signed in with a temporary password. Choose one only you know to carry on." },
   reset: { title: "Choose a new password", text: "You came from a reset link, so you don't need your old password." },
   change: { title: "Change your password", text: "Type your current password, then the new one twice." },
 };
@@ -22,7 +21,7 @@ export function PasswordForm({
   name,
   role,
 }: {
-  reason: "temporary" | "reset" | null;
+  reason: "reset" | null;
   email: string;
   name: string;
   role: "admin" | "staff";

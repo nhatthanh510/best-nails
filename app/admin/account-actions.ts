@@ -46,12 +46,10 @@ export async function createAccount(_: ActionState, formData: FormData): Promise
   const { name, role, email } = parsed.data;
 
   const admin = createAdminClient();
-  // temp_password sends them to choose their own password the first time they sign in.
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password: parsed.data.password,
     email_confirm: true,
-    app_metadata: { temp_password: true },
   });
   if (error) {
     if (error.code === "email_exists" || error.status === 422) return fail("An account with this email already exists.");
@@ -64,7 +62,7 @@ export async function createAccount(_: ActionState, formData: FormData): Promise
     return accountError(rowError);
   }
   refresh();
-  return { ok: true, message: `${name} can sign in now. Give them the temporary password; they'll choose their own the first time.` };
+  return { ok: true, message: `${name} can sign in now. Give them the password; they can change it on Your account.` };
 }
 
 export async function updateAccount(userId: string, _: ActionState, formData: FormData): Promise<ActionState> {
@@ -84,13 +82,10 @@ export async function resetAccountPassword(userId: string, _: ActionState, formD
   if (userId === me.id) return fail("Change your own password from Your account.");
   const parsed = password.safeParse(formData.get("password"));
   if (!parsed.success) return firstIssue(parsed.error);
-  const { error } = await createAdminClient().auth.admin.updateUserById(userId, {
-    password: parsed.data,
-    app_metadata: { temp_password: true },
-  });
+  const { error } = await createAdminClient().auth.admin.updateUserById(userId, { password: parsed.data });
   if (error) return accountError(error);
   refresh();
-  return { ok: true, message: "Password reset. Give them the new one; they'll choose their own when they next sign in." };
+  return { ok: true, message: "Password reset. Give them the new one; they can change it on Your account." };
 }
 
 /** Stops the account signing in but keeps its name on the history it wrote. */
@@ -141,7 +136,7 @@ export async function restoreAccount(userId: string): Promise<ActionState> {
 // ---------------------------------------------------------------------------
 
 export async function changeOwnPassword(_: ActionState, formData: FormData): Promise<ActionState> {
-  // Not requireSignedIn(): it would send someone on a temporary password back to this same form.
+  // Not requireSignedIn(): a signed-out visitor gets a message here rather than a redirect.
   const me = await getStaff();
   if (!me) return fail("Your session has ended. Sign in again.");
   const parsed = password.safeParse(formData.get("password"));
@@ -149,9 +144,8 @@ export async function changeOwnPassword(_: ActionState, formData: FormData): Pro
   if (parsed.data !== formData.get("confirm")) return fail("The two new passwords don't match.");
 
   // Someone who knows the current password must type it, so a signed-in iPad left on the
-  // counter can't be used to take over the account. A temporary password or a reset link has
-  // already proved who they are.
-  if (!me.mustChangePassword && !me.fromResetLink) {
+  // counter can't be used to take over the account. A reset link has already proved who they are.
+  if (!me.fromResetLink) {
     const current = String(formData.get("current") ?? "");
     const check = createPlainClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -168,12 +162,8 @@ export async function changeOwnPassword(_: ActionState, formData: FormData): Pro
     if (error.code === "weak_password") return fail("Choose a harder password to guess.");
     return accountError(error);
   }
-  if (me.mustChangePassword) {
-    await createAdminClient().auth.admin.updateUserById(me.id, { app_metadata: { temp_password: false } });
-  }
-  // Sign in again with the new password: a fresh session carries the cleared flag, and one that
-  // started from a reset link stops counting as one (it would otherwise skip "current password"
-  // for as long as it lasted).
+  // Sign in again with the new password, so a session that started from a reset link stops
+  // counting as one (it would otherwise skip "current password" for as long as it lasted).
   await supabase.auth.signInWithPassword({ email: me.email, password: parsed.data });
   return { ok: true, message: "Password changed.", href: homeFor(me.role) };
 }

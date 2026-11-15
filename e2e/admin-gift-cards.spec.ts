@@ -28,7 +28,7 @@ test.describe("Admin: creating gift cards", () => {
   test("create a gift card linked to a customer, then open it", async ({ page }) => {
     await seedCustomer({ phone: testPhone(40), firstName: "Abby", lastName: "Card" });
     await page.goto("/admin/gift-cards");
-    await page.getByRole("button", { name: "Create gift card" }).click();
+    await page.getByRole("button", { name: "Create gift card", exact: true }).click();
     const dialog = await settled(page.getByRole("dialog", { name: "Create a gift card" }));
 
     await dialog.getByLabel("Other amount in dollars").fill("75");
@@ -145,7 +145,7 @@ test.describe("Admin: creating gift cards", () => {
   test("G-04 a code that's already used is refused, with what was typed kept", async ({ page }) => {
     await seedGiftCard({ code: "QA40000002", amountCents: 5000 });
     await page.goto("/admin/gift-cards");
-    await page.getByRole("button", { name: "Create gift card" }).click();
+    await page.getByRole("button", { name: "Create gift card", exact: true }).click();
     const dialog = await settled(page.getByRole("dialog", { name: "Create a gift card" }));
     await dialog.getByLabel("Code").fill("qa-4000-0002");
     await dialog.getByRole("button", { name: /^Create \$100\.00 gift card$/ }).click();
@@ -155,7 +155,7 @@ test.describe("Admin: creating gift cards", () => {
 
   test("a phone number that isn't a customer is refused", async ({ page }) => {
     await page.goto("/admin/gift-cards");
-    await page.getByRole("button", { name: "Create gift card" }).click();
+    await page.getByRole("button", { name: "Create gift card", exact: true }).click();
     const dialog = await settled(page.getByRole("dialog", { name: "Create a gift card" }));
     await dialog.getByLabel("Code").fill("QA40000003");
     await dialog.getByLabel(/Customer phone/).fill("0491 570 199");

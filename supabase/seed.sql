@@ -1,5 +1,5 @@
 -- Local development seed. Never run against production.
--- Login: owner@bestnails.test / bestnails-dev, the one admin. Add customers on the kiosk, and
+-- Login: admin@gmail.com / 12345678, the one admin. Add customers on the kiosk, and
 -- more admins and staff accounts in the app (Settings → Accounts), and a reward on the Rewards
 -- page. The settings row comes from the initial migration.
 

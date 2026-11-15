@@ -14,6 +14,8 @@ CREATE TABLE "public"."gift_cards" (
   "blocked_at"     timestamp with time zone,
   "blocked_by"     uuid,
   "blocked_reason" text,
+  "batch_id"       uuid,
+  CONSTRAINT "gift_cards_batch_id_fkey" FOREIGN KEY (batch_id) REFERENCES public.gift_card_batches(id) ON DELETE SET NULL,
   CONSTRAINT "gift_cards_amount_cents_check" CHECK (((amount_cents >= 100) AND (amount_cents <= 500000))),
   CONSTRAINT "gift_cards_balance_cents_check" CHECK ((balance_cents >= 0)),
   CONSTRAINT "gift_cards_blocked_by_fkey" FOREIGN KEY (blocked_by) REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -30,10 +32,12 @@ CREATE TABLE "public"."gift_cards" (
   CONSTRAINT "gift_cards_sold_by_fkey" FOREIGN KEY (sold_by) REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
-COMMENT ON TABLE "public"."gift_cards" IS 'Prepaid credit spent over several visits. balance_cents changes only through the gift card functions (guard_gift_card). No amount_cents, sold_on or expires_on means a Not sold blank card. public_token is the unguessable link behind the QR code.';
+COMMENT ON TABLE "public"."gift_cards" IS 'Prepaid credit spent over several visits. balance_cents changes only through the gift card functions (guard_gift_card). No amount_cents, sold_on or expires_on means a Not sold blank card. public_token is the unguessable link behind the QR code. batch_id is the Print blank cards run it came from (null for one created on its own).';
 
 ALTER TABLE "public"."gift_cards"
   ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX gift_cards_batch_idx ON public.gift_cards USING btree (batch_id);
 
 CREATE INDEX gift_cards_created_idx ON public.gift_cards USING btree (created_at DESC);
 

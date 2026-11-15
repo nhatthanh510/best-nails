@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { PASSWORD, createAccount } from "./support/db";
+import { ADMIN, PASSWORD, createAccount } from "./support/db";
 import { alert, expect, freshPage, hydrated, settled, signIn, test } from "./support/fixtures";
 
 async function openMenu(page: Page, name: string) {
@@ -8,7 +8,14 @@ async function openMenu(page: Page, name: string) {
 }
 
 test.describe("Admin: accounts", () => {
-  test("AC-01 add a staff account with a temporary password they replace on first sign-in", async ({ page, browser }) => {
+  // Settings caches its data ("use cache: private"). In development Next keeps that in memory, keyed
+  // by the request's cookies and headers, and serves it once more while it refreshes, so accounts made
+  // straight in the database would show a visit late. A header of its own makes each test render fresh.
+  test.beforeEach(async ({ page }, info) => {
+    await page.setExtraHTTPHeaders({ "x-e2e-test": `${info.testId}-${info.retry}-${Date.now()}` });
+  });
+
+  test("AC-01 add a staff account with a password they can sign in with straight away", async ({ page, browser }) => {
     const email = "e2e-tmp-added@bestnails.test";
     await page.goto("/admin/settings");
     await page.getByRole("button", { name: "Add account" }).click();
@@ -16,20 +23,18 @@ test.describe("Admin: accounts", () => {
     await dialog.getByLabel("Name").fill("E2E Added");
     await dialog.getByLabel("Email").fill(email);
     await expect(dialog.getByLabel("Role")).toHaveValue("staff");
-    const temporary = await dialog.getByLabel("Temporary password").inputValue();
-    expect(temporary).toMatch(/^[a-km-np-zA-HJ-NP-Z2-9]{10}$/);
+    const given = await dialog.getByLabel("Password", { exact: true }).inputValue();
+    expect(given).toMatch(/^[a-km-np-zA-HJ-NP-Z2-9]{10}$/);
     await dialog.getByRole("button", { name: "Add account" }).click();
 
     await expect(page.getByText("E2E Added can sign in now.")).toBeVisible();
     await expect(dialog).toHaveCount(0);
     const row = page.getByRole("listitem").filter({ hasText: email });
-    await expect(row.getByText("Temporary password")).toBeVisible();
     await expect(row.getByText("Staff", { exact: true })).toBeVisible();
 
     const theirs = await freshPage(browser);
-    await signIn(theirs, email, temporary);
-    await expect(theirs).toHaveURL(/\/account$/);
-    await expect(theirs.getByRole("heading", { name: "Choose your password" })).toBeVisible();
+    await signIn(theirs, email, given);
+    await expect(theirs).toHaveURL(/\/kiosk$/);
     await theirs.context().close();
   });
 
@@ -87,7 +92,8 @@ test.describe("Admin: accounts", () => {
 
   test("AC-03/AC-08 the signed-in admin can't change their own role or remove themselves", async ({ page }) => {
     await page.goto("/admin/settings");
-    const menu = await openMenu(page, "Admin");
+    // The suite signs in as its own admin, not the seed one.
+    const menu = await openMenu(page, ADMIN.name);
     await expect(menu.getByRole("menuitem", { name: "Edit name" })).toBeVisible();
     await expect(menu.getByRole("menuitem", { name: "Change password" })).toBeVisible();
     await expect(menu.getByRole("menuitem", { name: "Remove" })).toHaveCount(0);

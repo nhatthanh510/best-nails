@@ -279,7 +279,7 @@ export async function findGiftCard(code: string) {
 // Accounts
 // ---------------------------------------------------------------------------
 
-export async function createAccount(a: { email: string; password: string; name: string; role: "admin" | "staff"; tempPassword?: boolean }) {
+export async function createAccount(a: { email: string; password: string; name: string; role: "admin" | "staff" }) {
   if (!a.email.startsWith("e2e-")) throw new Error("Test accounts must use an e2e-… email so they get cleaned up.");
   const sb = db();
   await deleteAccounts(new RegExp(`^${a.email.replace(/[.+]/g, "\\$&")}$`));
@@ -287,7 +287,6 @@ export async function createAccount(a: { email: string; password: string; name: 
     email: a.email,
     password: a.password,
     email_confirm: true,
-    app_metadata: { temp_password: a.tempPassword ?? false },
   });
   if (error) throw new Error(`create account: ${error.message}`);
   check(await sb.from("staff").insert({ user_id: data.user.id, display_name: a.name, role: a.role }), "insert staff row");

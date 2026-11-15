@@ -59,14 +59,13 @@ export async function signIn(_: ActionState, formData: FormData): Promise<Action
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return fail("That email and password don't match.");
 
-  // A password an admin set comes first; then admins go back to where they were heading, and
-  // staff accounts to the kiosk (or their account page).
+  // Admins go back to where they were heading, and staff accounts to the kiosk (or their
+  // account page).
   const staff = await getStaff();
   if (!staff) {
     await supabase.auth.signOut();
     return fail("This account doesn't have access to Best Nails.");
   }
-  if (staff.mustChangePassword) redirect("/account");
   if (staff.role === "admin") redirect(safeRedirectPath(next, "/admin"));
   redirect(next === "/account" ? "/account" : homeFor(staff.role));
 }

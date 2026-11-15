@@ -59,22 +59,18 @@ test.describe("Staff accounts", () => {
   });
 });
 
-test.describe("Temporary passwords", () => {
-  test("A-05/A-06 a new account must choose its own password before using the kiosk", async ({ browser }) => {
+test.describe("Your password", () => {
+  test("A-05/A-06 a new account goes straight to the kiosk, and can change its password later", async ({ browser }) => {
     const email = "e2e-tmp-new@bestnails.test";
-    await createAccount({ email, password: "temp-pass-1", name: "New Starter", role: "staff", tempPassword: true });
+    await createAccount({ email, password: "given-pass-1", name: "New Starter", role: "staff" });
     const page = await freshPage(browser);
-    await signIn(page, email, "temp-pass-1");
+    await signIn(page, email, "given-pass-1");
+    // No forced change: the password the admin gave them works as it is.
+    await expect(page).toHaveURL(/\/kiosk$/);
 
-    await expect(page).toHaveURL(/\/account$/);
-    await expect(page.getByRole("heading", { name: "Choose your password" })).toBeVisible();
-    // A temporary password doesn't need to be typed again.
-    await expect(page.getByLabel("Current password")).toHaveCount(0);
-
-    // The kiosk sends them back until they've chosen one.
-    await page.goto("/kiosk");
-    await expect(page).toHaveURL(/\/account$/);
-
+    await page.goto("/account");
+    await expect(page.getByRole("heading", { name: "Change your password" })).toBeVisible();
+    await page.getByLabel("Current password").fill("given-pass-1");
     await page.getByLabel("New password", { exact: true }).fill(PASSWORD);
     await page.getByLabel("New password again").fill(`${PASSWORD}x`);
     await page.getByRole("button", { name: "Save password" }).click();

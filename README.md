@@ -24,7 +24,7 @@ npx supabase status -o env    # copy API_URL / PUBLISHABLE_KEY / SECRET_KEY into
 npm run dev
 ```
 
-- Admin: http://localhost:3000/admin — seed login `owner@bestnails.test` / `bestnails-dev` (admin, local only). Add staff accounts in Settings → Accounts
+- Admin: http://localhost:3000/admin — seed login `admin@gmail.com` / `12345678` (admin, local only). Add staff accounts in Settings → Accounts
 - Kiosk: http://localhost:3000/kiosk — works while any account is signed in; the start screen's header has **Gift card** (create or use one) and **Sign out**, plus **Admin** for admin accounts
 - Shop timezone is Australia/Hobart. The seed has no customers, gift cards or rewards: add a reward on **Rewards**, then sign customers up on the kiosk.
 
@@ -57,7 +57,7 @@ npm run typecheck && npm run lint && npm run build
 
 - Change the schema: add a file under `supabase/migrations/`, then `npx supabase migration up && npm run db:types`
 - Start over from an empty database (just the admin login): `npm run db:reset` (this also signs everyone out)
-- Add a staff member: Settings → Accounts → Add account (Admin for the admin and kiosk, Staff for the kiosk only), with a temporary password they change on first sign-in
+- Add a staff member: Settings → Accounts → Add account (Admin for the admin and kiosk, Staff for the kiosk only), with a password you give them (they can change it later on Your account)
 
 ## Deploying
 

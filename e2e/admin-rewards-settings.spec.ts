@@ -110,7 +110,7 @@ test.describe("Admin: settings", () => {
     await expect(page.getByText("Settings saved.")).toBeVisible();
 
     await page.goto("/admin/gift-cards");
-    await page.getByRole("button", { name: "Create gift card" }).click();
+    await page.getByRole("button", { name: "Create gift card", exact: true }).click();
     const dialog = await settled(page.getByRole("dialog", { name: "Create a gift card" }));
     await dialog.getByRole("button", { name: "Generate" }).click();
     await expect(dialog.getByLabel("Code")).toHaveValue(/^TBH\d{8}$/);

@@ -10,18 +10,21 @@ declare
   v_cards jsonb := '[]'::jsonb;
   v_code text;
   v_token text;
+  v_batch uuid;
 begin
   perform public.assert_staff();
   if p_codes is null or coalesce(array_length(p_codes, 1), 0) not between 1 and 100 then
     raise exception 'print between 1 and 100 gift cards at a time' using errcode = '22023';
   end if;
+  -- One run, so the list shows its cards together (and who printed them).
+  insert into public.gift_card_batches (created_by) values ((select auth.uid())) returning id into v_batch;
   foreach v_code in array p_codes loop
     v_code := public.normalize_gift_card_code(v_code);
     if v_code !~ '^[A-Z0-9]{4,20}$' then
       raise exception 'codes must be 4 to 20 letters or numbers' using errcode = '22023';
     end if;
-    insert into public.gift_cards (code, balance_cents, sold_by)
-    values (v_code, 0, (select auth.uid()))
+    insert into public.gift_cards (code, balance_cents, sold_by, batch_id)
+    values (v_code, 0, (select auth.uid()), v_batch)
     returning public_token into v_token;
     v_cards := v_cards || jsonb_build_object('code', v_code, 'public_token', v_token);
   end loop;

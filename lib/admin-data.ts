@@ -541,8 +541,6 @@ export type Account = {
   role: "admin" | "staff";
   email: string;
   removedAt: string | null;
-  /** Still on a password an admin set. */
-  tempPassword: boolean;
   lastSignInAt: string | null;
 };
 
@@ -563,7 +561,6 @@ export async function listAccounts(): Promise<Account[]> {
       role: s.role,
       email: user?.email ?? "",
       removedAt: s.removed_at,
-      tempPassword: user?.app_metadata?.temp_password === true,
       lastSignInAt: user?.last_sign_in_at ?? null,
     };
   });
@@ -625,9 +622,38 @@ export async function giftCardCounts(): Promise<Record<GiftCardFilter, number>> 
   };
 }
 
+/** The print run a gift card came from, for the tag on its row ("Batch 14 Nov · 50"). */
+export type GiftCardBatchTag = { id: string; createdAt: string; size: number };
+/** A row of the Gift cards list: a gift card, and its print run when it came from one of several cards. */
+export type GiftCardListRow = GiftCardRow & { batch: GiftCardBatchTag | null };
+
+const GIFT_CARD_ROW_SELECT =
+  "*, customer:customers(id, first_name, last_name, phone), last_use:gift_card_transactions(created_at, delta_cents, customer:customers(first_name, last_name)), top_ups:gift_card_transactions(delta_cents)";
+type RawGiftCardRow = Omit<GiftCardRow, "status" | "lastUse" | "loadedCents"> & { last_use: GiftCardRow["lastUse"][]; top_ups: { delta_cents: number }[] };
+
+/** Every page of a query (the API answers at most 1,000 rows at a time). */
+async function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>) {
+  const rows: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if ((data?.length ?? 0) < 1000) return rows;
+  }
+}
+
+/** Who printed each batch, by batch id (null when it isn't known, as for runs printed before batches). */
+async function batchPrinters(supabase: Awaited<ReturnType<typeof staffClient>>["supabase"], batches: { id: string; created_by: string | null }[]) {
+  const people = [...new Set(batches.flatMap((b) => (b.created_by ? [b.created_by] : [])))];
+  const { data: staff } = people.length ? await supabase.from("staff").select("user_id, display_name").in("user_id", people) : { data: [] };
+  const names = new Map((staff ?? []).map((m) => [m.user_id, m.display_name]));
+  return new Map(batches.map((b) => [b.id, b.created_by ? (names.get(b.created_by) ?? null) : null]));
+}
+
 /**
  * One page of gift cards: a status tab, an optional search, `usedToday` (for checking against the
- * till at the end of the day) and a sort.
+ * till at the end of the day), a sort, and `batch` (one print run's cards). Each card from a print
+ * run of two or more carries its batch, for the tag that opens that batch.
  */
 export async function listGiftCards({
   q,
@@ -635,40 +661,28 @@ export async function listGiftCards({
   usedToday = false,
   sort = "newest",
   page,
+  batch,
 }: {
   q: string;
   filter: GiftCardFilter;
   usedToday?: boolean;
   sort?: GiftCardSort;
   page: number;
-}) {
+  batch?: string;
+}): Promise<{ giftCards: GiftCardListRow[]; total: number; pastEnd: boolean }> {
   const { supabase } = await staffClient();
   const today = isoDate(shopDate(await shopTimezone()));
-  let query = supabase
-    .from("gift_cards")
-    .select(
-      "*, customer:customers(id, first_name, last_name, phone), last_use:gift_card_transactions(created_at, delta_cents, customer:customers(first_name, last_name)), top_ups:gift_card_transactions(delta_cents)",
-      { count: "exact" },
-    )
-    // Top-ups, for "Loaded" (the sale plus top-ups).
-    .eq("top_ups.kind", "top_up")
-    // Only the latest spend that wasn't undone, for the list's "Last used" column.
-    .eq("last_use.kind", "spend")
-    .is("last_use.voided_at", null)
-    .order("seq", { referencedTable: "last_use", ascending: false })
-    .limit(1, { referencedTable: "last_use" });
+  const none = { giftCards: [] as GiftCardListRow[], total: 0, pastEnd: false };
+  let query = supabase.from("gift_cards").select("id", { count: "exact" });
 
   // A search can be a code or a customer: a customer finds the gift cards they hold and the ones they used.
   const term = q.trim();
   if (term) {
     // Codes are stored without dashes or spaces, so search the same way.
     const code = term.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const search = customerSearch(term);
-    const people = search
-      ? await (search.phone
-          ? supabase.from("customers").select("id").like("phone", search.phone)
-          : supabase.from("customers").select("id").or(search.name!)
-        ).limit(200)
+    const who = customerSearch(term);
+    const people = who
+      ? await (who.phone ? supabase.from("customers").select("id").like("phone", who.phone) : supabase.from("customers").select("id").or(who.name!)).limit(200)
       : { data: [] };
     const customerIds = (people.data ?? []).map((r) => r.id);
     const used = customerIds.length
@@ -680,7 +694,7 @@ export async function listGiftCards({
       customerIds.length ? `customer_id.in.(${customerIds.join(",")})` : null,
       usedIds.length ? `id.in.(${usedIds.join(",")})` : null,
     ].filter(Boolean);
-    if (!either.length) return { giftCards: [] as GiftCardRow[], total: 0, pastEnd: false };
+    if (!either.length) return none;
     query = query.or(either.join(","));
   }
   // For checking against the till at the end of the day.
@@ -694,9 +708,10 @@ export async function listGiftCards({
       .limit(1000);
     if (error) throw error;
     const ids = [...new Set((spends ?? []).map((r) => r.gift_card_id))];
-    if (!ids.length) return { giftCards: [] as GiftCardRow[], total: 0, pastEnd: false };
+    if (!ids.length) return none;
     query = query.in("id", ids);
   }
+  if (batch) query = query.eq("batch_id", batch);
   // A blocked gift card is only under Blocked, as its status says.
   if (filter === "active") query = query.gt("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
   if (filter === "used_up") query = query.eq("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
@@ -705,25 +720,95 @@ export async function listGiftCards({
   // Printed ahead of time and not sold yet (no expiry until then).
   if (filter === "inactive") query = query.is("sold_on", null);
 
+  // This page's ids (cards printed together share a created_at, so they stay side by side), then
+  // those gift cards in full.
   const from = (page - 1) * GIFT_CARDS_PAGE_SIZE;
   const { data, count, error } = await query
     .order(...GIFT_CARD_ORDER[sort])
     .order("created_at", { ascending: false })
     .order("id")
     .range(from, from + GIFT_CARDS_PAGE_SIZE - 1);
-  if (error?.code === PAST_END) return { giftCards: [] as GiftCardRow[], total: 0, pastEnd: true };
+  if (error?.code === PAST_END) return { ...none, pastEnd: true };
   if (error) throw error;
+  const ids = data.map((r) => r.id);
+  if (!ids.length) return { ...none, total: count ?? 0 };
+  const { data: rows, error: rowsError } = await supabase
+    .from("gift_cards")
+    .select(GIFT_CARD_ROW_SELECT)
+    .in("id", ids)
+    // Top-ups, for "Loaded" (the sale plus top-ups).
+    .eq("top_ups.kind", "top_up")
+    // Only the latest spend that wasn't undone, for the list's "Last used".
+    .eq("last_use.kind", "spend")
+    .is("last_use.voided_at", null)
+    .order("seq", { referencedTable: "last_use", ascending: false })
+    .limit(1, { referencedTable: "last_use" });
+  if (rowsError) throw rowsError;
+  const byId = new Map(
+    (rows as unknown as RawGiftCardRow[]).map(({ last_use, top_ups, ...v }) => [
+      v.id,
+      {
+        ...v,
+        status: giftCardStatus(v, today),
+        lastUse: last_use[0] ?? null,
+        loadedCents: v.amount_cents === null ? null : v.amount_cents + top_ups.reduce((sum, t) => sum + t.delta_cents, 0),
+      } as GiftCardRow,
+    ]),
+  );
+
+  // The print runs on this page: when each was printed and how many cards it has in all.
+  const batchIds = [...new Set([...byId.values()].flatMap((v) => (v.batch_id ? [v.batch_id] : [])))];
+  const [batches, members] = batchIds.length
+    ? await Promise.all([
+        supabase.from("gift_card_batches").select("id, created_at").in("id", batchIds),
+        allRows((from, to) => supabase.from("gift_cards").select("batch_id").in("batch_id", batchIds).order("id").range(from, to)),
+      ])
+    : [{ data: [] }, []];
+  const sizeOf = new Map<string, number>();
+  for (const r of members) if (r.batch_id) sizeOf.set(r.batch_id, (sizeOf.get(r.batch_id) ?? 0) + 1);
+  const tagOf = new Map((batches.data ?? []).map((b) => [b.id, { id: b.id, createdAt: b.created_at, size: sizeOf.get(b.id) ?? 0 }]));
+
   return {
-    giftCards: (
-      data as unknown as (Omit<GiftCardRow, "status" | "lastUse" | "loadedCents"> & { last_use: GiftCardRow["lastUse"][]; top_ups: { delta_cents: number }[] })[]
-    ).map(({ last_use, top_ups, ...v }) => ({
-      ...v,
-      status: giftCardStatus(v, today),
-      lastUse: last_use[0] ?? null,
-      loadedCents: v.amount_cents === null ? null : v.amount_cents + top_ups.reduce((sum, t) => sum + t.delta_cents, 0),
-    })),
+    giftCards: ids.flatMap((id) => {
+      const v = byId.get(id);
+      if (!v) return [];
+      const tag = v.batch_id ? tagOf.get(v.batch_id) : undefined;
+      // A batch of one (Print blank cards with 1) is just that card: no tag.
+      return [{ ...v, batch: tag && tag.size > 1 ? tag : null }];
+    }),
     total: count ?? 0,
     pastEnd: false,
+  };
+}
+
+/**
+ * One print run, for the bar above its cards: when and by whom it was printed, and all its cards
+ * (at most 100), so Print all, PDF, Copy codes and Delete unused cover the whole batch, not just the
+ * page. `unused`: nothing has been spent from it, so it can be deleted (as the list's checkboxes).
+ */
+export async function getGiftCardBatch(id: string) {
+  const { supabase } = await staffClient();
+  const [{ data: batch }, cards] = await Promise.all([
+    supabase.from("gift_card_batches").select("id, created_at, created_by").eq("id", id).maybeSingle(),
+    allRows((from, to) =>
+      supabase
+        .from("gift_cards")
+        .select("id, code, spend:gift_card_transactions(id)")
+        .eq("batch_id", id)
+        .eq("spend.kind", "spend")
+        .is("spend.voided_at", null)
+        .limit(1, { referencedTable: "spend" })
+        .order("code")
+        .range(from, to),
+    ),
+  ]);
+  if (!batch) return null;
+  const printedBy = (await batchPrinters(supabase, [batch])).get(batch.id) ?? null;
+  return {
+    id: batch.id,
+    createdAt: batch.created_at,
+    printedBy,
+    cards: cards.map((c) => ({ id: c.id, code: c.code, unused: c.spend.length === 0 })),
   };
 }
 
