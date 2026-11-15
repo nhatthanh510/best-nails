@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
 import { LinkPending } from "@/components/link-pending";
-import { redirect } from "next/navigation";
 import { getStaff } from "@/lib/auth";
 import { loadKioskContent } from "@/lib/kiosk-content";
 import { KioskApp } from "@/components/kiosk/kiosk-app";
@@ -28,7 +27,6 @@ async function KioskGate() {
   contentPromise.catch(() => {}); // Not awaited when signed out: don't report it as unhandled.
   const staff = await getStaff();
   if (!staff) return <SignedOut />;
-  if (staff.mustChangePassword) redirect("/account");
   return (
     <>
       <KioskApp content={await contentPromise} isAdmin={staff.role === "admin"} />

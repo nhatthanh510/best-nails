@@ -1,6 +1,6 @@
 -- Run with: npx supabase test db
 begin;
-select plan(70);
+select plan(74);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-4000-8000-0000000000b1', 'gift-staff@example.test'),
@@ -52,6 +52,13 @@ select is(
   (select count(*)::int from public.gift_cards where code in (select jsonb_array_elements_text(v) from r where k = 'preview')
      and sold_on is null and amount_cents is null and expires_on is null and balance_cents = 0),
   3, 'saving the batch makes inactive gift cards: no amount, sale date or expiry');
+select is(
+  (select count(distinct batch_id)::int from public.gift_cards where code in (select jsonb_array_elements_text(v) from r where k = 'preview') and batch_id is not null),
+  1, 'the cards printed together share one batch');
+select is(
+  (select b.created_by from public.gift_card_batches b join public.gift_cards g on g.batch_id = b.id
+    where g.code = (select v->0->>'code' from r where k = 'cards')),
+  'aaaaaaaa-0000-4000-8000-0000000000b2'::uuid, 'the batch records who printed it');
 select throws_ok(
   format($$ select public.create_inactive_gift_cards(array[%L]) $$, (select v->0->>'code' from r where k = 'cards')),
   '22023', null, 'a code already saved cannot be saved again');
@@ -66,6 +73,8 @@ select is(
   (select row(amount_cents, balance_cents, sold_on, public_token)::text from public.gift_cards where code = (select v->0->>'code' from r where k = 'cards')),
   row(4000, 4000, public._shop_today(), (select v->0->>'public_token' from r where k = 'cards'))::text,
   'it gets the amount and sale date, and keeps the QR printed on it');
+select isnt((select batch_id from public.gift_cards where code = (select v->0->>'code' from r where k = 'cards')), null,
+  'and stays in its batch');
 select throws_ok(
   format($$ select public.sell_gift_card(4000, %L) $$, (select v->0->>'code' from r where k = 'cards')),
   '22023', null, 'and it cannot be sold twice');
@@ -73,6 +82,7 @@ select throws_ok($$ select public.preview_gift_card_codes(101) $$, '22023', null
 
 -- Adding value, and blocking a lost gift card
 select public.sell_gift_card(5000, 'TQTOPUP1');
+select is((select batch_id from public.gift_cards where code = 'TQTOPUP1'), null, 'a gift card created on its own has no batch');
 select is((public.top_up_gift_card('tq topup1', 2000))->>'balance_cents', '7000', 'value can be added to a gift card');
 select is((public.check_gift_card('TQTOPUP1'))->>'amount_cents', '7000', 'and what has been loaded counts the added value');
 select is((public.top_up_gift_card('TQNOSUCH', 2000))->>'status', 'not_found', 'adding value to an unknown code finds nothing');

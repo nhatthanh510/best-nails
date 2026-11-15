@@ -23,7 +23,6 @@ export type AccountRow = {
   name: string;
   role: "admin" | "staff";
   email: string;
-  tempPassword: boolean;
   /** Dates already formatted on the server, in the shop's timezone. */
   lastSignIn: string | null;
   /** Set when the account is removed. */
@@ -54,7 +53,7 @@ export function AccountsCard({ accounts, meId }: { accounts: AccountRow[]; meId:
         <FormDialog
           variant="outline"
           title="Add an account"
-          description="Set a temporary password and tell them what it is. They choose their own the first time they sign in."
+          description="Set a password and tell them what it is. They can change it later on Your account."
           trigger={
             <>
               <Plus aria-hidden="true" />
@@ -99,7 +98,6 @@ function AccountItem({ account: a, isMe }: { account: AccountRow; isMe: boolean 
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-bold">{a.name}</span>
           {isMe && <span className="text-[13px] font-semibold text-muted-foreground">You</span>}
-          {a.tempPassword && !a.removedOn && <Pill className="bg-warning-soft text-warning">Temporary password</Pill>}
         </span>
         <span className="truncate text-[13px] text-muted-foreground">
           {a.email}
@@ -173,7 +171,7 @@ function AccountItem({ account: a, isMe }: { account: AccountRow; isMe: boolean 
         open={open === "reset"}
         onClose={close}
         title={`Reset ${a.name}'s password`}
-        description="Set a temporary password and tell them what it is. They choose their own when they next sign in."
+        description="Set a new password and tell them what it is. They can change it later on Your account."
       >
         <ResetPasswordForm id={a.id} onDone={close} />
       </FormModal>
@@ -312,12 +310,12 @@ function ResetPasswordForm({ id, onDone }: { id: string; onDone: () => void }) {
   );
 }
 
-/** A temporary password, shown in plain text so it can be read out or written down. */
+/** A password for someone else, shown in plain text so it can be read out or written down. */
 function PasswordField() {
   const [value, setValue] = useState(() => generatePassword());
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor="account-password">Temporary password</Label>
+      <Label htmlFor="account-password">Password</Label>
       <div className="flex gap-2">
         <Input
           id="account-password"

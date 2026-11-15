@@ -67,7 +67,7 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 | R-01 | `safeRedirectPath` keeps same-site paths and rejects anything that could leave the site | U |
 | F-01 | "Today" and "Yesterday" follow the shop's timezone, not UTC or the server's | U |
 | F-02 | Number fields keep only valid characters (digits, money with 2 decimals, phone) | U |
-| F-03 | Temporary passwords avoid look-alike characters | U |
+| F-03 | Generated passwords avoid look-alike characters | U |
 
 ### Kiosk Server Actions (`app/kiosk/actions.ts`)
 | ID | Case | Layer |
@@ -82,7 +82,7 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 ### Admin Server Actions (`app/admin/actions.ts`, `gift-card-actions.ts`)
 | ID | Case | Layer |
 |---|---|---|
-| AA-01 | Sign-in routing: temporary password → `/account`, admin → `next` (only if same-site), staff → kiosk | SA |
+| AA-01 | Sign-in routing: admin → `next` (only if same-site), staff → kiosk | SA |
 | AA-02 | Add customer: phone length, first name, both-or-neither birthday, real date, duplicate number message, non-standard warning | SA |
 | AA-03 | Adjust points: at least 1, a reason required, Remove sends a negative delta | SA |
 | AA-04 | Settings: VIP above Regular, prefix 2–4 letters (upper-cased), known timezone | SA |
@@ -118,9 +118,9 @@ Legend: **U** = Vitest unit, **SA** = Vitest Server Action with mocks, **E2E** =
 | A-02 | A wrong password shows the error and keeps the email |
 | A-03 | A signed-out visitor to `/admin/customers` is sent to sign-in and then back |
 | A-04 | A staff account opening `/admin/customers` is sent to the kiosk and has no Admin button |
-| A-05 | A new account on a temporary password must choose a password first, then lands on the kiosk |
+| A-05 | A new account signs in with the password it was given and lands on the kiosk (no forced change) |
 | A-06 | New passwords that don't match are refused |
-| AC-01 | The admin adds a staff account with a temporary password |
+| AC-01 | The admin adds a staff account with a password it can sign in with straight away |
 | AC-05 | A removed account can't sign in |
 | C-01 | Add a customer (phone first), then open their page |
 | C-02 | A number that's already a customer is flagged as soon as the phone field is left |

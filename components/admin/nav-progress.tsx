@@ -24,6 +24,9 @@ export function NavProgress() {
   const url = `${pathname}?${search}`;
   // The URL a navigation started from: once the URL is something else, it has finished.
   const [from, setFrom] = useState<string | null>(null);
+  // Once the URL has moved on, the navigation is over: forget where it started, or coming back to
+  // that URL (the browser's back button) would look like the same navigation still running.
+  if (from !== null && from !== url) setFrom(null);
   const pending = from === url;
 
   useEffect(() => {

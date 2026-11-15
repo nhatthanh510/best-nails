@@ -38,8 +38,8 @@ test.describe("Admin: customers", () => {
     await page.goto("/admin/customers");
     await page.getByRole("button", { name: "Add customer" }).click();
     const dialog = page.getByRole("dialog", { name: "Add customer" });
-    // Typed in international format, still the same customer.
-    await dialog.getByLabel("Mobile number").fill("+61 491 570 131");
+    // Typed with spaces (the field takes local numbers only; a typed "+" is refused), still the same customer.
+    await dialog.getByLabel("Mobile number").fill("0491 570 131");
     await dialog.getByLabel("First name").focus();
     await expect(dialog.getByText("Already a customer: Pat Lee.")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Add customer" })).toBeDisabled();

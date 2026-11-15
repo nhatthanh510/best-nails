@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeSupabase, Redirect } from "@/test/fake-supabase";
 
 const h = vi.hoisted(() => ({
-  staff: null as null | { id: string; role: "admin" | "staff"; mustChangePassword: boolean },
+  staff: null as null | { id: string; role: "admin" | "staff" },
   db: null as unknown as ReturnType<typeof import("@/test/fake-supabase").fakeSupabase>,
 }));
 
@@ -42,7 +42,7 @@ async function run<T>(p: Promise<T>): Promise<T | { redirect: string }> {
 
 beforeEach(() => {
   h.db = fakeSupabase();
-  h.staff = { id: "admin-1", role: "admin", mustChangePassword: false };
+  h.staff = { id: "admin-1", role: "admin" };
 });
 
 describe("signIn routing (AA-01)", () => {
@@ -64,11 +64,6 @@ describe("signIn routing (AA-01)", () => {
     expect(h.db.client.auth.signOut).toHaveBeenCalled();
   });
 
-  it("sends a temporary password to choose a new one first", async () => {
-    h.staff = { id: "s", role: "admin", mustChangePassword: true };
-    expect(await signIn({ email: "a@b.test", password: "pw", next: "/admin/customers" })).toEqual({ redirect: "/account" });
-  });
-
   it("sends an admin back where they were heading, but only on this site", async () => {
     expect(await signIn({ email: "a@b.test", password: "pw", next: "/admin/customers?q=1" })).toEqual({ redirect: "/admin/customers?q=1" });
     expect(await signIn({ email: "a@b.test", password: "pw", next: "//evil.com" })).toEqual({ redirect: "/admin" });
@@ -76,7 +71,7 @@ describe("signIn routing (AA-01)", () => {
   });
 
   it("sends a staff account to the kiosk, whatever admin page it asked for", async () => {
-    h.staff = { id: "s", role: "staff", mustChangePassword: false };
+    h.staff = { id: "s", role: "staff" };
     expect(await signIn({ email: "a@b.test", password: "pw", next: "/admin/customers" })).toEqual({ redirect: "/kiosk" });
     expect(await signIn({ email: "a@b.test", password: "pw", next: "/account" })).toEqual({ redirect: "/account" });
   });
