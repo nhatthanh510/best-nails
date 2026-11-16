@@ -58,7 +58,8 @@ export function StaffPinDialog({
       aria-modal="true"
       aria-labelledby="staff-pin-title"
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      // At the top, not centred: the iPad's keyboard covers the bottom half, and with it the buttons.
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 pt-[6dvh]"
     >
       <form
         onSubmit={submit}

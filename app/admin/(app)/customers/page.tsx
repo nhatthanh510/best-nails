@@ -165,9 +165,10 @@ async function Customers({ searchParams }: { searchParams: PageProps<"/admin/cus
               </EmptyRow>
             )}
             {customers.map((c) => (
-              <tr key={c.id} className="hover:bg-background/60">
+              // The whole row opens the customer (the name's link stretches over it), as gift card rows do.
+              <tr key={c.id} className="relative cursor-pointer hover:bg-background/60">
                 <td className={td}>
-                  <Link href={`/admin/customers/${c.id}`} className="flex items-center gap-3 hover:underline">
+                  <Link href={`/admin/customers/${c.id}`} className="flex items-center gap-3 after:absolute after:inset-0 hover:underline">
                     {/* The avatar only where there's room, so the name and its badges stay on one line. */}
                     <span className="hidden 2xl:block">
                       <Avatar text={initials(c)} />

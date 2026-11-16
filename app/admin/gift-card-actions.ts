@@ -8,7 +8,7 @@ import { tillLocked } from "@/lib/kiosk-lock";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { findCustomer } from "@/lib/customer-lookup";
-import { formatMoney, GIFT_CARD_PROBLEMS, looksMistyped, normalizeGiftCode, parseDollars, type GiftCardStatus } from "@/lib/gift-cards";
+import { formatDollars, formatMoney, GIFT_CARD_PROBLEMS, looksMistyped, normalizeGiftCode, parseDollars, type GiftCardStatus } from "@/lib/gift-cards";
 import type { ActionState } from "./actions";
 
 function fail(message: string): ActionState {
@@ -47,6 +47,8 @@ const sellSchema = z.object({
   code: z.string().trim().max(40),
   phone: z.string(),
   notes: text(500),
+  // A date picked on the form (YYYY-MM-DD), or none for the default 3 years.
+  expiresOn: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
 });
 
 /** What the "Gift card created" screen shows, so staff can copy the code onto the card. */
@@ -70,10 +72,12 @@ export async function sellGiftCard(_: SellState, formData: FormData): Promise<Se
     code: formData.get("code") ?? "",
     phone: formData.get("phone") ?? "",
     notes: formData.get("notes") ?? "",
+    expiresOn: formData.get("expires_on") ?? "",
   });
   if (!parsed.success) return fail("Check the details and try again.");
   const cents = parseDollars(parsed.data.amount);
   if (cents === null || cents < 100) return fail("Enter the gift card amount, e.g. 100.");
+  if (cents % 100 !== 0) return fail("Enter a whole dollar amount, e.g. 100.");
   // A code is always chosen on purpose: the number printed on the card, or one from Generate.
   if (!parsed.data.code?.trim()) return fail("Enter the code on the gift card, or press Generate.");
 
@@ -88,6 +92,7 @@ export async function sellGiftCard(_: SellState, formData: FormData): Promise<Se
     p_code: parsed.data.code || undefined,
     p_customer_id: customer?.id,
     p_notes: parsed.data.notes ?? undefined,
+    p_expires_on: parsed.data.expiresOn || undefined,
   });
   if (error) return dbError(error);
   const r = data as { id: string; code: string; preprinted?: boolean };
@@ -97,7 +102,7 @@ export async function sellGiftCard(_: SellState, formData: FormData): Promise<Se
   refresh();
   return {
     ok: true,
-    message: `${r.preprinted ? "Activated" : "Created"} ${r.code} for ${formatMoney(cents)}. Take payment at the till.`,
+    message: `${r.preprinted ? "Activated" : "Created"} ${r.code} for ${formatDollars(cents)}. Take payment at the till.`,
     href: `/admin/gift-cards/${r.id}`,
     giftCard: {
       id: r.id,
@@ -144,7 +149,10 @@ export async function giftCardsToPrint(ids: string[]): Promise<{ ok: true; giftC
   return { ok: true, giftCards: data.map((v) => ({ code: v.code, token: v.public_token, expiresOn: v.expires_on })) };
 }
 
-/** Saves the previewed codes as inactive gift cards; their QR tokens come back for printing. */
+/**
+ * Saves the previewed codes as inactive gift cards; their QR tokens come back for printing. They
+ * have no expiry: it's set when each is activated.
+ */
 export async function createInactiveGiftCards(codes: string[]): Promise<{ ok: true; giftCards: BlankGiftCard[] } | { ok: false; message: string }> {
   await requireAdmin();
   if (!Array.isArray(codes) || codes.length < 1 || codes.length > 100) return { ok: false, message: "Print between 1 and 100 blank cards at a time." };
@@ -285,6 +293,7 @@ export async function topUpGiftCard(_: TopUpState, formData: FormData): Promise<
   const cents = parseDollars(String(formData.get("amount") ?? ""));
   if (!code) return fail("Enter the gift card's code.");
   if (cents === null || cents < 100) return fail("Enter the amount to add, e.g. 50.");
+  if (cents % 100 !== 0) return fail("Enter a whole dollar amount, e.g. 50.");
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("top_up_gift_card", { p_code: code, p_amount_cents: cents });
   if (error) return dbError(error);
@@ -293,7 +302,7 @@ export async function topUpGiftCard(_: TopUpState, formData: FormData): Promise<
   refresh();
   return {
     ok: true,
-    message: `Topped up ${r.code} with ${formatMoney(r.added_cents!)}. Take payment at the till.`,
+    message: `Topped up ${r.code} with ${formatDollars(r.added_cents!)}. Take payment at the till.`,
     href: `/admin/gift-cards/${r.id}`,
     topUp: { code: r.code!, addedCents: r.added_cents!, balanceCents: r.balance_cents!, expiresOn: r.expires_on! },
   };
@@ -320,7 +329,10 @@ export async function unblockGiftCard(id: string): Promise<ActionState> {
   return { ok: true, message: "Gift card unblocked. It can be used again." };
 }
 
-export async function spendGiftCard(_: ActionState, formData: FormData): Promise<ActionState> {
+/** `used`: what the Use dialog keeps on screen until Done (a use can't be undone by staff). */
+export type SpendState = (ActionState & { used?: { code: string; spentCents: number; balanceCents: number; tillCents: number } }) | null;
+
+export async function spendGiftCard(_: SpendState, formData: FormData): Promise<SpendState> {
   const locked = await tillLocked(await requireSignedIn());
   if (locked) return fail(locked);
   const code = String(formData.get("code") ?? "");
@@ -354,6 +366,7 @@ export async function spendGiftCard(_: ActionState, formData: FormData): Promise
       `Used ${formatMoney(r.spent_cents as number)} from ${r.code as string}. ${formatMoney(r.balance_cents as number)} left.` +
       // "Use the full balance" sends what's still owed, so the reminder comes with the confirmation.
       (tillCents > 0 ? ` Take ${formatMoney(tillCents)} at the till.` : ""),
+    used: { code: r.code as string, spentCents: r.spent_cents as number, balanceCents: r.balance_cents as number, tillCents },
   };
 }
 

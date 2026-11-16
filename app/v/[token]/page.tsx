@@ -4,7 +4,7 @@ import { BrandMark } from "@/components/kiosk/brand";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GiftCardStatusPill } from "@/components/admin/gift-card-status";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatMoney, type GiftCardStatus } from "@/lib/gift-cards";
+import { formatDollars, formatMoney, type GiftCardStatus } from "@/lib/gift-cards";
 
 // A customer's own balance page, opened from the QR code on a printed gift card. Public: the
 // link's token is the secret (see public_token in the initial migration). Keep it out of search engines
@@ -70,7 +70,7 @@ async function Balance({ params }: { params: PageProps<"/v/[token]">["params"] }
       <p className="font-mono text-lg font-bold tracking-[0.12em]">{r.code}</p>
       <div className="flex flex-col items-center gap-1">
         <h1 className="text-[56px] leading-none font-bold tabular-nums lining-nums">{formatMoney(r.balance_cents!)}</h1>
-        <p className="text-sm text-muted-foreground">left of {formatMoney(r.amount_cents!)}</p>
+        <p className="text-sm text-muted-foreground">left of {formatDollars(r.amount_cents!)}</p>
       </div>
       <GiftCardStatusPill status={status} />
       <p className="text-sm text-muted-foreground">

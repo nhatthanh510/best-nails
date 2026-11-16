@@ -12,7 +12,7 @@ type View = "menu" | "sell" | "find";
 
 const VIEWS: Record<View, { title: string; description: string }> = {
   menu: { title: "Gift cards", description: "Find a gift card the customer has, or create a new one." },
-  sell: { title: "Create a gift card", description: "Take payment at the till as usual. The gift card is valid for 3 years." },
+  sell: { title: "Create a gift card", description: "Take payment at the till as usual." },
   find: { title: "Find a gift card", description: "Type the code on the gift card. You'll see its balance and what you can do with it." },
 };
 
@@ -63,7 +63,7 @@ export function GiftCardMenu({
               <button
                 type="button"
                 onClick={() => setView("menu")}
-                className="flex w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline"
+                className="-ml-2 flex min-h-11 w-fit items-center gap-1.5 rounded-lg px-2 text-base font-bold text-primary hover:underline active:bg-muted"
               >
                 <ArrowLeft className="size-4" aria-hidden="true" />
                 Gift cards

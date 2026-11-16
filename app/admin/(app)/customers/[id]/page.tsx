@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Cake, Check, ChevronLeft, NotebookPen } from "lucide-react";
 import { Avatar, BirthdayBadge, Card, DataTable, EmptyRow, Pager, Pill, StatTile, TierBadge, td, th } from "@/components/admin/ui";
 import { TIER_LABELS, nextTier, tierFor } from "@/lib/tiers";
-import { ActionButton, ConfirmButton } from "@/components/admin/action-button";
+import { ConfirmButton } from "@/components/admin/action-button";
 import { customerGiftCards, customerTitle, getCustomer, getSettings, staffNames } from "@/lib/admin-data";
 import { VisitPayment, VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
 import { UseGiftCard } from "@/components/admin/gift-card-forms";
@@ -14,7 +14,7 @@ import { formatPhone, isStandardPhone } from "@/lib/phone";
 import { canRedeem, discountLabel, hasCashBonus, isCashOnly, rewardAmounts, rewardName, type BirthdayStatus, type Reward } from "@/lib/rewards";
 import { formatBirthday, formatDate, formatLastVisit, formatTime, fullName, initials, isShopToday, signed } from "@/lib/format";
 import { AdjustPointsForm, EditCustomerButton } from "./customer-actions";
-import { formatMoney } from "@/lib/gift-cards";
+import { formatDollars } from "@/lib/gift-cards";
 
 const REASON_LABELS = {
   check_in: "Check-in",
@@ -41,7 +41,7 @@ const HISTORY_PAGE_SIZE = 25;
 export default function CustomerPage({ params, searchParams }: PageProps<"/admin/customers/[id]">) {
   return (
     <>
-      <Link href="/admin/customers" className="flex min-h-8 w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline">
+      <Link href="/admin/customers" className="-my-1.5 flex min-h-11 w-fit items-center gap-1.5 text-sm font-bold text-primary hover:underline">
         <ChevronLeft className="size-4" strokeWidth={2.4} aria-hidden="true" />
         All customers
       </Link>
@@ -301,14 +301,17 @@ async function CustomerDetail({
                   <span className="text-[15px] font-bold">{discountLabel(bday) ? `Birthday ${discountLabel(bday)}` : "Birthday discount"}</span>
                   <span className="text-[13px] text-muted-foreground">{birthdayHint(bday)}</span>
                 </div>
-                <ActionButton
-                  size="sm"
+                <ConfirmButton
                   variant={bday.eligible && !discountToday ? "default" : "outline"}
                   disabled={!bday.eligible || Boolean(discountToday)}
                   action={redeemBirthday.bind(null, c.id)}
+                  title={`Redeem the birthday discount for ${c.first_name}?`}
+                  description={`${discountLabel(bday) ?? "The birthday discount"}, once per birthday. It's one discount per visit, and it can't be undone.`}
+                  confirmLabel="Redeem"
+                  confirmVariant="default"
                 >
                   Redeem
-                </ActionButton>
+                </ConfirmButton>
               </div>
             )}
             {rewards.map((r) => {
@@ -326,14 +329,17 @@ async function CustomerDetail({
                       {short > 0 ? ` · needs ${short} more` : cashShort > 0 ? ` · needs ${cashShort} more cash visit${cashShort === 1 ? "" : "s"}` : ""}
                     </span>
                   </div>
-                  <ActionButton
-                    size="sm"
+                  <ConfirmButton
                     variant={blocked || discountToday ? "outline" : "default"}
                     disabled={blocked || Boolean(discountToday)}
                     action={redeemReward.bind(null, c.id, r.id)}
+                    title={`Redeem ${cash ? rewardName(named(r), cashVisits) : r.title} for ${c.first_name}?`}
+                    description={`Spends ${r.points_cost} points. It's one discount per visit, and it can't be undone.`}
+                    confirmLabel="Redeem"
+                    confirmVariant="default"
                   >
                     Redeem
-                  </ActionButton>
+                  </ConfirmButton>
                 </div>
               );
             })}
@@ -413,7 +419,7 @@ function tierHint(lifetimePoints: number, tiers: Parameters<typeof nextTier>[1])
 function unlinkedGiftCardNotice(giftCards: { status: string; balance_cents: number }[]) {
   const open = giftCards.filter((g) => g.status === "active" && g.balance_cents > 0);
   if (open.length === 0) return undefined;
-  const left = formatMoney(open.reduce((sum, g) => sum + g.balance_cents, 0));
+  const left = formatDollars(open.reduce((sum, g) => sum + g.balance_cents, 0));
   return open.length === 1
     ? `They have 1 gift card with ${left} left. It stays valid, but won't be linked to anyone.`
     : `They have ${open.length} gift cards with ${left} left in all. They stay valid, but won't be linked to anyone.`;

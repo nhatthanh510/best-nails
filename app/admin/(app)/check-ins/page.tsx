@@ -10,7 +10,7 @@ import { SegmentedLinks } from "@/components/admin/segmented-links";
 import { tierFor } from "@/lib/tiers";
 import { CHECK_IN_RANGES, CHECK_INS_PAGE_SIZE, getSettings, listCheckIns, type CheckInRange, type VisitUse } from "@/lib/admin-data";
 import { VisitPayment, VisitServices, VisitStaff, VisitSummary } from "@/components/admin/visit";
-import { formatMoney } from "@/lib/gift-cards";
+import { formatDollars, formatMoney } from "@/lib/gift-cards";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatTime, fullName } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -63,7 +63,7 @@ async function CheckIns({ searchParams }: { searchParams: PageProps<"/admin/chec
         stats={[
           { value: totals.visits.toLocaleString(), label: `Visits · ${RANGE_SUMMARY[range]}` },
           { value: used.discounts.toLocaleString(), label: "Discounts used" },
-          { value: formatMoney(used.giftCents), label: "Paid with gift cards" },
+          { value: formatDollars(used.giftCents), label: "Paid with gift cards" },
         ]}
       />
 

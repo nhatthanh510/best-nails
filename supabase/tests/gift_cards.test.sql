@@ -1,6 +1,6 @@
 -- Run with: npx supabase test db
 begin;
-select plan(74);
+select plan(75);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-4000-8000-0000000000b1', 'gift-staff@example.test'),
@@ -78,6 +78,10 @@ select isnt((select batch_id from public.gift_cards where code = (select v->0->>
 select throws_ok(
   format($$ select public.sell_gift_card(4000, %L) $$, (select v->0->>'code' from r where k = 'cards')),
   '22023', null, 'and it cannot be sold twice');
+-- A later expiry than the 3-year minimum, picked on the Create or Activate form
+insert into r values ('long', public.sell_gift_card(5000, null, null, null, (public._shop_today() + interval '5 years')::date));
+select is((select expires_on from public.gift_cards where code = (select v->>'code' from r where k = 'long')),
+  (public._shop_today() + interval '5 years')::date, 'a gift card can be created with a later expiry than 3 years');
 select throws_ok($$ select public.preview_gift_card_codes(101) $$, '22023', null, 'at most 100 at a time');
 
 -- Adding value, and blocking a lost gift card

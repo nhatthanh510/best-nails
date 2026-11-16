@@ -100,6 +100,10 @@ test.describe("Admin: customers", () => {
 
     const redeemCard = page.locator("div").filter({ has: page.getByRole("heading", { name: "Redeem a discount" }) }).last();
     await redeemCard.getByRole("button", { name: "Redeem" }).click();
+    // It asks first, since a redemption can't be undone.
+    const confirm = page.getByRole("dialog", { name: "Redeem E2E 10% off for Tess?" });
+    await expect(confirm).toContainText("Spends 10 points.");
+    await confirm.getByRole("button", { name: "Redeem" }).click();
     await expect(page.getByText("Reward redeemed · 10 pts left")).toBeVisible();
     await expect(redeemCard.getByText("E2E 10% off used today. It's one discount per visit.")).toBeVisible();
     await expect(redeemCard.getByRole("button", { name: "Redeem" })).toBeDisabled();

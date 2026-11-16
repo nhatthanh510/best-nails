@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { CircleUser, LogOut } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/admin/sidebar";
 import { Avatar } from "@/components/admin/ui";
@@ -46,10 +46,14 @@ async function Account() {
   const staff = await getStaff();
   if (!staff) return null;
   return (
-    <form action={signOut} className="flex items-center justify-between gap-2 px-1 rail:justify-center rail:px-0">
-      <Link href="/account" title="Your account" className="min-w-0 truncate rounded-[10px] py-2.5 text-sm hover:underline rail:sr-only">
+    <form action={signOut} className="flex items-center justify-between gap-2 px-1 rail:flex-col rail:justify-center rail:gap-1 rail:px-0">
+      <Link href="/account" title="Your account" className="min-w-0 truncate rounded-[10px] py-2.5 text-sm hover:underline rail:hidden">
         <span className="font-bold">{staff.displayName}</span>
         <span className="text-muted-foreground"> · {staff.role === "admin" ? "Admin" : "Staff"}</span>
+      </Link>
+      {/* The icon rail has no room for the name, so Your account is an icon there. */}
+      <Link href="/account" aria-label="Your account" title="Your account" className={`${iconButton} hidden rail:flex`}>
+        <CircleUser className="size-4.5" aria-hidden="true" />
       </Link>
       <SubmitButton
         aria-label="Sign out"

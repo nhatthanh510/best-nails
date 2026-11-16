@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   ArrowRight,
   Banknote,
@@ -10,12 +11,11 @@ import {
   CircleAlert,
   CreditCard,
   Gift,
-  RotateCw,
   TriangleAlert,
   UserRound,
-  WifiOff,
 } from 'lucide-react';
 import { Spinner as SharedSpinner } from '@/components/ui/spinner';
+import { cn } from '@/lib/utils';
 import type {
   CheckInResult,
   KioskBirthday,
@@ -52,6 +52,15 @@ const primaryButton =
   'flex items-center justify-center gap-3 rounded-3xl bg-kiosk-accent bg-gold-sheen font-extrabold text-kiosk-bg transition active:scale-[0.98] enabled:hover:brightness-110 enabled:hover:shadow-[0_6px_24px_-6px_rgb(216_180_92/0.45)] disabled:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-kiosk-ink';
 const outlineButton =
   'flex min-h-14 items-center gap-2.5 rounded-2xl border-2 border-kiosk-line px-6 text-lg font-bold text-kiosk-muted transition-colors hover:border-kiosk-faint hover:bg-kiosk-surface hover:text-kiosk-ink active:bg-kiosk-surface focus-visible:outline-3 focus-visible:outline-kiosk-accent';
+
+/**
+ * The button that ends a result screen (Success, Already, Redeemed), the same on each: the gold
+ * "Done" when it's the only thing to do, a quiet one when it sits under rewards to redeem.
+ */
+const closeButton = (besideRewards: boolean) =>
+  besideRewards
+    ? cn(outlineButton, 'min-h-16 px-9 text-xl text-kiosk-ink')
+    : `${primaryButton} min-h-18 min-w-64 px-11 text-2xl`;
 
 function Shell({
   children,
@@ -104,12 +113,21 @@ export function KioskHeader({ onStaff, pending = false }: { onStaff: () => void;
  * A step's way back, at the top-left of its content above the heading (where the start screen
  * has its "Rewards check-in" line): a labelled pill in the kiosk's outline style.
  */
-function StepBack({ label, onClick }: { label: string; onClick: () => void }) {
+function StepBack({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       type='button'
       onClick={onClick}
-      className='flex min-h-12 w-fit items-center gap-1.5 rounded-full border-2 border-kiosk-line pr-5 pl-3 text-base font-bold text-kiosk-muted hover:text-kiosk-ink active:bg-kiosk-surface focus-visible:outline-3 focus-visible:outline-kiosk-accent'
+      disabled={disabled}
+      className='disabled:opacity-50 flex min-h-12 w-fit items-center gap-1.5 rounded-full border-2 border-kiosk-line pr-5 pl-3 text-base font-bold text-kiosk-muted hover:text-kiosk-ink active:bg-kiosk-surface focus-visible:outline-3 focus-visible:outline-kiosk-accent'
     >
       <ChevronLeft className='size-5' strokeWidth={2.4} aria-hidden='true' />
       {label}
@@ -162,7 +180,7 @@ function PunchCard({
             className={`flex ${dot} items-center justify-center rounded-full ${
               on
                 ? 'bg-kiosk-accent text-kiosk-bg'
-                : 'border-2 border-dashed border-kiosk-line text-kiosk-placeholder'
+                : 'border-2 border-dashed border-kiosk-field text-kiosk-placeholder'
             }`}
           >
             {on ? (
@@ -472,7 +490,7 @@ export function FoundScreen({
               <button
                 type='button'
                 onClick={onDone}
-                className={`${outlineButton} min-h-16 justify-center px-9 text-xl text-kiosk-ink`}
+                className={cn(outlineButton, 'min-h-16 justify-center px-9 text-xl text-kiosk-ink')}
               >
                 No thanks, I&apos;m done
               </button>
@@ -687,14 +705,20 @@ export function SignupScreen({
           {/* One name, as check-in kiosks ask: the first word is what the kiosk greets them by. */}
           <div className='flex flex-col gap-2'>
             <label htmlFor='name' className='text-base font-bold'>
-              Your name <span className='text-kiosk-accent'>*</span>
+              Your name
             </label>
             <input
               id='name'
               name='name'
-              autoComplete='name'
+              // A shared iPad: no AutoFill bar offering the owner's contact, and no autocorrect
+              // "fixing" a name it doesn't know.
+              autoComplete='off'
+              autoCapitalize='words'
+              autoCorrect='off'
+              spellCheck={false}
+              enterKeyHint='next'
               autoFocus
-              maxLength={100}
+              maxLength={50}
               placeholder='What should we call you?'
               defaultValue={initial?.name}
               aria-invalid={error?.field === 'name' || undefined}
@@ -743,6 +767,8 @@ export function SignupScreen({
               <select
                 name='birthdayDay'
                 aria-label='Birthday day'
+                aria-invalid={(error?.field === 'birthday' && !bdayDay) || undefined}
+                aria-describedby={error?.field === 'birthday' ? 'birthday-error' : undefined}
                 value={bdayDay}
                 onChange={(e) => {
                   setBdayDay(e.target.value);
@@ -760,6 +786,8 @@ export function SignupScreen({
               <select
                 name='birthdayMonth'
                 aria-label='Birthday month'
+                aria-invalid={(error?.field === 'birthday' && !bdayMonth) || undefined}
+                aria-describedby={error?.field === 'birthday' ? 'birthday-error' : undefined}
                 value={bdayMonth}
                 onChange={(e) => {
                   const month = e.target.value;
@@ -779,7 +807,7 @@ export function SignupScreen({
               </select>
             </div>
             {error?.field === 'birthday' && (
-              <KioskError>{error.message}</KioskError>
+              <KioskError id='birthday-error'>{error.message}</KioskError>
             )}
           </fieldset>
         </div>
@@ -1107,6 +1135,7 @@ const PAYMENT_CHOICES: {
 export function PaymentScreen({
   reward,
   pending,
+  error,
   onPick,
   onBack,
   greeting,
@@ -1115,6 +1144,8 @@ export function PaymentScreen({
   /** The reward that gives more for cash, if any. */
   reward: KioskReward | null;
   pending: boolean;
+  /** The check-in didn't go through: Cash and Card stay up, so trying again is one tap. */
+  error?: string | null;
   onPick: (method: PaymentMethod) => void;
   onBack: () => void;
 }) {
@@ -1122,7 +1153,7 @@ export function PaymentScreen({
   return (
     <main className='mx-auto flex w-full max-w-[848px] flex-1 flex-col gap-10 px-5 pt-6 pb-10 text-kiosk-ink sm:px-10 sm:pt-8 lg:px-16 lg:pt-10 short:gap-7 lg:short:pt-6'>
       <div className='flex flex-col gap-3'>
-        <StepBack label={backLabel} onClick={onBack} />
+        <StepBack label={backLabel} onClick={onBack} disabled={pending} />
         {greeting && <Greeting>{greeting}</Greeting>}
         <h1 className='text-[34px] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-[44px] lg:text-[52px] lg:short:text-[44px]'>
           How are you paying today?
@@ -1183,6 +1214,7 @@ export function PaymentScreen({
           </button>
         ))}
       </div>
+      {error && <KioskError className='text-xl'>{error}</KioskError>}
     </main>
   );
 }
@@ -1311,7 +1343,7 @@ function RedeemList({
               <button
                 type='button'
                 onClick={() => setConfirming(o.key)}
-                className={`${primaryButton} min-h-14 rounded-2xl px-7 text-lg`}
+                className={cn(primaryButton, 'min-h-14 rounded-2xl px-7 text-lg')}
               >
                 Redeem
               </button>
@@ -1443,7 +1475,7 @@ export function SuccessScreen({
       <button
         type='button'
         onClick={onDone}
-        className={`${outlineButton} min-h-16 px-9 text-xl text-kiosk-ink`}
+        className={closeButton(canRedeem)}
       >
         {canRedeem ? "No thanks, I'm done" : 'Done'}
       </button>
@@ -1513,9 +1545,9 @@ export function AlreadyScreen({
       <button
         type='button'
         onClick={onDone}
-        className={`${canRedeem ? outlineButton : primaryButton} min-h-18 px-11 text-2xl`}
+        className={closeButton(canRedeem)}
       >
-        {canRedeem ? "No thanks, I'm done" : 'OK, got it'}
+        {canRedeem ? "No thanks, I'm done" : 'Done'}
       </button>
       {!canRedeem && (
         <p className='text-base text-kiosk-faint'>
@@ -1610,7 +1642,7 @@ export function RedeemedScreen({
       <button
         type='button'
         onClick={onDone}
-        className={`${outlineButton} min-h-16 px-9 text-xl text-kiosk-ink`}
+        className={closeButton(false)}
       >
         Done
       </button>
@@ -1618,17 +1650,15 @@ export function RedeemedScreen({
   );
 }
 
-export function ErrorScreen({
-  message,
-  onDone,
-}: {
-  message: string;
-  onDone: () => void;
-}) {
+/**
+ * Nobody is signed in on this iPad any more, so no step can work. Every other problem (no
+ * connection, a rejected answer) is shown on the step it happened on, which keeps what was typed.
+ */
+export function SignedOutScreen() {
   return (
     <Shell centered>
       <div className='flex size-32 items-center justify-center rounded-full bg-kiosk-surface'>
-        <WifiOff
+        <UserRound
           className='size-15 text-kiosk-muted'
           strokeWidth={2}
           aria-hidden='true'
@@ -1639,21 +1669,19 @@ export function ErrorScreen({
           className='text-[36px] leading-[1.08] font-extrabold tracking-[-0.03em] sm:text-[52px]'
           role='alert'
         >
-          Something went wrong
+          Ask a staff member to sign in
         </h1>
         <p className='text-lg leading-normal text-kiosk-muted sm:text-[22px]'>
-          {message} Please let the front desk know you&apos;re here. Your visit
-          can still be added from the admin page.
+          This screen has been signed out. Please let the front desk know
+          you&apos;re here.
         </p>
       </div>
-      <button
-        type='button'
-        onClick={onDone}
+      <Link
+        href='/admin/login?next=/kiosk'
         className={`${primaryButton} min-h-20 px-11 text-2xl`}
       >
-        <RotateCw className='size-6.5' strokeWidth={2.4} aria-hidden='true' />
-        Try again
-      </button>
+        Staff sign in
+      </Link>
     </Shell>
   );
 }

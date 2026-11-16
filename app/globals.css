@@ -57,6 +57,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
+  --color-placeholder: var(--placeholder);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
@@ -96,7 +97,9 @@
   --color-kiosk-ink: #f8f2e7;
   --color-kiosk-muted: #cbbfa9;
   --color-kiosk-faint: #a3957e;
-  --color-kiosk-placeholder: #90816a;
+  /* Placeholders and the keypad's empty digits: well below typed text, so an example never reads
+     as filled in (about 3.4:1 on the field). */
+  --color-kiosk-placeholder: #7a6d59;
   /* Edge of a field you type into: 3:1 against the page and the field (WCAG 1.4.11). */
   --color-kiosk-field: #726655;
   --color-kiosk-ready: #8fc8a7;
@@ -148,6 +151,9 @@
   --secondary-foreground: #2b241c;
   --muted: #f3ede1;
   --muted-foreground: #6e6253;
+  /* Placeholder text: clearly lighter than a typed value (#2b241c) and than hints (muted), so an
+     example isn't mistaken for something filled in. About 3:1 on white, like the field's edge. */
+  --placeholder: #988e7b;
   --accent: #f6edd6;
   --accent-foreground: #6b500d;
   --destructive: #a3242f;
@@ -238,6 +244,7 @@
   --secondary-foreground: #f8f2e7;
   --muted: #3b2f21;
   --muted-foreground: #cbbfa9;
+  --placeholder: #7a6d59;
   --accent: #3b2f21;
   --accent-foreground: #ecd48a;
   --destructive: var(--color-kiosk-error);

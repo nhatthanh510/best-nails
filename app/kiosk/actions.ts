@@ -35,11 +35,14 @@ export type KioskCustomer = {
   discountUsedToday: boolean;
 };
 
+/** `signedOut`: nobody is signed in on this device any more, so nothing works until staff sign in. */
+export type KioskFailure = { status: "error"; message: string; signedOut?: true };
+
 export type LookupResult =
   | { status: "found"; customer: KioskCustomer }
   | { status: "not_found"; formattedPhone: string; nonStandard: boolean }
   | { status: "invalid_phone"; message: string }
-  | { status: "error"; message: string };
+  | KioskFailure;
 
 export type CheckInResult =
   | {
@@ -61,7 +64,7 @@ export type CheckInResult =
       discountUsedToday: boolean;
     }
   | { status: "not_found" }
-  | { status: "error"; message: string };
+  | KioskFailure;
 
 export type RedeemTarget = { kind: "reward"; rewardId: string } | { kind: "birthday" };
 
@@ -75,7 +78,7 @@ export type RedeemResult =
       points: number;
       redeemedAt: string;
     }
-  | { status: "error"; message: string };
+  | KioskFailure;
 
 const SIGNED_OUT = "This screen has been signed out. Ask the front desk for help.";
 const BAD_PHONE = "Please enter at least 8 digits of your phone number.";
@@ -118,7 +121,7 @@ async function todayFor(customerId: string): Promise<{ checkedInAt: string | nul
 
 export async function lookupPhone(digits: string): Promise<LookupResult> {
   const g = await guard();
-  if ("error" in g) return { status: "error", message: g.error };
+  if ("error" in g) return { status: "error", message: g.error, signedOut: true };
 
   const normalized = normalizePhone(digits);
   if (!normalized) return { status: "invalid_phone", message: BAD_PHONE };
@@ -183,7 +186,7 @@ const picksSchema = z.object({
 
 export async function checkIn(digits: string, signup?: SignupInput, picks?: VisitPicks): Promise<CheckInResult> {
   const g = await guard();
-  if ("error" in g) return { status: "error", message: g.error };
+  if ("error" in g) return { status: "error", message: g.error, signedOut: true };
 
   const phone = normalizePhone(digits)?.e164;
   if (!phone) return { status: "error", message: BAD_PHONE };
@@ -271,7 +274,7 @@ const targetSchema = z.discriminatedUnion("kind", [
 /** Spends points on a reward, or uses the birthday discount. Only within 12 hours of a check-in. */
 export async function redeemAtKiosk(digits: string, target: RedeemTarget): Promise<RedeemResult> {
   const g = await guard();
-  if ("error" in g) return { status: "error", message: g.error };
+  if ("error" in g) return { status: "error", message: g.error, signedOut: true };
 
   const phone = normalizePhone(digits)?.e164;
   const parsedTarget = targetSchema.safeParse(target);

@@ -351,7 +351,7 @@ export async function customerTitle(id: string) {
 
 /**
  * A typed search as PostgREST filters on a customer: digits match the phone (a local "0412…"
- * matches the stored "61412…"), anything else the first or last name.
+ * matches the stored "61412…"), anything else the first or last name (a full name too).
  */
 function customerSearch(q: string): { phone?: string; name?: string } | null {
   // PostgREST's or() syntax treats these as separators, so drop them from user input.
@@ -361,7 +361,10 @@ function customerSearch(q: string): { phone?: string; name?: string } | null {
   if (digits.length >= 3 && digits.length === term.replace(/[\s\-+.()]/g, "").length) {
     return { phone: `%${digits.startsWith("0") ? `61${digits.slice(1)}` : digits}%` };
   }
-  return { name: `first_name.ilike.%${term}%,last_name.ilike.%${term}%` };
+  // Every word has to be in the first or the last name, so "Sarah Nguyen" (as the list shows it)
+  // and "Mary Anne Lee" are found, not only a single name.
+  const words = term.split(/\s+/).map((w) => `first_name.ilike.%${w}%,last_name.ilike.%${w}%`);
+  return { name: words.length === 1 ? words[0] : `and(${words.map((w) => `or(${w})`).join(",")})` };
 }
 
 export async function getCustomer(id: string) {
@@ -606,9 +609,9 @@ export async function giftCardCounts(): Promise<Record<GiftCardFilter, number>> 
   // The same conditions as the tabs in listGiftCards.
   const [all, active, usedUp, expired, inactive, blocked] = await Promise.all([
     count(),
-    count().gt("balance_cents", 0).gte("expires_on", today).is("blocked_at", null),
-    count().eq("balance_cents", 0).gte("expires_on", today).is("blocked_at", null),
-    count().lt("expires_on", today).is("blocked_at", null),
+    count().not("sold_on", "is", null).gt("balance_cents", 0).gte("expires_on", today).is("blocked_at", null),
+    count().not("sold_on", "is", null).eq("balance_cents", 0).gte("expires_on", today).is("blocked_at", null),
+    count().not("sold_on", "is", null).lt("expires_on", today).is("blocked_at", null),
     count().is("sold_on", null),
     count().not("blocked_at", "is", null),
   ]);
@@ -713,9 +716,10 @@ export async function listGiftCards({
   }
   if (batch) query = query.eq("batch_id", batch);
   // A blocked gift card is only under Blocked, as its status says.
-  if (filter === "active") query = query.gt("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
-  if (filter === "used_up") query = query.eq("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
-  if (filter === "expired") query = query.lt("expires_on", today).is("blocked_at", null);
+  // Sold ones only (a blank card has no expiry and $0 until it's activated).
+  if (filter === "active") query = query.not("sold_on", "is", null).gt("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
+  if (filter === "used_up") query = query.not("sold_on", "is", null).eq("balance_cents", 0).gte("expires_on", today).is("blocked_at", null);
+  if (filter === "expired") query = query.not("sold_on", "is", null).lt("expires_on", today).is("blocked_at", null);
   if (filter === "blocked") query = query.not("blocked_at", "is", null);
   // Printed ahead of time and not sold yet (no expiry until then).
   if (filter === "inactive") query = query.is("sold_on", null);

@@ -16,7 +16,7 @@ import {
   type DashboardPeriod,
   type NudgeCustomer,
 } from "@/lib/admin-data";
-import { formatMoney } from "@/lib/gift-cards";
+import { formatDollars } from "@/lib/gift-cards";
 import { FindGiftCardButton } from "@/components/admin/find-gift-card";
 import { tierFor } from "@/lib/tiers";
 import { formatPhone } from "@/lib/phone";
@@ -129,13 +129,13 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
           // The app says "created" (payment happens at the till). New credit (created, activated and
           // topped up) and credit used are different money, so each gets its own line.
           label="Gift card credit added"
-          value={formatMoney(giftCards.soldCents)}
+          value={formatDollars(giftCards.soldCents)}
           hint={
             <>
               <span className="block">{giftCards.sold} new gift card{giftCards.sold === 1 ? "" : "s"}</span>
               <span className="block">
                 {giftCards.used > 0
-                  ? `${formatMoney(giftCards.usedCents)} used from ${giftCards.used} gift card${giftCards.used === 1 ? "" : "s"}`
+                  ? `${formatDollars(giftCards.usedCents)} used from ${giftCards.used} gift card${giftCards.used === 1 ? "" : "s"}`
                   : `None used${period === "today" ? " yet" : ""}`}
               </span>
             </>

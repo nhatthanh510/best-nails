@@ -41,7 +41,7 @@ beforeEach(() => {
 describe("guard (KA-01)", () => {
   it("refuses every action on a signed-out device without touching the database", async () => {
     h.staff = null;
-    const signedOut = { status: "error", message: "This screen has been signed out. Ask the front desk for help." };
+    const signedOut = { status: "error", message: "This screen has been signed out. Ask the front desk for help.", signedOut: true };
     expect(await lookupPhone("0491570101")).toEqual(signedOut);
     expect(await checkIn("0491570101")).toEqual(signedOut);
     expect(await redeemAtKiosk("0491570101", { kind: "birthday" })).toEqual(signedOut);

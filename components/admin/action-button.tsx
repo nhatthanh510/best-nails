@@ -52,6 +52,7 @@ export function ConfirmButton({
   title,
   description,
   confirmLabel,
+  confirmVariant = "destructive",
   notice,
   children,
   ...props
@@ -60,6 +61,8 @@ export function ConfirmButton({
   title: string;
   description: string;
   confirmLabel: string;
+  /** The confirm button is red by default; an action that isn't a deletion passes "default". */
+  confirmVariant?: "destructive" | "default";
   /** Something extra they should know first, e.g. what happens to a customer's gift cards. */
   notice?: React.ReactNode;
 }) {
@@ -86,7 +89,7 @@ export function ConfirmButton({
           </DialogClose>
           <Button
             size="lg"
-            variant="destructive"
+            variant={confirmVariant}
             pending={pending}
             onClick={() =>
               startTransition(async () => {
@@ -113,14 +116,17 @@ export function ConfirmButton({
  * `onSuccess` rather than calling it inside its action: closing there unmounts the form before
  * this effect runs, and the success toast is lost.
  */
-export function useActionToast(state: ActionState, { errors = true, onSuccess }: { errors?: boolean; onSuccess?: () => void } = {}) {
+export function useActionToast(
+  state: ActionState,
+  { errors = true, success = true, onSuccess }: { errors?: boolean; /** False when the form shows its own result screen. */ success?: boolean; onSuccess?: () => void } = {},
+) {
   // Callers pass inline closures; a ref keeps a new one each render from re-running the effect.
   const onSuccessRef = useRef(onSuccess);
   useEffect(() => {
     onSuccessRef.current = onSuccess;
   });
   useEffect(() => {
-    if (errors || state?.ok) report(state);
+    if (state?.ok ? success : errors) report(state);
     if (state?.ok) onSuccessRef.current?.();
-  }, [state, errors]);
+  }, [state, errors, success]);
 }

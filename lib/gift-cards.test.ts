@@ -4,6 +4,7 @@ import {
   formatMoney,
   GIFT_CARD_PROBLEMS,
   giftCardStatus,
+  minGiftCardExpiry,
   looksMistyped,
   normalizeGiftCode,
   parseDollars,
@@ -105,23 +106,34 @@ describe("looksMistyped (M-03)", () => {
   });
 });
 
+describe("minGiftCardExpiry", () => {
+  it("is 3 years from today in the shop's timezone", () => {
+    // 1 pm UTC on 16 Nov is already 17 Nov in Hobart.
+    expect(minGiftCardExpiry("Australia/Hobart", new Date("2026-11-16T13:30:00Z"))).toBe("2029-11-17");
+  });
+
+  it("turns 29 Feb into 28 Feb, as the database does", () => {
+    expect(minGiftCardExpiry("Australia/Hobart", new Date("2028-02-29T01:00:00Z"))).toBe("2031-02-28");
+  });
+});
+
 describe("giftCardStatus (M-04)", () => {
   it("is expired after the expiry date, used up at $0, otherwise active", () => {
-    expect(giftCardStatus({ balance_cents: 500, expires_on: "2026-10-23" }, "2026-10-24")).toBe("expired");
-    expect(giftCardStatus({ balance_cents: 0, expires_on: "2029-10-24" }, "2026-10-24")).toBe("used_up");
-    expect(giftCardStatus({ balance_cents: 500, expires_on: "2026-10-24" }, "2026-10-24")).toBe("active");
+    expect(giftCardStatus({ balance_cents: 500, sold_on: "2023-10-24", expires_on: "2026-10-23" }, "2026-10-24")).toBe("expired");
+    expect(giftCardStatus({ balance_cents: 0, sold_on: "2023-10-24", expires_on: "2029-10-24" }, "2026-10-24")).toBe("used_up");
+    expect(giftCardStatus({ balance_cents: 500, sold_on: "2023-10-24", expires_on: "2026-10-24" }, "2026-10-24")).toBe("active");
   });
 
   it("is blocked while an admin has blocked it, whatever its balance", () => {
-    expect(giftCardStatus({ balance_cents: 500, expires_on: "2029-10-24", blocked_at: "2026-10-24T01:00:00Z" }, "2026-10-24")).toBe("blocked");
+    expect(giftCardStatus({ balance_cents: 500, sold_on: "2023-10-24", expires_on: "2029-10-24", blocked_at: "2026-10-24T01:00:00Z" }, "2026-10-24")).toBe("blocked");
   });
 
   it("is inactive while printed and not sold (no expiry yet)", () => {
-    expect(giftCardStatus({ balance_cents: 0, expires_on: null }, "2026-10-24")).toBe("inactive");
+    expect(giftCardStatus({ balance_cents: 0, sold_on: null, expires_on: null }, "2026-10-24")).toBe("inactive");
   });
 
   it("calls a gift card expired even when it's also used up", () => {
-    expect(giftCardStatus({ balance_cents: 0, expires_on: "2026-10-23" }, "2026-10-24")).toBe("expired");
+    expect(giftCardStatus({ balance_cents: 0, sold_on: "2023-10-24", expires_on: "2026-10-23" }, "2026-10-24")).toBe("expired");
   });
 });
 

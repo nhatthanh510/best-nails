@@ -168,7 +168,8 @@ export async function deleteCustomer(id: string): Promise<ActionState> {
   const supabase = await createClient();
   const { error } = await supabase.from("customers").delete().eq("id", id);
   if (error) return dbError(error);
-  redirect("/admin/customers");
+  refresh();
+  return { ok: true, message: "Customer deleted.", href: "/admin/customers" };
 }
 
 // ---------------------------------------------------------------------------

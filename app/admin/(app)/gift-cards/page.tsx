@@ -24,7 +24,7 @@ import {
   type GiftCardListRow,
   type GiftCardSort,
 } from "@/lib/admin-data";
-import { formatMoney } from "@/lib/gift-cards";
+import { formatDollars, formatMoney } from "@/lib/gift-cards";
 import { formatDate, formatTime, fullName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "@/components/admin/copy-button";
@@ -58,6 +58,15 @@ const SORT_LABELS: Record<GiftCardSort, string> = {
   expiring: "Expiring soonest",
 };
 
+/** Where an empty tab's gift cards would come from. */
+const EMPTY_HINTS: Partial<Record<string, string>> = {
+  all: "Create one when a customer buys a gift card.",
+  active: "A gift card is here from when it's created until its balance is used.",
+  used_up: "A gift card moves here once its whole balance has been used. A top-up makes it active again.",
+  expired: "A gift card moves here after its expiry date, 3 years or more after it was last loaded.",
+  blocked: "A lost or stolen gift card shows here once it's blocked from its page.",
+};
+
 export default function GiftCardsPage({ searchParams }: PageProps<"/admin/gift-cards">) {
   return (
     <>
@@ -86,9 +95,9 @@ async function Summary() {
   return (
     <SummaryCard
       stats={[
-        { value: formatMoney(s.outstandingCents), label: "Unused credit", href: "/admin/gift-cards?filter=active" },
+        { value: formatDollars(s.outstandingCents), label: "Unused credit", href: "/admin/gift-cards?filter=active" },
         { value: s.activeCount.toLocaleString(), label: "Active gift cards", href: "/admin/gift-cards?filter=active" },
-        { value: formatMoney(s.soldThisMonthCents), label: `New this month (${s.soldThisMonth.toLocaleString()})` },
+        { value: formatDollars(s.soldThisMonthCents), label: `New this month (${s.soldThisMonth.toLocaleString()})` },
       ]}
     />
   );
@@ -151,7 +160,7 @@ async function GiftCardList({ params }: { params: Params }) {
       <ListPanel id="list" className="scroll-mt-4">
         {/* The search and sort sit above the rows, in one panel, so spare space under a short list
             reads as part of the list rather than an empty table. */}
-        <div className="flex shrink-0 items-center gap-2 border-b border-border p-3 md:gap-3 md:p-4">
+        <div className="flex shrink-0 items-center max-md:flex-wrap gap-2 border-b border-border p-3 md:gap-3 md:p-4">
           <SearchBox
             action="/admin/gift-cards"
             id="gv-q"
@@ -166,7 +175,7 @@ async function GiftCardList({ params }: { params: Params }) {
             {batchId && <input type="hidden" name="batch" value={batchId} />}
           </SearchBox>
           {/* For checking against the till at the end of the day; works with any tab. */}
-          <FilterSwitch label="Used today" checked={usedToday} href={href({ today: !usedToday })} className="hidden md:flex" />
+          <FilterSwitch label="Used today" checked={usedToday} href={href({ today: !usedToday })} className="max-md:order-last max-md:w-full" />
           <div className="ml-auto flex flex-none items-center gap-2.5">
             <span className="hidden text-sm font-semibold text-muted-foreground lg:inline">Sort by</span>
             <FilterSelect
@@ -232,9 +241,7 @@ async function GiftCardList({ params }: { params: Params }) {
                       ? "Gift cards used today show up here, to check against the till."
                       : filter === "inactive"
                         ? "Print some with Print blank cards, then activate one when it's sold."
-                        : filter === "all"
-                          ? "Create one when a customer buys a gift card."
-                          : undefined
+                        : EMPTY_HINTS[filter]
                 }
               >
                 {q ? `No gift cards match “${q}”` : usedToday ? "No gift cards used today" : filter === "inactive" ? "No blank cards waiting" : "No gift cards here"}
@@ -355,7 +362,7 @@ function GiftCardTableRow({
         </span>
       </td>
       <td className={`${td} hidden text-right whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell`}>
-        {v.loadedCents === null ? "–" : formatMoney(v.loadedCents)}
+        {v.loadedCents === null ? "–" : formatDollars(v.loadedCents)}
       </td>
       <td className={`${td} hidden whitespace-nowrap text-muted-foreground xl:table-cell`}>
         {v.expires_on ? formatDate(`${v.expires_on}T12:00:00Z`, "UTC", { day: "numeric", month: "short", year: "numeric" }) : "–"}

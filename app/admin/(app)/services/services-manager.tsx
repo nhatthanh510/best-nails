@@ -305,7 +305,7 @@ function ItemRow({
         type="button"
         {...handle}
         aria-label={`Reorder ${item.name}. Use the arrow keys to move it.`}
-        className="flex h-11 w-8 flex-none cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/45 hover:text-muted-foreground active:cursor-grabbing"
+        className="flex h-11 w-8 flex-none cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/75 hover:text-muted-foreground active:cursor-grabbing"
       >
         <GripVertical className="size-4" aria-hidden="true" />
       </button>

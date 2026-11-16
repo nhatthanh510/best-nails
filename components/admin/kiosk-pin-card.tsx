@@ -122,7 +122,7 @@ function PinForm({ onDone }: { onDone: () => void }) {
   const [pin, setPin] = useState("");
   const [show, setShow] = useState(false);
   const [state, action, pending] = useActionState(setKioskPin, null);
-  useActionToast(state, { onSuccess: onDone });
+  useActionToast(state, { errors: false, onSuccess: onDone });
   const valid = /^[0-9]{4,8}$/.test(pin);
 
   return (
@@ -157,6 +157,11 @@ function PinForm({ onDone }: { onDone: () => void }) {
           4 to 8 digits; 6 is harder to guess. After 5 wrong tries the kiosk waits a minute.
         </p>
       </div>
+      {state && !state.ok && (
+        <p role="alert" className="text-sm font-semibold text-destructive">
+          {state.message}
+        </p>
+      )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="lg" onClick={onDone}>
           Cancel

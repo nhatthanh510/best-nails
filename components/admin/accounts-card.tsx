@@ -258,12 +258,22 @@ function ConfirmModal({
   );
 }
 
+/** The action's error, in the dialog next to the fields (a toast fades before it's read). */
+function FormError({ state }: { state: ActionState }) {
+  if (!state || state.ok) return null;
+  return (
+    <p role="alert" className="text-sm font-semibold text-destructive">
+      {state.message}
+    </p>
+  );
+}
+
 /** Add an account, or edit one's name and role (not your own role). */
 function AccountForm({ account, isMe = false, onDone }: { account?: AccountRow; isMe?: boolean; onDone: () => void }) {
   const [state, formAction, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
     return account ? await updateAccount(account.id, prev, fd) : await createAccount(prev, fd);
   }, null);
-  useActionToast(state, { onSuccess: onDone });
+  useActionToast(state, { errors: false, onSuccess: onDone });
 
   const formSubmit = useFormSubmit(state, formAction);
   return (
@@ -289,6 +299,7 @@ function AccountForm({ account, isMe = false, onDone }: { account?: AccountRow; 
         </div>
       )}
       {!account && <PasswordField />}
+      <FormError state={state} />
       <Button type="submit" size="lg" pending={pending}>
         {account ? "Save" : "Add account"}
       </Button>
@@ -298,11 +309,12 @@ function AccountForm({ account, isMe = false, onDone }: { account?: AccountRow; 
 
 function ResetPasswordForm({ id, onDone }: { id: string; onDone: () => void }) {
   const [state, formAction, pending] = useActionState(resetAccountPassword.bind(null, id), null);
-  useActionToast(state, { onSuccess: onDone });
+  useActionToast(state, { errors: false, onSuccess: onDone });
   const formSubmit = useFormSubmit(state, formAction);
   return (
     <form {...formSubmit} className="flex flex-col gap-4">
       <PasswordField />
+      <FormError state={state} />
       <Button type="submit" size="lg" pending={pending}>
         Reset password
       </Button>

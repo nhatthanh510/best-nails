@@ -17,14 +17,14 @@ test.describe("Kiosk Staff menu: gift cards", () => {
     await dialog.getByLabel("Code").fill("qa 2000 0001");
     // The customer is already known, so the phone field isn't asked again.
     await expect(dialog.getByLabel(/Customer phone/)).toHaveCount(0);
-    await dialog.getByRole("button", { name: "Create $50.00 gift card" }).click();
+    await dialog.getByRole("button", { name: "Create $50 gift card" }).click();
 
     const created = dialog.getByRole("status");
     await expect(created).toContainText("Gift card QA20000001 created · print it, or write the code on a card");
     // The printable gift card, with the QR that opens its balance page.
     await expect(dialog.getByRole("img", { name: "QR code to check the balance" })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Print" })).toBeVisible();
-    await expect(dialog.getByText("$50.00 · take payment at the till")).toBeVisible();
+    await expect(dialog.getByText("$50 · take payment at the till")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Open gift card" })).toHaveCount(0);
 
     expect(await findGiftCard("QA20000001")).toMatchObject({ balance_cents: 5000, customer_id: customerId });
@@ -37,7 +37,7 @@ test.describe("Kiosk Staff menu: gift cards", () => {
     await kiosk.staff("Gift card");
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: /Create a gift card/ }).click();
-    await dialog.getByLabel("Other amount in dollars").fill("0.5");
+    await dialog.getByLabel("Other amount in whole dollars").fill("0");
     await dialog.getByLabel("Code").fill("QA20000002");
     await expect(dialog.getByText("At least $1.")).toBeVisible();
     await expect(dialog.getByRole("button", { name: /^Create/ })).toBeDisabled();
@@ -92,7 +92,8 @@ test.describe("Kiosk Staff menu: as a staff account", () => {
     await dialog.getByLabel("Today's service").fill("35");
     await expect(dialog.getByText("Leaves $65.00 on the gift card.")).toBeVisible();
     await dialog.getByRole("button", { name: "Use $35.00" }).click();
-    await expect(page.getByText("Used $35.00 from QA30000001. $65.00 left.")).toBeVisible();
+    await expect(dialog.getByText("Used $35.00 from QA30000001")).toBeVisible();
+    await expect(dialog.getByText("$65.00", { exact: true })).toBeVisible();
     expect(await findGiftCard("QA30000001")).toMatchObject({ balance_cents: 6500 });
   });
 

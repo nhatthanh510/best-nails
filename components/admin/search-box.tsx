@@ -38,11 +38,22 @@ export function SearchBox({
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const last = useRef(defaultValue.trim());
   const [pending, startTransition] = useTransition();
 
   useEffect(() => () => clearTimeout(timer.current), []);
+
+  // The search was changed some other way (the sidebar link back to the whole list, Back): show
+  // what the list is now filtered by, instead of the text typed before. Our own searches arrive
+  // here equal to `last`, so typing is never overwritten.
+  useEffect(() => {
+    const q = defaultValue.trim();
+    if (q === last.current) return;
+    last.current = q;
+    if (inputRef.current) inputRef.current.value = defaultValue;
+  }, [defaultValue]);
 
   function search() {
     clearTimeout(timer.current);
@@ -82,6 +93,7 @@ export function SearchBox({
         aria-hidden="true"
       />
       <input
+        ref={inputRef}
         id={id}
         name="q"
         type="search"

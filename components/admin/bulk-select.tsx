@@ -22,8 +22,16 @@ import { GIFT_CARD_FORMATS, isGiftCardFormat, type GiftCardFormat } from "@/lib/
 const boxes = (root: Element | null) => [...(root?.querySelectorAll<HTMLInputElement>("input[data-bulk]") ?? [])];
 const panelOf = (el: Element | null) => el?.closest("[data-list-panel]") ?? null;
 
+// The label is the touch target (44px): a tap just beside the small box still ticks it, instead of
+// landing on the row's link and leaving the page with the ticks lost.
+const hit = "-my-2 -ml-3 flex size-11 cursor-pointer items-center justify-center";
+
 export function BulkCheckbox({ id, label }: { id: string; label: string }) {
-  return <input type="checkbox" data-bulk value={id} aria-label={label} className="size-4.5 accent-primary" />;
+  return (
+    <label className={hit}>
+      <input type="checkbox" data-bulk value={id} aria-label={label} className="size-4.5 accent-primary" />
+    </label>
+  );
 }
 
 /** The header checkbox: all, none, or a dash when some are chosen. */
@@ -54,20 +62,22 @@ export function BulkSelectAll() {
   }, [state]);
 
   return (
-    <input
-      ref={ref}
-      type="checkbox"
-      aria-label="Choose all on this page"
-      checked={state === "all"}
-      disabled={state === "empty"}
-      onChange={(e) => {
-        const panel = panelOf(e.currentTarget);
-        const on = state !== "all";
-        for (const b of boxes(panel)) b.checked = on;
-        panel?.dispatchEvent(new Event("change"));
-      }}
-      className="size-4.5 accent-primary disabled:opacity-30"
-    />
+    <label className={hit}>
+      <input
+        ref={ref}
+        type="checkbox"
+        aria-label="Choose all on this page"
+        checked={state === "all"}
+        disabled={state === "empty"}
+        onChange={(e) => {
+          const panel = panelOf(e.currentTarget);
+          const on = state !== "all";
+          for (const b of boxes(panel)) b.checked = on;
+          panel?.dispatchEvent(new Event("change"));
+        }}
+        className="size-4.5 accent-primary disabled:opacity-30"
+      />
+    </label>
   );
 }
 
@@ -187,6 +197,9 @@ export function useGiftCardPrinting() {
       if (!result.ok) return void toast.error(result.message);
       flushSync(() => setCards(result.giftCards));
       if (sheet.current) await output(sheet.current);
+    } catch {
+      // The PDF libraries didn't load, or a card couldn't be drawn. The cards themselves are saved.
+      toast.error("Couldn't get the gift cards ready. Check the connection and try again.");
     } finally {
       setCards([]);
     }
