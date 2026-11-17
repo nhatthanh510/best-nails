@@ -21,8 +21,9 @@ begin
   if p_amount_cents is null or p_amount_cents < 100 or p_amount_cents > 500000 then
     raise exception 'a gift card must be between $1 and $5,000' using errcode = '22023';
   end if;
-  if p_expires_on is not null and p_expires_on < (v_today + interval '3 years')::date then
-    raise exception 'gift cards must be valid for at least 3 years' using errcode = '22023';
+  -- 3 years by default; any date from today is allowed (e.g. a card sold long before it's entered here).
+  if p_expires_on is not null and p_expires_on < v_today then
+    raise exception 'the expiry date cannot be in the past' using errcode = '22023';
   end if;
   if v_code is null then
     v_code := public._new_gift_card_code();

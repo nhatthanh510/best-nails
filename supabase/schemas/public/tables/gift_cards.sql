@@ -23,7 +23,7 @@ CREATE TABLE "public"."gift_cards" (
   CONSTRAINT "gift_cards_code_check" CHECK ((code ~ '^[A-Z0-9]{4,20}$'::text)),
   CONSTRAINT "gift_cards_code_key" UNIQUE (code),
   CONSTRAINT "gift_cards_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL,
-  CONSTRAINT "gift_cards_expiry_check" CHECK ((expires_on >= ((sold_on + '3 years'::interval))::date)),
+  CONSTRAINT "gift_cards_expiry_check" CHECK ((expires_on >= sold_on)),
   CONSTRAINT "gift_cards_inactive_check" CHECK ((((sold_on IS NULL) = (amount_cents IS NULL)) AND ((sold_on IS NULL) = (expires_on IS NULL)))),
   CONSTRAINT "gift_cards_notes_check" CHECK (((notes IS NULL) OR (length(notes) <= 500))),
   CONSTRAINT "gift_cards_pkey" PRIMARY KEY (id),
@@ -32,7 +32,7 @@ CREATE TABLE "public"."gift_cards" (
   CONSTRAINT "gift_cards_sold_by_fkey" FOREIGN KEY (sold_by) REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
-COMMENT ON TABLE "public"."gift_cards" IS 'Prepaid credit spent over several visits. balance_cents changes only through the gift card functions (guard_gift_card). No amount_cents, sold_on or expires_on means a Not sold blank card. public_token is the unguessable link behind the QR code. batch_id is the Print blank cards run it came from (null for one created on its own).';
+COMMENT ON TABLE "public"."gift_cards" IS 'Prepaid credit spent over several visits. balance_cents changes only through the gift card functions (guard_gift_card). No amount_cents, sold_on or expires_on means a Not sold blank card. public_token is the unguessable link behind the QR code. batch_id is the Print blank cards run it came from (null for one created on its own). expires_on defaults to 3 years after the sale and an admin can change it (e.g. a card sold long before it was entered here). An admin can delete one that was never used, or any blocked one.';
 
 ALTER TABLE "public"."gift_cards"
   ENABLE ROW LEVEL SECURITY;
@@ -58,7 +58,7 @@ CREATE POLICY "owner_delete_unspent_gift_cards" ON "public"."gift_cards"
   TO "authenticated"
   USING ((( SELECT public.is_owner() AS is_owner) AND (NOT (EXISTS ( SELECT 1
    FROM public.gift_card_transactions t
-  WHERE ((t.gift_card_id = gift_cards.id) AND (t.kind <> 'sale'::public.gift_card_entry)))))));
+  WHERE ((t.gift_card_id = gift_cards.id) AND (t.kind <> 'sale'::public.gift_card_entry)))) OR (blocked_at IS NOT NULL))));
 
 CREATE POLICY "staff_read_gift_cards" ON "public"."gift_cards"
   FOR SELECT

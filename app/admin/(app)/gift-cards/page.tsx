@@ -63,7 +63,7 @@ const EMPTY_HINTS: Partial<Record<string, string>> = {
   all: "Create one when a customer buys a gift card.",
   active: "A gift card is here from when it's created until its balance is used.",
   used_up: "A gift card moves here once its whole balance has been used. A top-up makes it active again.",
-  expired: "A gift card moves here after its expiry date, 3 years or more after it was last loaded.",
+  expired: "A gift card moves here after its expiry date.",
   blocked: "A lost or stolen gift card shows here once it's blocked from its page.",
 };
 
@@ -113,13 +113,17 @@ async function GiftCardLists({ searchParams }: { searchParams: PageProps<"/admin
 
 async function GiftCardList({ params }: { params: Params }) {
   const q = typeof params.q === "string" ? params.q.slice(0, 60) : "";
-  const filter = GIFT_CARD_FILTERS.includes(params.filter as GiftCardFilter) ? (params.filter as GiftCardFilter) : "all";
   // "Used today" isn't a status, so it's a toggle that works with any tab (older links said filter=used_today).
   const usedToday = params.today === "1" || params.filter === "used_today";
   const sort = GIFT_CARD_SORTS.includes(params.sort as GiftCardSort) ? (params.sort as GiftCardSort) : "newest";
   const page = Math.max(1, Number(params.page) || 1);
   // One print run's cards (a card's batch tag opens it).
   const batchId = typeof params.batch === "string" && UUID.test(params.batch) ? params.batch : "";
+  // The tab picked in the URL, if any. Without one the page opens on Active (the cards in use), but
+  // a search, Used today or a batch looks through every status, so a used-up card is still found.
+  const picked = GIFT_CARD_FILTERS.includes(params.filter as GiftCardFilter) ? (params.filter as GiftCardFilter) : undefined;
+  const defaultFilter = (s: { q: string; today: boolean; batch: string }): GiftCardFilter => (s.q || s.today || s.batch ? "all" : "active");
+  const filter = picked ?? defaultFilter({ q, today: usedToday, batch: batchId });
 
   const [{ giftCards, total, pastEnd }, settings, counts, batch] = await Promise.all([
     listGiftCards({ q, filter, usedToday, sort, page, batch: batchId || undefined }),
@@ -134,9 +138,9 @@ async function GiftCardList({ params }: { params: Params }) {
   // Every link keeps the tab, search, toggle, sort and batch; anything that changes the list goes back to page 1.
   const href = (next: Partial<{ q: string; filter: string; today: boolean; sort: GiftCardSort; page: number; batch: string }>) => {
     const sp = new URLSearchParams();
-    const merged = { q, filter, today: usedToday, sort, page: 1, batch: batchId, ...next };
+    const merged = { q, filter: picked as string | undefined, today: usedToday, sort, page: 1, batch: batchId, ...next };
     if (merged.q) sp.set("q", merged.q);
-    if (merged.filter !== "all") sp.set("filter", merged.filter);
+    if (merged.filter && merged.filter !== defaultFilter(merged)) sp.set("filter", merged.filter);
     if (merged.today) sp.set("today", "1");
     if (merged.sort !== "newest") sp.set("sort", merged.sort);
     if (merged.page > 1) sp.set("page", String(merged.page));
@@ -169,7 +173,7 @@ async function GiftCardList({ params }: { params: Params }) {
             defaultValue={q}
             className="min-w-0 flex-1 md:max-w-sm"
           >
-            {filter !== "all" && <input type="hidden" name="filter" value={filter} />}
+            {picked && <input type="hidden" name="filter" value={picked} />}
             {usedToday && <input type="hidden" name="today" value="1" />}
             {sort !== "newest" && <input type="hidden" name="sort" value={sort} />}
             {batchId && <input type="hidden" name="batch" value={batchId} />}

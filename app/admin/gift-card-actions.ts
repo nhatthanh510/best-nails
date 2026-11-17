@@ -18,7 +18,7 @@ function fail(message: string): ActionState {
 function dbError(error: PostgrestError): ActionState {
   if (error.code === "42501") return fail("You don't have permission to do that.");
   if (["22023", "P0002", "23514"].includes(error.code)) {
-    if (error.code === "23514") return fail("Gift cards must stay valid for at least 3 years from when they're created.");
+    if (error.code === "23514") return fail("The expiry date can't be before the day the gift card was created.");
     return fail(error.message.charAt(0).toUpperCase() + error.message.slice(1) + ".");
   }
   console.error(error);
@@ -428,7 +428,7 @@ export async function deleteGiftCards(ids: string[]): Promise<ActionState> {
   refresh();
   const deleted = data?.length ?? 0;
   const kept = valid.length - deleted;
-  if (!deleted) return fail(kept === 1 ? "This gift card has been used, so it can't be deleted." : "These gift cards have been used, so they can't be deleted.");
+  if (!deleted) return fail(kept === 1 ? "This gift card has been used, so it can't be deleted. Block it first, then delete it." : "These gift cards have been used, so they can't be deleted. Block them first.");
   return {
     ok: true,
     message: `Deleted ${deleted} gift card${deleted === 1 ? "" : "s"}.${kept ? ` ${kept} ${kept === 1 ? "has" : "have"} been used, so ${kept === 1 ? "it was" : "they were"} kept.` : ""}`,
@@ -442,6 +442,6 @@ export async function deleteGiftCard(id: string): Promise<ActionState> {
   // RLS only lets an admin delete a gift card nothing has been spent from.
   const { data, error } = await supabase.from("gift_cards").delete().eq("id", id).select("id");
   if (error) return dbError(error);
-  if (!data?.length) return fail("This gift card has been used, so it can't be deleted.");
+  if (!data?.length) return fail("This gift card has been used, so it can't be deleted. Block it first, then delete it.");
   return { ok: true, message: "Gift card deleted.", href: "/admin/gift-cards" };
 }

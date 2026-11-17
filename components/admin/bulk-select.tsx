@@ -165,7 +165,7 @@ export function BulkActions({ batch }: { batch?: string[] } = {}) {
             variant="danger"
             size="sm"
             title={`Delete ${ids.length} gift card${ids.length === 1 ? "" : "s"}?`}
-            description="For blank cards that are lost or misprinted, or gift cards created by mistake (refund those at the till). Any that have been used are kept. This can't be undone."
+            description="For blank cards that are lost or misprinted, or gift cards created by mistake (refund those at the till). Any that have been used are kept, unless they're blocked. This can't be undone."
             confirmLabel={`Delete ${ids.length}`}
             action={() => deleteGiftCards(ids)}
           >

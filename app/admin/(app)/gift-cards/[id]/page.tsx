@@ -44,12 +44,6 @@ const ENTRY_LABELS: Record<GiftCardTransaction["kind"], string> = {
 // Sale and expiry dates are calendar dates, so format them at noon UTC to stay on the right day.
 const day = (d: string) => formatDate(`${d}T12:00:00Z`, "UTC", { day: "numeric", month: "short", year: "numeric" });
 
-/** The legal minimum expiry: 3 years after the sale (29 Feb becomes 28 Feb, as in Postgres). */
-function threeYearsAfter(d: string) {
-  const [y, m, dd] = d.split("-");
-  return `${Number(y) + 3}-${m}-${m === "02" && dd === "29" ? "28" : dd}`;
-}
-
 export default function GiftCardPage({ params }: PageProps<"/admin/gift-cards/[id]">) {
   return (
     <>
@@ -275,7 +269,7 @@ async function GiftCardDetail({ params }: { params: PageProps<"/admin/gift-cards
             phone={v.customer?.phone ?? null}
             notes={v.notes}
             expiresOn={expiresOn}
-            minExpiry={threeYearsAfter(soldOn)}
+            minExpiry={soldOn}
             isAdmin={isAdmin}
           />
         </Fold>
@@ -295,14 +289,20 @@ async function GiftCardDetail({ params }: { params: PageProps<"/admin/gift-cards
               </Section>
             )}
             <Section divided title="Delete gift card">
-              {everUsed ? (
-                <p className="text-[13px] text-muted-foreground">It has been used, so it can&apos;t be deleted. To fix its balance, use Correct balance.</p>
+              {everUsed && !v.blocked_at ? (
+                <p className="text-[13px] text-muted-foreground">
+                  It has been used, so block it first: a blocked gift card can be deleted. To fix its balance, use Correct balance.
+                </p>
               ) : (
                 <ConfirmButton
                   variant="danger"
                   className="w-full"
                   title={`Delete ${v.code}?`}
-                  description="Only for a gift card created by mistake. Refund the customer at the till. This can't be undone."
+                  description={
+                    everUsed
+                      ? `This gift card has been used. Deleting it removes it and its history for good${v.balance_cents > 0 ? `, with the ${formatMoney(v.balance_cents)} still on it` : ""}. This can't be undone.`
+                      : "Only for a gift card created by mistake. Refund the customer at the till. This can't be undone."
+                  }
                   confirmLabel="Delete gift card"
                   action={deleteGiftCard.bind(null, v.id)}
                 >
@@ -332,7 +332,7 @@ function NotSoldGiftCard({ giftCard: v, printedBy, tz, isAdmin }: { giftCard: Gi
           </div>
           <p className="text-sm text-muted-foreground">
             A blank card printed {formatDate(v.created_at, tz, { day: "numeric", month: "short", year: "numeric" })} by {printedBy}. It has no balance
-            until a customer buys it: activate it with the amount they pay and its expiry, at least 3 years from that day. The QR code on the card then
+            until a customer buys it: activate it with the amount they pay and its expiry (3 years from that day unless you change it). The QR code on the card then
             shows the balance.
           </p>
           <SellGiftCardButton code={v.code} className="w-full" />

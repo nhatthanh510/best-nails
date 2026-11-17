@@ -4,7 +4,7 @@ import {
   formatMoney,
   GIFT_CARD_PROBLEMS,
   giftCardStatus,
-  minGiftCardExpiry,
+  defaultGiftCardExpiry,
   looksMistyped,
   normalizeGiftCode,
   parseDollars,
@@ -106,14 +106,14 @@ describe("looksMistyped (M-03)", () => {
   });
 });
 
-describe("minGiftCardExpiry", () => {
+describe("defaultGiftCardExpiry", () => {
   it("is 3 years from today in the shop's timezone", () => {
     // 1 pm UTC on 16 Nov is already 17 Nov in Hobart.
-    expect(minGiftCardExpiry("Australia/Hobart", new Date("2026-11-16T13:30:00Z"))).toBe("2029-11-17");
+    expect(defaultGiftCardExpiry("Australia/Hobart", new Date("2026-11-16T13:30:00Z"))).toBe("2029-11-17");
   });
 
   it("turns 29 Feb into 28 Feb, as the database does", () => {
-    expect(minGiftCardExpiry("Australia/Hobart", new Date("2028-02-29T01:00:00Z"))).toBe("2031-02-28");
+    expect(defaultGiftCardExpiry("Australia/Hobart", new Date("2028-02-29T01:00:00Z"))).toBe("2031-02-28");
   });
 });
 
