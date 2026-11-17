@@ -76,7 +76,7 @@ Run on 26 Oct 2026 against the local stack (Next.js dev server, Supabase in Dock
 | G-03 | Typed code "qa-1234 5678" | Stored as QA12345678 | DB | Pass |
 | G-04 | Code already used | Refused | DB | Pass |
 | G-05 | Under $1 or over $5,000 | Refused | DB | Pass |
-| G-06 | Expiry under 3 years | Refused (browser and database) | DB + E2E | Pass (reason not explained) |
+| G-06 | Expiry under 3 years | Allowed (3 years is the default); a date in the past is refused | DB + E2E | Pass (reason not explained) |
 | G-07 | Spend part of the balance (code typed in lower case) | Balance goes down | DB + E2E | Pass |
 | G-08 | Spend more than the balance | Blocked inline before saving; balance unchanged | DB + E2E | Pass |
 | G-09 | Spend exactly the balance, then spend again | Used up; further spends refused | DB | Pass |

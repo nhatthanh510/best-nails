@@ -26,7 +26,7 @@ import {
   type SellState,
 } from "@/app/admin/gift-card-actions";
 import type { ActionState } from "@/app/admin/actions";
-import { formatDollars, formatMoney, GIFT_CARD_PRESETS, minGiftCardExpiry, parseDollars } from "@/lib/gift-cards";
+import { formatDollars, formatMoney, GIFT_CARD_PRESETS, defaultGiftCardExpiry, parseDollars, shopToday } from "@/lib/gift-cards";
 import { formatPhoneInput } from "@/lib/phone-mask";
 import { cn } from "@/lib/utils";
 import { GiftCardStatusPill } from "@/components/admin/gift-card-status";
@@ -166,8 +166,8 @@ function AmountPicker({ amount, onChange, legend = "Amount" }: { amount: string;
 }
 
 /**
- * The expiry to create gift cards with: 3 years from today by default (the legal minimum), and
- * any later date. `name` posts it as YYYY-MM-DD.
+ * The expiry to create gift cards with: 3 years from today by default, and any date from today
+ * (earlier than 3 years is for a card sold long before it's entered here). `name` posts it as YYYY-MM-DD.
  */
 export function GiftCardExpiryField({
   id,
@@ -175,7 +175,7 @@ export function GiftCardExpiryField({
   onChange,
   name,
   label = "Valid until",
-  hint = "At least 3 years from today, as Australian law requires.",
+  hint = "3 years from today unless you change it, e.g. for a card sold earlier.",
   autoFocus,
 }: {
   autoFocus?: boolean;
@@ -186,7 +186,7 @@ export function GiftCardExpiryField({
   label?: string;
   hint?: React.ReactNode;
 }) {
-  const min = minGiftCardExpiry();
+  const min = shopToday();
   const tooSoon = value !== "" && value < min;
   return (
     <div className="flex flex-col gap-2">
@@ -205,7 +205,7 @@ export function GiftCardExpiryField({
         className="w-full sm:w-56"
       />
       <p id={`${id}-hint`} className={cn("text-[13px]", tooSoon ? "font-semibold text-destructive" : "text-muted-foreground")}>
-        {tooSoon ? "Pick a date at least 3 years from today." : hint}
+        {tooSoon ? "Pick today or a later date." : hint}
       </p>
     </div>
   );
@@ -242,8 +242,8 @@ export function SellGiftCardForm({
   const router = useRouter();
   const [amount, setAmount] = useState("100");
   // Set here, also when activating a blank card (printed without an expiry): 3 years by default.
-  const [expiresOn, setExpiresOn] = useState(() => minGiftCardExpiry());
-  const expiryOk = expiresOn !== "" && expiresOn >= minGiftCardExpiry();
+  const [expiresOn, setExpiresOn] = useState(() => defaultGiftCardExpiry());
+  const expiryOk = expiresOn !== "" && expiresOn >= shopToday();
   const [code, setCode] = useState(defaultCode);
   const [codeError, setCodeError] = useState<string | null>(null);
   // Notes are rare, so they open on demand and the form fits an iPad screen without scrolling.
@@ -723,7 +723,7 @@ export function GiftCardSettingsForm({
   phone: string | null;
   notes: string | null;
   expiresOn: string;
-  /** 3 years after the sale: the earliest legal expiry. */
+  /** The day it was created or activated: the expiry can't be before it. */
   minExpiry: string;
   isAdmin: boolean;
 }) {
@@ -749,7 +749,7 @@ export function GiftCardSettingsForm({
           <>
             <Input id="gv-expiry" name="expires_on" type="date" min={minExpiry} defaultValue={expiresOn} aria-describedby="gv-expiry-hint" />
             <p id="gv-expiry-hint" className="text-[13px] text-muted-foreground">
-              At least 3 years after it was created or activated (Australian Consumer Law): {dateLabel(minExpiry)} or later.
+              3 years after it was created or activated unless you change it, e.g. for a card sold earlier.
             </p>
           </>
         ) : (

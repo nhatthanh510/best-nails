@@ -96,9 +96,9 @@ describe("sellGiftCard (GA-01)", () => {
     expect(await sell({})).toEqual({ ok: false, message: "The code QA12345678 is already used." });
   });
 
-  it("explains the 3-year minimum", async () => {
+  it("explains an expiry before the sale", async () => {
     h.db.next.rpc = { data: null, error: { code: "23514", message: "check constraint" } };
-    expect(await sell({})).toEqual({ ok: false, message: "Gift cards must stay valid for at least 3 years from when they're created." });
+    expect(await sell({})).toEqual({ ok: false, message: "The expiry date can't be before the day the gift card was created." });
   });
 });
 
@@ -187,7 +187,7 @@ describe("adjustGiftCard (GA-03)", () => {
 describe("deleteGiftCard (GA-04)", () => {
   it("can't delete a gift card that has been used (RLS returns no row)", async () => {
     h.db.next.query = { data: [], error: null };
-    expect(await actions.deleteGiftCard("v1")).toEqual({ ok: false, message: "This gift card has been used, so it can't be deleted." });
+    expect(await actions.deleteGiftCard("v1")).toEqual({ ok: false, message: "This gift card has been used, so it can't be deleted. Block it first, then delete it." });
   });
 
   it("deletes an unspent gift card and goes back to the list", async () => {

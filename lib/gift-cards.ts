@@ -35,12 +35,18 @@ export function parseDollars(input: string): number | null {
   return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
 }
 
+/** Today in the shop's timezone, as YYYY-MM-DD: the earliest expiry a form accepts. */
+export function shopToday(timeZone = "Australia/Hobart", now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
 /**
- * The earliest expiry a gift card created today may have: 3 years from today in the shop's
- * timezone (Australian Consumer Law), as YYYY-MM-DD. A 29 Feb today gives 28 Feb, as Postgres does.
- * It's the forms' default and minimum; the database checks it again with the shop's own timezone.
+ * The expiry a gift card created today gets unless another is picked: 3 years from today in the
+ * shop's timezone (what Australian Consumer Law asks of a card sold today), as YYYY-MM-DD. A 29 Feb
+ * today gives 28 Feb, as Postgres does. It's only the forms' default: an admin can pick an earlier
+ * date, e.g. for a card sold long before it was entered here.
  */
-export function minGiftCardExpiry(timeZone = "Australia/Hobart", now = new Date()) {
+export function defaultGiftCardExpiry(timeZone = "Australia/Hobart", now = new Date()) {
   const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now).split("-");
   return `${Number(y) + 3}-${m}-${m === "02" && d === "29" ? "28" : d}`;
 }

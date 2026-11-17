@@ -1,6 +1,6 @@
 -- Run with: npx supabase test db
 begin;
-select plan(75);
+select plan(79);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-4000-8000-0000000000b1', 'gift-staff@example.test'),
@@ -34,7 +34,8 @@ select is(
 select is((public.sell_gift_card(5000, 'tq 0099-01'))->>'code', 'TQ009901', 'a printed number is normalised and kept');
 select throws_ok($$ select public.sell_gift_card(5000, 'TQ009901') $$, '22023', null, 'a code can only be sold once');
 select throws_ok($$ select public.sell_gift_card(50) $$, '22023', null, 'amounts under $1 are rejected');
-select throws_ok($$ select public.sell_gift_card(5000, null, null, null, current_date + 365) $$, '22023', null, 'expiry under 3 years is rejected');
+select lives_ok($$ select public.sell_gift_card(5000, 'TQSHORT1', null, null, public._shop_today() + 365) $$, 'an expiry under 3 years is allowed (a card sold earlier)');
+select throws_ok($$ select public.sell_gift_card(5000, null, null, null, public._shop_today() - 1) $$, '22023', null, 'an expiry in the past is rejected');
 select matches((select public_token from public.gift_cards where code = (select v->>'code' from r where k = 'sold')), '^[A-Za-z0-9_-]{22}$',
   'every gift card gets a 22-character QR token');
 select throws_ok(
@@ -165,6 +166,17 @@ select ok(exists (select 1 from public.gift_cards where code = (select v->>'code
 delete from public.gift_cards where code = 'TQ009901';
 select ok(not exists (select 1 from public.gift_cards where code = 'TQ009901'),
   'an unspent gift card sold by mistake can be deleted by an admin');
+-- A used gift card can be deleted once it's blocked
+select public.sell_gift_card(5000, 'TQDELETE1');
+select public.spend_gift_card('TQDELETE1', 1000);
+delete from public.gift_cards where code = 'TQDELETE1';
+select ok(exists (select 1 from public.gift_cards where code = 'TQDELETE1'), 'a used gift card is kept while it is not blocked');
+select public.block_gift_card((select id from public.gift_cards where code = 'TQDELETE1'), 'Entered by mistake');
+delete from public.gift_cards where code = 'TQDELETE1';
+select ok(not exists (select 1 from public.gift_cards where code = 'TQDELETE1'), 'and can be deleted once it is blocked');
+-- The expiry can be moved in from the default 3 years, but not before the sale
+update public.gift_cards set expires_on = sold_on + 30 where code = 'TQSHORT1';
+select is((select expires_on - sold_on from public.gift_cards where code = 'TQSHORT1'), 30, 'an admin can set an expiry under 3 years');
 
 -- Not staff ------------------------------------------------------------------------------
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-4000-8000-0000000000b3","role":"authenticated"}', true);

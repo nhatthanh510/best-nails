@@ -277,7 +277,7 @@ test.describe("Admin: managing a gift card", () => {
 
     await page.goto(`/admin/gift-cards/${id}`);
     await openFold(page, "Admin tools");
-    await expect(page.getByText("It has been used, so it can't be deleted.")).toBeVisible();
+    await expect(page.getByText("It has been used, so block it first")).toBeVisible();
     await expect(page.getByRole("button", { name: "Delete gift card" })).toHaveCount(0);
   });
 

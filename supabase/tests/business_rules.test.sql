@@ -95,7 +95,7 @@ select is((select v->>'code' from r where k = 'v2'), 'QA12345678', 'G-03 a typed
 select throws_ok($$ select sell_gift_card(5000, 'QA12345678') $$, '22023', null, 'G-04 a code that is already used is refused');
 select throws_ok($$ select sell_gift_card(50) $$, '22023', null, 'G-05 under $1 is refused');
 select throws_ok($$ select sell_gift_card(500100) $$, '22023', null, 'G-05 over $5,000 is refused');
-select throws_ok(format($$ select sell_gift_card(5000, null, null, null, %L::date) $$, (select today + 365 from d)), '22023', null, 'G-06 an expiry under 3 years is refused (Australian Consumer Law)');
+select throws_ok(format($$ select sell_gift_card(5000, null, null, null, %L::date) $$, (select today - 1 from d)), '22023', null, 'G-06 an expiry in the past is refused (3 years is the default, not a minimum)');
 select is((spend_gift_card('qa12345678', 1500))->>'balance_cents', '3500', 'G-07 spending $15 of $50 leaves $35 (code typed in lower case)');
 select is((spend_gift_card('QA12345678', 4000))->>'status', 'over_balance', 'G-08 spending more than the balance is refused...');
 select is((select balance_cents from gift_cards where code = 'QA12345678'), 3500, 'G-08 ...and the balance is unchanged');
