@@ -46,4 +46,12 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /blob-report/
-/.claude
+# Local Claude Code files, except the shared onboarding-video skill
+/.claude/*
+!/.claude/skills/
+/.claude/skills/*
+!/.claude/skills/onboarding-video/
+
+# Onboarding videos: narration cache and rendered videos (shared outside git; the scripts rebuild them)
+/scripts/onboarding-videos/.cache/
+/docs/onboarding-videos/
